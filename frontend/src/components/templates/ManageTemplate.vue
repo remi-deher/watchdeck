@@ -6,7 +6,8 @@
             filtrent (« Tous » d'abord, chacune avec son nombre) ;
          2. le tableau de contrôle (ControlTable) : actions groupées sur la sélection,
             actions d'une ligne (deux visibles, le reste dans « … »), confirmation quand
-            l'action en demande une, ouverture de la fiche au clic.
+            l'action en demande une, ouverture de la fiche au clic, actions sur toute la liste
+            quand rien n'est coché, chargement par paquets au défilement.
        La page fournit `rows`, `columns`, `bulkActions`, `rowActions`, le contenu des
        cellules (emplacements `cell-<clé>`) et réagit à `action` et `open`. Les retours
        (réussite, échec) passent par `useToast`, jamais par un bandeau dans la page. -->
@@ -29,10 +30,14 @@
       :loading="loading"
       :labels="labels"
       :bulk-actions="bulkActions"
+      :global-actions="globalActions"
       :row-actions="rowActions"
       :openable="openable"
+      :has-more="hasMore"
+      :loading-more="loadingMore"
       @action="(key, targets) => emit('action', key, targets)"
       @open="emit('open', $event)"
+      @load-more="emit('load-more')"
     >
       <template v-for="name in Object.keys($slots)" :key="name" #[name]="scope"><slot :name="name" v-bind="scope || {}" /></template>
     </ControlTable>
@@ -68,15 +73,21 @@ const props = withDefaults(defineProps<{
   /** Éléments au total, avant filtre : le nombre de « Tous ». */
   total?: number;
   bulkActions?: ControlAction<T>[];
+  /** Actions sur toute la liste, quand rien n'est coché (`action(clé, [])`). */
+  globalActions?: ControlAction<T>[];
+  hasMore?: boolean;
+  loadingMore?: boolean;
   rowActions?: ((row: T) => ControlAction<T>[]) | null;
   openable?: boolean;
 }>(), {
   rowLabel: undefined, rowClass: undefined, loading: false, labels: () => ({}),
-  situations: () => [], total: undefined, bulkActions: () => [], rowActions: null, openable: false,
+  situations: () => [], total: undefined, bulkActions: () => [], globalActions: () => [],
+  hasMore: false, loadingMore: false, rowActions: null, openable: false,
 });
 const emit = defineEmits<{
   action: [key: string, rows: T[]];
   open: [row: T];
+  'load-more': [];
 }>();
 /** Situation retenue ; vide pour « Tous ». */
 const situation = defineModel<string>('situation', { default: '' });

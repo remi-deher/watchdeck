@@ -568,3 +568,31 @@ describe('ManageTemplate', () => {
     expect(wrapper.emitted('open')[0]).toEqual([people[0]]);
   });
 });
+
+describe('UnderstandTemplate : aperçu et bloc complémentaire', () => {
+  const event = { key: 'e1', at: '2026-10-09T10:00:00Z', outcome: 'success', title: 'Dune' };
+  const base = { events: [event], openKey: 'e1' };
+
+  it('rend l’aperçu d’un message dans le détail, isolé dans un cadre', () => {
+    const wrapper = mount(UnderstandTemplate, {
+      props: { ...base, detail: { title: 'Dune', outcome: 'success', preview: { html: '<p>Bonjour</p>', label: 'Aperçu email' } } },
+      global,
+    });
+    const frame = wrapper.find('.understand-detail__preview iframe');
+    expect(frame.attributes('srcdoc')).toBe('<p>Bonjour</p>');
+    expect(frame.attributes('sandbox')).toBe('allow-same-origin');
+  });
+
+  it('dit que l’aperçu charge, ou pourquoi il manque', () => {
+    const chargement = mount(UnderstandTemplate, { props: { ...base, detail: { title: 'Dune', outcome: 'success', preview: { loading: true } } }, global });
+    expect(chargement.find('.understand-detail__preview').text()).toContain('Chargement');
+    const absent = mount(UnderstandTemplate, { props: { ...base, detail: { title: 'Dune', outcome: 'success', preview: { note: 'Aperçu indisponible.' } } }, global });
+    expect(absent.find('.understand-detail__preview').text()).toContain('Aperçu indisponible.');
+    expect(absent.find('iframe').exists()).toBe(false);
+  });
+
+  it('place le bloc complémentaire sous la chronologie', () => {
+    const wrapper = mount(UnderstandTemplate, { props: { events: [event] }, slots: { after: '<p class="extra">Suivi</p>' }, global });
+    expect(wrapper.find('.understand__main .extra').exists()).toBe(true);
+  });
+});

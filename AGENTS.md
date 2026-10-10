@@ -37,14 +37,14 @@ Les gabarits vivent dans `frontend/src/components/templates/` :
 | `MonitorTemplate.vue` (+ `monitor/`) | Surveiller : verdict, indicateurs, attention, parties de la section | Disponible |
 | `TrackTemplate.vue` (+ `track/`) | Suivre : résumé des états (filtre), groupes bloqués / en cours / en pause (cartes), file d'attente compacte et repliable, derniers terminés | Disponible |
 | `HandleTemplate.vue` (+ `handle/`) | Traiter : types de problème (filtre, corrigeable / à décider), action groupée, liste par urgence avec affiche selon le contexte | Disponible |
-| `ManageTemplate.vue` | Gérer : situations (filtre, « Tous » d'abord), `ControlTable` (actions groupées, actions de ligne, confirmation, ouverture) ; la page fournit `rows`, `columns`, `bulkActions`, `rowActions`, les cellules (`cell-<clé>`), réagit à `action` / `open` | Disponible |
+| `ManageTemplate.vue` | Gérer : situations (filtre, « Tous » d'abord), `ControlTable` (actions groupées, actions de ligne, actions sur toute la liste `globalActions` quand rien n'est coché, confirmation, ouverture, chargement par paquets) ; la page fournit `rows`, `columns`, `bulkActions`, `rowActions`, les cellules (`cell-<clé>`), réagit à `action` / `open` / `load-more` | Disponible |
 | `BrowseTemplate.vue` | Parcourir : bannière (MediaHeroBanner), rangées `posters` (MediaPosterCollection en rail, carte de la page), `section`, `collapsible` chargée à l'ouverture | Disponible |
 | `AnalyzeTemplate.vue` (+ `analyze/`) | Analyser : période, `MetricCard` avec évolution (`better` dit le bon sens), pistes, liste ouverte (`drill`), blocs (`BreakdownPanel`, `LineChart`, `PopularMediaPanel`, `ActivityHeatmap`) | Disponible |
 | `CreateTemplate.vue` (+ `create/`) | Créer : piloté par une **définition** (données) ; les champs sont rendus par les composants communs selon leur type | Disponible |
 | `ChooseTemplate.vue` (+ `choose/`) | Choisir : contexte, mode, tri, « Relancer la recherche », « Masquer les rejets » (décoché), recommandation, candidats, retour après choix | Disponible |
 | `PlanTemplate.vue` (+ `plan/`) | Anticiper : le calendrier de production devenu commun ; la page charge la période (`update:cursor`, `periodBounds`), fournit ses états (libellé, couleur) et, au besoin, une carte d'Agenda (`agenda-item`) | Disponible |
 | `ExploreTemplate.vue` (+ `explore/`) | Explorer : compteur et filtres actifs, grille / liste, défilement continu ; tri et affichage dans la feuille (ExploreDisplay) | Disponible |
-| `UnderstandTemplate.vue` (+ `understand/`) | Comprendre : période et résultat, bilan facultatif, export, chronologie par jour, détail en feuille | Disponible |
+| `UnderstandTemplate.vue` (+ `understand/`) | Comprendre : période et résultat, bilan facultatif, export, chronologie par jour, détail en feuille (cause, avant / après, étapes, aperçu d'un message), emplacement `after` pour un bloc de lecture complémentaire | Disponible |
 | `ConfigureTemplate.vue` (+ `configure/`) | Configurer : sections par intention avec sommaire, enregistrement global (Enregistrer / Annuler, confirmation avant de quitter), blocs `ConfigureField`, `ConfigureTest`, `ResourceList` | Disponible |
 | `DetailTemplate.vue` (+ `detail/`) | Fiche : en-tête (état en badges, action principale + deux secondaires, reste dans « … »), une seule alerte d'état, onglets de détail, faits | Disponible |
 
@@ -66,6 +66,11 @@ des **définitions** (données, avec leurs textes de confirmation) rangées à c
 (`components/users/userDefinitions.ts`), les données et les actions dans un composable
 (`useUserAccounts`) qui décode les clés d'action. La page n'écrit ni barre d'actions, ni menu,
 ni confirmation, ni `UiFeedback` : réussites et échecs passent par `useToast`.
+
+Une page qui mêle une liste sur laquelle on agit et un journal de ce qui s'est passé se
+découpe : la liste suit Gérer, le journal Comprendre (Notifications : file d'attente et journal
+des envois). Un état global qui se suspend (envoi automatique, pause) est une barre de commande
+(`part="state"` en retour de la capsule, `part="hold"` / `"pause"` en action), pas un bandeau.
 
 Tableaux : `UiDataTable` lit (tri, sélection, cartes sur téléphone) ; `ControlTable` y ajoute
 l'action (actions groupées par `BulkActionBar`, actions de ligne — deux visibles, le reste dans

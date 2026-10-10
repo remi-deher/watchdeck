@@ -131,4 +131,32 @@ describe('ControlTable', () => {
     await wrapper.setProps({ rows: rows.slice(0, 1) });
     expect(wrapper.find('.bulk-bar').text()).toContain('1 ');
   });
+
+  it('montre les actions sur toute la liste quand rien n’est coché, avec une liste vide', async () => {
+    const globalActions = [{ key: 'all:delete', label: 'Tout supprimer', tone: 'danger', confirm: (targets) => ({ title: `Tout supprimer (${targets.length}) ?`, confirmLabel: 'Supprimer', danger: true }) }];
+    const wrapper = factory({ globalActions });
+    const bar = wrapper.find('.control-table__global');
+    expect(bar.text()).toContain('Tout supprimer');
+    await selectAll(wrapper);
+    expect(wrapper.find('.control-table__global').exists()).toBe(false);
+    await wrapper.find('thead [role="checkbox"]').trigger('click');
+    await nextTick();
+    await wrapper.find('.control-table__global button').trigger('click');
+    await nextTick();
+    expect(document.body.textContent).toContain('Tout supprimer (0) ?');
+    [...document.body.querySelectorAll('.confirm-modal button')].find((node) => node.textContent.trim() === 'Supprimer').click();
+    await vi.waitFor(() => expect(wrapper.emitted('action')?.[0]).toEqual(['all:delete', []]));
+  });
+
+  it('n’affiche pas de cases à cocher sans action groupée', () => {
+    const wrapper = factory({ bulkActions: [] });
+    expect(wrapper.find('thead [role="checkbox"]').exists()).toBe(false);
+  });
+
+  it('demande la suite de la liste au défilement', () => {
+    const wrapper = factory({ hasMore: true });
+    expect(wrapper.find('.infinite-scroll-trigger').exists()).toBe(true);
+    const sans = factory({ hasMore: false });
+    expect(sans.find('.infinite-scroll-trigger').exists()).toBe(false);
+  });
 });
