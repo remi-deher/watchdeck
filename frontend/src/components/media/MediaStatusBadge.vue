@@ -6,10 +6,38 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { mediaAvailabilityBadge, type AvailabilityLike } from '@/utils/mediaAvailability';
 
-const props = defineProps<{ item: AvailabilityLike }>();
-const status = computed(() => mediaAvailabilityBadge(props.item));
+const props = defineProps<{
+  item: any;
+}>();
+
+const status = computed(() => {
+  const item = props.item;
+  if (!item) return null;
+  const rawStatus = item.request_status || item.status;
+  if (item.in_library || item.library_id || item.available || rawStatus === 'available') {
+    return { label: 'Dans Plex', variant: 'in-plex' };
+  }
+  if (rawStatus === 'partially_available') {
+    return { label: 'Partiellement disponible', variant: 'partial' };
+  }
+  if (item.is_downloading || rawStatus === 'downloading') {
+    return { label: 'En téléchargement', variant: 'downloading' };
+  }
+  if (rawStatus === 'pending_approval') {
+    return { label: 'À approuver', variant: 'partial' };
+  }
+  if (rawStatus === 'failed') {
+    return { label: 'Échec', variant: 'error' };
+  }
+  if (rawStatus === 'sent_to_arr') {
+    return { label: 'Transmise', variant: 'sent' };
+  }
+  if (item.requested || item.request_id || rawStatus) {
+    return { label: 'Demandé', variant: 'requested' };
+  }
+  return null;
+});
 </script>
 
 <style scoped lang="scss">
