@@ -1,5 +1,23 @@
 // Généré par python -m scripts.generate_availability_types ; ne pas modifier.
 
+export interface ServiceHealth {
+  key: string;
+  state: "operational" | "configured" | "warning" | "unreachable" | "disabled" | "not_configured" | "unknown";
+  label: string;
+  reason: string | null;
+}
+
+export interface HealthServiceRecord {
+  health: ServiceHealth;
+  [key: string]: unknown;
+}
+
+export interface HealthResponse {
+  status: "healthy" | "degraded" | "down";
+  checked_at: string;
+  services: Record<string, HealthServiceRecord>;
+}
+
 export interface WorkProgress {
   percent: number | null;
   scope: "step" | "download" | "copy";

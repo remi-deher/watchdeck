@@ -8,17 +8,10 @@
         <h2>Santé des services</h2>
         <p>{{ updatedLabel }}</p>
       </div>
-      <span class="service-health-verdict" :class="`is-${verdict.tone}`">
+      <span v-if="counts.error || counts.warn" class="service-health-verdict" :class="`is-${verdict.tone}`">
         <component :is="verdict.icon" aria-hidden="true" />{{ verdict.label }}
       </span>
-      <UiButton
-        variant="ghost"
-        size="sm"
-        icon-only
-        aria-label="Vérifier à nouveau"
-        :loading="healthQuery.isFetching.value"
-        @click="refresh"
-      ><RefreshCw :size="16" /></UiButton>
+
     </header>
 
     <div class="service-health-meter" role="img" :aria-label="meterLabel">
@@ -60,12 +53,12 @@
 </template>
 
 <script setup lang="ts">
+import { serviceTone as toneOf } from '@/composables/healthPresentation';
 import { formatUptime, formatCheckedAgo } from '@/utils/format';
 import { computed, ref, watch } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useIntervalFn } from '@vueuse/core';
-import { AlertTriangle, CheckCircle2, ChevronDown, CircleHelp, Compass, Mail, RefreshCw, Rss, Search, Server, Tv, Video, XCircle } from '@lucide/vue';
-import UiButton from '@/components/ui/UiButton.vue';
+import { AlertTriangle, CheckCircle2, ChevronDown, CircleHelp, Compass, Mail, Rss, Search, Server, Tv, Video, XCircle } from '@lucide/vue';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
 import { formatRelativeDate, parseApiDate } from '@/utils/format';
@@ -73,6 +66,7 @@ import { formatRelativeDate, parseApiDate } from '@/utils/format';
 type Tone = 'ok' | 'warn' | 'error' | 'off' | 'loading';
 interface ServiceIssue { level: 'warning' | 'error'; message: string }
 interface ServiceInfo {
+  health?: import("@/types/generated/mediaAvailability").ServiceHealth;
   ok?: boolean | null; state?: string; message?: string; response_ms?: number | null; action_url?: string; action_label?: string;
   /* Details facultatifs, lus sur le service lui-meme (voir service_health_details.py). */
   version?: string; instance_name?: string; started_at?: string; platform?: string; instances?: number;
@@ -111,13 +105,8 @@ const health = computed(() => healthQuery.data.value || null);
 const now = ref(new Date());
 useIntervalFn(() => { now.value = new Date(); }, 30_000);
 
-function toneOf(info: ServiceInfo | undefined): Tone {
-  if (!info?.state) return 'loading';
-  if (info.state === 'ok') return info.issues?.length ? 'warn' : 'ok';
-  if (info.state === 'error') return 'error';
-  return 'off';
-}
 function statusOf(info: ServiceInfo | undefined, tone: Tone): string {
+  if (info?.health) return info.health.reason || info.health.label;
   if (tone === 'loading') return 'Vérification…';
   if (tone === 'error') return info?.message && info.message !== 'OK' ? info.message : 'Injoignable';
   if (tone === 'off') return info?.state === 'disabled' ? 'Désactivé' : 'Non configuré';
@@ -225,9 +214,6 @@ const updatedLabel = computed(() => {
   return formatCheckedAgo(checkedAt, now.value);
 });
 
-function refresh() {
-  void queryClient.invalidateQueries({ queryKey: ['health'] });
-}
 
 watch(() => healthQuery.data.value, (data) => {
   if (!data) return;
@@ -235,8 +221,7 @@ watch(() => healthQuery.data.value, (data) => {
 });
 
 useRealtime(['health.updated'], (_type, detail: any) => {
-  if (detail && detail.services) queryClient.setQueryData(['health'], detail);
-  else void queryClient.invalidateQueries({ queryKey: ['health'] });
+  void queryClient.invalidateQueries({ queryKey: ['health'] });
 });
 </script>
 
