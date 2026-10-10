@@ -9,6 +9,7 @@ import DetailTemplate from './DetailTemplate.vue';
 import ConfigureTest from './configure/ConfigureTest.vue';
 import ExploreTemplate from './ExploreTemplate.vue';
 import HandleTemplate from './HandleTemplate.vue';
+import ManageTemplate from './ManageTemplate.vue';
 import ResourceList from './configure/ResourceList.vue';
 import TrackTemplate from './TrackTemplate.vue';
 import UnderstandTemplate from './UnderstandTemplate.vue';
@@ -521,5 +522,77 @@ describe('AnalyzeTemplate', () => {
     });
     expect(wrapper.find('.analyze__drill .rows').exists()).toBe(true);
     expect(wrapper.findAll('.analyze__drill footer a').map((a) => a.text())).toEqual(['Ouvrir dans Explorer', 'Traiter']);
+  });
+});
+
+describe('ManageTemplate', () => {
+  const people = [{ id: 1, name: 'Alice' }, { id: 2, name: 'Bruno' }];
+  const base = { rows: people, columns: [{ key: 'name', label: 'Nom' }], rowKey: (row) => row.id, rowLabel: (row) => row.name, label: 'Comptes' };
+
+  it('met les situations au-dessus du tableau, « Tous » d’abord avec le total', () => {
+    const wrapper = mount(ManageTemplate, {
+      props: { ...base, total: 8, situations: [{ value: 'pending', label: 'Approbations', count: 3 }] },
+      global,
+    });
+    const order = [...wrapper.find('.manage').element.children].map((node) => [...node.classList][0]);
+    expect(order).toEqual(['ui-segmented-list', 'control-table']);
+    expect(wrapper.findAll('.ui-segmented-item').map((node) => node.text())).toEqual(['Tous8', 'Approbations3']);
+  });
+
+  it('range la situation choisie dans le modèle, et le vide pour « Tous »', async () => {
+    const wrapper = mount(ManageTemplate, {
+      props: { ...base, situations: [{ value: 'pending', label: 'Approbations', count: 3 }], situation: '', 'onUpdate:situation': (value) => wrapper.setProps({ situation: value }) },
+      global,
+    });
+    await wrapper.findAll('.ui-segmented-item')[1].trigger('click');
+    expect(wrapper.props('situation')).toBe('pending');
+    await wrapper.findAll('.ui-segmented-item')[0].trigger('click');
+    expect(wrapper.props('situation')).toBe('');
+  });
+
+  it('n’affiche aucune rangée de situations quand la page n’en a pas', () => {
+    const wrapper = mount(ManageTemplate, { props: base, global });
+    expect(wrapper.find('.ui-segmented-list').exists()).toBe(false);
+  });
+
+  it('remonte l’action et l’ouverture, et transmet les cellules de la page', async () => {
+    const wrapper = mount(ManageTemplate, {
+      props: { ...base, openable: true, rowActions: () => [{ key: 'toggle', label: 'Désactiver', icon: 'span' }] },
+      slots: { 'cell-name': '<template #cell-name="{ row }"><b class="who">{{ row.name }}</b></template>' },
+      global,
+    });
+    expect(wrapper.findAll('.who').map((node) => node.text())).toEqual(['Alice', 'Bruno']);
+    await wrapper.find('tbody tr button[aria-label="Désactiver Bruno"]').trigger('click');
+    expect(wrapper.emitted('action')[0]).toEqual(['toggle', [people[1]]]);
+    await wrapper.find('tbody tr').trigger('click');
+    expect(wrapper.emitted('open')[0]).toEqual([people[0]]);
+  });
+});
+
+describe('UnderstandTemplate : aperçu et bloc complémentaire', () => {
+  const event = { key: 'e1', at: '2026-10-09T10:00:00Z', outcome: 'success', title: 'Dune' };
+  const base = { events: [event], openKey: 'e1' };
+
+  it('rend l’aperçu d’un message dans le détail, isolé dans un cadre', () => {
+    const wrapper = mount(UnderstandTemplate, {
+      props: { ...base, detail: { title: 'Dune', outcome: 'success', preview: { html: '<p>Bonjour</p>', label: 'Aperçu email' } } },
+      global,
+    });
+    const frame = wrapper.find('.understand-detail__preview iframe');
+    expect(frame.attributes('srcdoc')).toBe('<p>Bonjour</p>');
+    expect(frame.attributes('sandbox')).toBe('allow-same-origin');
+  });
+
+  it('dit que l’aperçu charge, ou pourquoi il manque', () => {
+    const chargement = mount(UnderstandTemplate, { props: { ...base, detail: { title: 'Dune', outcome: 'success', preview: { loading: true } } }, global });
+    expect(chargement.find('.understand-detail__preview').text()).toContain('Chargement');
+    const absent = mount(UnderstandTemplate, { props: { ...base, detail: { title: 'Dune', outcome: 'success', preview: { note: 'Aperçu indisponible.' } } }, global });
+    expect(absent.find('.understand-detail__preview').text()).toContain('Aperçu indisponible.');
+    expect(absent.find('iframe').exists()).toBe(false);
+  });
+
+  it('place le bloc complémentaire sous la chronologie', () => {
+    const wrapper = mount(UnderstandTemplate, { props: { events: [event] }, slots: { after: '<p class="extra">Suivi</p>' }, global });
+    expect(wrapper.find('.understand__main .extra').exists()).toBe(true);
   });
 });

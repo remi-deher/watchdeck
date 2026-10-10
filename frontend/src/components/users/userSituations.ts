@@ -3,7 +3,7 @@
  * « 2 sans email » alors que les lignes en montrent trois. */
 
 export interface SituationUser {
-  enabled?: boolean;
+  enabled?: boolean | null;
   notification_email?: string | null;
   plex_email?: string | null;
   notify_admin?: boolean;

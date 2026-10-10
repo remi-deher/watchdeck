@@ -255,9 +255,11 @@ function pipelineSections(): NavSection[] {
   // « Elements manquants » vit dans les Demandes (onglet admin) : ce n'est pas un etat
   // de telechargement mais le complement des demandes -- ce qui devrait etre la.
   return [
-    { key: 'overview', label: 'Vue d’ensemble', to: { path: '/downloads', query: { view: 'overview' } }, icon: Gauge },
-    { key: 'queue', label: 'File d’attente', to: { path: '/downloads', query: { view: 'queue' } }, icon: ListOrdered },
-    { key: 'clients', label: 'Clients', to: { path: '/downloads', query: { view: 'clients', sub: 'instances' } }, icon: Download },
+    // La section tient à `view` seul : `sub` choisit une vue de la section (Torrents,
+    // Synthèse…), pas une autre section.
+    { key: 'overview', label: 'Vue d’ensemble', to: { path: '/downloads', query: { view: 'overview' } }, icon: Gauge, active: (route) => route.path === '/downloads' && !['queue', 'clients'].includes(String(route.query.view)) },
+    { key: 'queue', label: 'File d’attente', to: { path: '/downloads', query: { view: 'queue' } }, icon: ListOrdered, active: (route) => route.path === '/downloads' && route.query.view === 'queue' },
+    { key: 'clients', label: 'Clients', to: { path: '/downloads', query: { view: 'clients', sub: 'instances' } }, icon: Download, active: (route) => route.path === '/downloads' && route.query.view === 'clients' },
   ];
 }
 

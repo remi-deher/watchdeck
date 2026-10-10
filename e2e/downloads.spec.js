@@ -90,15 +90,17 @@ test("le tableau des torrents filtre, affiche les debits et ouvre l'inspecteur",
   // depasse parfois les 5 s par defaut.
   await expect(table).toContainText("Alpha.2024.1080p", { timeout: 15_000 });
   await expect(table).toContainText("Bravo.S01");
-  await expect(page.locator(".global-speed-bar")).toContainText("2 Ko/s");
-  await expect(page.locator(".global-speed-bar")).toContainText("Connecté");
+  // Les debits et la connexion sont en retour de la capsule de la barre du haut.
+  const debits = page.getByRole("region", { name: "Débits des clients torrent" });
+  await expect(debits).toContainText("2 Ko/s");
+  await expect(debits).toContainText("Connecté");
 
   // La recherche comprend les operateurs.
   await page.getByRole("searchbox").first().fill("cat:series");
   await expect(table).not.toContainText("Alpha.2024.1080p");
   await expect(table).toContainText("Bravo.S01");
 
-  await page.getByRole("button", { name: "Bravo.S01" }).click();
+  await page.getByRole("button", { name: "Bravo.S01", exact: true }).click();
   // La fiche du torrent s'ouvre dans la feuille, a sa propre adresse.
   await expect(page).toHaveURL(/\/downloads\/torrent\/7\/bbb$/);
   const drawer = page.getByRole("dialog");

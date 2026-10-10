@@ -74,4 +74,23 @@ describe('UiDataTable', () => {
     const vide = monter({ rows: [] }, { empty: () => 'Rien ici.' });
     expect(vide.find('.ui-data-table__empty').text()).toBe('Rien ici.');
   });
+
+  it('Maj / Ctrl-clic sélectionne une ligne cliquable au lieu de l’ouvrir ; un clic simple l’ouvre', async () => {
+    const w = monter({ selectable: true, clickable: true });
+    await w.findAll('tbody tr')[0].trigger('click', { ctrlKey: true });
+    expect(w.emitted('row-click')).toBeUndefined();
+    expect(w.emitted('update:selection').at(-1)[0]).toEqual([1]);
+    await w.findAll('tbody tr')[2].trigger('click', { shiftKey: true });
+    expect(w.emitted('update:selection').at(-1)[0]).toEqual([1, 2, 3]);
+    await w.findAll('tbody tr')[1].trigger('click');
+    expect(w.emitted('row-click')).toHaveLength(1);
+  });
+
+  it('un clic sur un bouton de la ligne n’est jamais une sélection', async () => {
+    const w = monter({ selectable: true, clickable: true }, { 'cell-title': () => h('button', { class: 'dans-la-ligne' }, 'Ouvrir') });
+    await w.find('button.dans-la-ligne').trigger('click', { ctrlKey: true });
+    expect(w.emitted('row-click')).toHaveLength(1);
+    expect(w.emitted('update:selection')).toBeUndefined();
+  });
 });
+

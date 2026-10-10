@@ -35,7 +35,7 @@ import { config, enableAutoUnmount } from "@vue/test-utils";
    test suivant avec ses ecouteurs sur `window`, ses minuteurs et ses ecritures dans le
    stockage local : un composant d'un test precedent pouvait reecrire une preference
    apres le nettoyage du suivant. C'etait la cause des echecs intermittents, plus
-   frequents sous charge, de TorrentClientsTable.spec.js notamment. */
+   frequents sous charge, des specs de tableaux notamment. */
 enableAutoUnmount(afterEach);
 /* Le bouchon par defaut (`teleport: true`) rend une balise vide pour les portails de
    Reka UI : leurs dialogues disparaissaient des tests. Celui-ci rend le contenu sur place. */

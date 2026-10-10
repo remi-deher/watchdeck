@@ -68,8 +68,8 @@
             :class="[rowClass?.(row.original), { 'is-selected': row.getIsSelected(), 'is-clickable': clickable }]"
             :tabindex="clickable ? 0 : undefined"
             :aria-expanded="rowExpanded?.(row.original)"
-            @click="$emit('row-click', row.original, Number(index), $event)"
-            @keydown.enter="$emit('row-click', row.original, Number(index), $event)"
+            @click="onRowClick(row.original, Number(index), $event)"
+            @keydown.enter="onRowClick(row.original, Number(index), $event)"
             @contextmenu="$emit('row-contextmenu', row.original, Number(index), $event)"
           >
             <td v-if="selectable" class="card-select ui-data-table__select" @click.stop>
@@ -292,6 +292,18 @@ function choisir(index: number, event: MouseEvent): void {
   dernierIndex.value = index;
 }
 watch(() => props.rows, () => { dernierIndex.value = null; });
+
+/* Une ligne cliquable ET selectionnable : Maj etend la selection, Ctrl (ou Cmd) bascule la
+   ligne, comme dans un gestionnaire de fichiers ; un clic simple reste un clic de ligne. Un
+   clic sur un bouton, un lien ou un champ de la ligne n'est jamais une selection. */
+function onRowClick(row: T, index: number, event: MouseEvent | KeyboardEvent): void {
+  const modifie = event.shiftKey || event.ctrlKey || event.metaKey;
+  if (props.selectable && props.clickable && modifie && !(event.target as HTMLElement | null)?.closest('button, input, a, [role="checkbox"]')) {
+    choisir(index, event as MouseEvent);
+    return;
+  }
+  emit('row-click', row, index, event);
+}
 
 function ariaSort(key: string): 'ascending' | 'descending' | 'none' | undefined {
   if (colonne(key)?.sortable !== true) return undefined;
