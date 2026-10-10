@@ -453,7 +453,7 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
     .drawer-backdrop:has(> .filter-sheet),
     .drawer-backdrop--filter-sheet,
     .modal-panel.filter-sheet {
-      bottom: calc(var(--app-shell-offset-bottom) + 8px + var(--app-topbar-h));
+      bottom: var(--filter-anchor-bottom, calc(var(--app-shell-offset-bottom) + 8px + var(--app-topbar-h)));
     }
     /* Meme largeur que la barre, aux memes gouttieres : pleine largeur, le panneau
        depassait de dix pixels de chaque cote et les deux ne pouvaient plus se lire comme

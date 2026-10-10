@@ -1,46 +1,46 @@
 <template>
   <div class="ui-search-field" :class="`is-${kind}`">
-    <!-- L'icone dit la nature du geste avant meme la premiere frappe : une loupe
-         interroge un corpus, un entonnoir retranche d'une liste deja affichee. -->
-    <component :is="kind === 'filter' ? Funnel : Search" aria-hidden="true" class="ui-search-field__icon" />
-    <!-- `enterkeyhint` : le clavier logiciel annonce « Rechercher » plutot qu'un retour
-         a la ligne. Il n'y a pas de ligne suivante ici, la touche valide la recherche.
-         Pose avant `$attrs` pour qu'un appelant puisse encore l'infirmer. -->
-    <input
-      class="ui-search-field__input"
-      :value="query"
-      type="search"
-      enterkeyhint="search"
-      :placeholder="placeholder"
-      :aria-label="ariaLabel || placeholder"
-      v-bind="$attrs"
-      @input="onInput"
-    >
-    <!-- Un filtre sans compteur laisse croire que la liste est complete : c'est le
-         seul moyen de savoir qu'on regarde un sous-ensemble. -->
-    <span v-if="countLabel" class="ui-search-field__matches" aria-live="polite">{{ countLabel }}</span>
-    <button
-      v-if="query"
-      type="button"
-      class="ui-search-field__clear"
-      aria-label="Effacer la recherche"
-      @click="clear"
-    >
-      <X aria-hidden="true" />
-    </button>
-    <!-- Outils de la page (etat d'un service, pause…), a gauche de « Filtres » : largeur
-         bornee, ce qui deborde defile, la recherche ne bouge jamais. -->
-    <div v-if="$slots.tools" class="ui-search-field__tools"><slot name="tools" /></div>
-    <!-- Le segment de droite : l'action du contexte (pause, ajouter…) si la page en donne
-         une, sinon « Filtres » si elle filtre, sinon rien. -->
-    <div v-if="$slots.action" class="ui-search-field__action"><slot name="action" /></div>
-    <template v-else-if="hasFilters">
+    <div class="ui-search-field__search">
+      <!-- L'icone dit la nature du geste avant meme la premiere frappe : une loupe
+           interroge un corpus, un entonnoir retranche d'une liste deja affichee. -->
+      <component :is="kind === 'filter' ? Funnel : Search" aria-hidden="true" class="ui-search-field__icon" />
+      <!-- `enterkeyhint` : le clavier logiciel annonce « Rechercher » plutot qu'un retour
+           a la ligne. Il n'y a pas de ligne suivante ici, la touche valide la recherche.
+           Pose avant `$attrs` pour qu'un appelant puisse encore l'infirmer. -->
+      <input
+        class="ui-search-field__input"
+        :value="query"
+        type="search"
+        enterkeyhint="search"
+        :placeholder="placeholder"
+        :aria-label="ariaLabel || placeholder"
+        v-bind="$attrs"
+        @input="onInput"
+      >
+      <!-- Un filtre sans compteur laisse croire que la liste est complete : c'est le
+           seul moyen de savoir qu'on regarde un sous-ensemble. -->
+      <span v-if="countLabel" class="ui-search-field__matches" aria-live="polite">{{ countLabel }}</span>
+      <button
+        v-if="query"
+        type="button"
+        class="ui-search-field__clear"
+        aria-label="Effacer la recherche"
+        @click="clear"
+      >
+        <X aria-hidden="true" />
+      </button>
+      <button v-if="moreResults" type="button" class="ui-search-field__more" @pointerdown.prevent @click="$emit('more')">Afficher plus</button>
+    </div>
+    <!-- Le contexte fournit les outils et l'action dans une même zone facultative. -->
+    <div v-if="$slots.tools || $slots.action" class="ui-search-field__action"><slot name="tools" /><slot name="action" /></div>
+    <template v-if="hasFilters">
       <button
         type="button"
         class="ui-search-field__filter"
         :class="{ active: filtersOpen || activeCount > 0 }"
         :aria-expanded="filtersOpen"
         :aria-label="filtersOpen ? 'Masquer les filtres' : 'Afficher les filtres'"
+        @pointerdown.prevent
         @click="$emit('toggle-filters')"
       >
         <SlidersHorizontal aria-hidden="true" /><span>Filtres</span>
@@ -73,6 +73,7 @@ const props = withDefaults(
     kind?: PageSearchKind;
     matchCount?: number | null;
     totalCount?: number | null;
+    moreResults?: boolean;
   }>(),
   {
     query: '',
@@ -84,6 +85,7 @@ const props = withDefaults(
     kind: 'search',
     matchCount: null,
     totalCount: null,
+    moreResults: false,
   }
 );
 
@@ -107,6 +109,7 @@ const emit = defineEmits<{
   (e: 'update:query', value: string): void;
   (e: 'search', event: Event): void;
   (e: 'toggle-filters'): void;
+  (e: 'more'): void;
 }>();
 
 function clear(): void {
@@ -126,11 +129,11 @@ function onInput(event: Event): void {
   display: flex;
   flex: 1;
   align-items: center;
-  gap: var(--space-2);
+  gap: 0;
   min-width: 0;
   max-width: 480px;
   height: 40px;
-  padding: 0 12px;
+  padding: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
@@ -141,6 +144,8 @@ function onInput(event: Event): void {
    bouton et le contour -- huit pixels a droite, un en haut et en bas. */
 .ui-search-field:has(.ui-search-field__filter),
 .ui-search-field:has(.ui-search-field__action) { padding-right: 0; }
+.ui-search-field__search { display: flex; flex: 1 1 auto; align-items: center; gap: var(--space-2); min-width: 0; padding: 0 12px; }
+.ui-search-field__more { flex: none; border: 0; padding: 8px 4px; background: transparent; color: var(--accent); font-size: var(--fs-xs); white-space: nowrap; cursor: pointer; }
 .ui-search-field__icon { flex: none; width: 16px; height: 16px; color: var(--muted); }
 .ui-search-field input {
   flex: 1;
@@ -201,25 +206,6 @@ function onInput(event: Event): void {
   .ui-search-field input::placeholder { color: color-mix(in srgb, var(--text) 62%, transparent); }
 }
 
-.ui-search-field__tools {
-  display: flex;
-  flex: 0 1 auto;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-  max-width: 55%;
-  height: 100%;
-  padding: 0 10px;
-  border-left: 1px solid var(--border);
-  overflow-x: auto;
-  scrollbar-width: none;
-  white-space: nowrap;
-}
-.ui-search-field__tools::-webkit-scrollbar { display: none; }
-/* Variante compacte d'un selecteur dans la capsule : sans cadre ni fond, le choix actif
-   en pastille. */
-.ui-search-field__tools :deep(.ui-segmented-list) { padding: 0; border: 0; background: transparent; }
-.ui-search-field__tools :deep(.ui-segmented-item) { min-height: 28px; padding: 0 10px; }
 .ui-search-field__filter {
   display: inline-flex;
   flex: none;
@@ -235,7 +221,7 @@ function onInput(event: Event): void {
   /* Le rayon suit celui de la capsule, moins l'epaisseur du contour : a rayon egal, le
      coin du bouton depassait de la courbe et laissait apparaitre un croissant de fond. */
   border-radius: 0 calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0;
-  background: transparent;
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface-2));
   color: var(--muted);
   font-size: var(--fs-sm);
   white-space: nowrap;
@@ -244,9 +230,12 @@ function onInput(event: Event): void {
 .ui-search-field__filter:hover { color: var(--text); }
 /* Segment d'action : meme couture et meme coin que « Filtres » ; le bouton fourni par la
    page y perd son cadre pour faire corps avec la capsule. */
-.ui-search-field__action { display: flex; flex: none; align-items: stretch; height: 100%; border-left: 1px solid var(--border); border-radius: 0 calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0; overflow: hidden; }
-.ui-search-field__action :deep(button) { height: 100%; min-height: 0; padding: 0 12px; border: 0; border-radius: 0; background: transparent; box-shadow: none; font-size: var(--fs-sm); }
-.ui-search-field__action :deep(button:hover) { background: rgb(var(--ink) / .05); }
+.ui-search-field__action { display: flex; gap: var(--space-2); flex: 0 1 auto; min-width: 0; max-width: 50%; overflow-x: auto; align-items: center; padding: 0 10px; height: 100%; border-left: 1px solid var(--border); border-radius: 0 calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0; white-space: nowrap; scrollbar-width: none; }
+.ui-search-field__action :deep(.ui-button),
+.ui-search-field__action :deep(> button) { height: auto; min-height: 0; padding: 0 12px; border: 0; border-radius: 0; background: transparent; box-shadow: none; font-size: var(--fs-sm); }
+.ui-search-field__action :deep(> button) { height: 100%; }
+.ui-search-field__action :deep(.ui-button:hover),
+.ui-search-field__action :deep(> button:hover) { background: rgb(var(--ink) / .05); }
 .ui-search-field__filter.active { color: var(--accent); }
 .ui-search-field__filter svg { width: 15px; height: 15px; }
 .ui-search-field__count {
@@ -260,5 +249,16 @@ function onInput(event: Event): void {
   color: var(--on-accent);
   font-size: var(--fs-xs);
   font-weight: 700;
+}
+.ui-search-field:has(.ui-search-field__filter) .ui-search-field__action { border-radius: 0; }
+.ui-search-field__action :deep(.ui-segmented-list) { padding: 0; border: 0; background: transparent; }
+.ui-search-field__action :deep(.ui-segmented-item) { min-height: 28px; padding: 0 10px; }
+.ui-search-field__filter.active { background: color-mix(in srgb, var(--accent) 25%, var(--surface-2)); }
+@include bp.until(tablet) {
+  .ui-search-field:has(.ui-search-field__action) { flex-wrap: wrap; height: auto; }
+  .ui-search-field:has(.ui-search-field__action) .ui-search-field__search { flex-basis: 100%; min-height: 44px; border-bottom: 1px solid var(--border); }
+  .ui-search-field__action { flex: 1 1 auto; max-width: none; min-height: 44px; border-left: 0; border-radius: 0; }
+  .ui-search-field:has(.ui-search-field__action) .ui-search-field__filter { min-height: 44px; border-radius: 0 0 calc(var(--radius-lg) - 1px) 0; }
+  .ui-search-field__matches { display: none; }
 }
 </style>

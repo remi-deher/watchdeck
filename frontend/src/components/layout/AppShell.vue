@@ -71,7 +71,7 @@
       @open-palette="openPaletteFromSheet"
     />
 
-    <CommandPalette ref="palette" :is-admin="isAdmin" :can-moderate="canModerate" />
+    <SearchResultsSheet ref="palette" :is-admin="isAdmin" :can-moderate="canModerate" />
 
     <div id="route-announcer" class="sr-only" role="status" aria-live="polite">{{ routeAnnouncement }}</div>
   </div>
@@ -86,7 +86,7 @@ import AppNavSheet from './AppNavSheet.vue';
 import AppSectionSheet from './AppSectionSheet.vue';
 import AppRail from './AppRail.vue';
 import AppTopBar from './AppTopBar.vue';
-import CommandPalette from './CommandPalette.vue';
+import SearchResultsSheet from './SearchResultsSheet.vue';
 import { useRailCollapsed } from '@/composables/useRailCollapsed';
 import { isTypingTarget } from '@/utils/focus';
 import { usePageSections } from '@/composables/usePageSections';
@@ -177,11 +177,13 @@ watch(() => route.fullPath, (_next, previous) => {
 });
 
 function openPalette(prefill?: string): void {
-  palette.value?.open(prefill);
+  if (prefill !== undefined) palette.value?.open(prefill);
+  else {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }));
+  }
 }
 
-/* Ouvrir la palette depuis la feuille exige de fermer celle-ci d'abord : les deux sont
-   des dialogues modaux, et deux pièges à focus superposés se disputeraient le focus. */
+/* Depuis le menu, fermer la navigation avant de focaliser la barre commune. */
 function openPaletteFromSheet(): void {
   sheetOpen.value = false;
   nextTick(() => openPalette());

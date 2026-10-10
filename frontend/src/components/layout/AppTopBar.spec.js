@@ -98,29 +98,31 @@ describe('AppTopBar en compact', () => {
     expect(boutons).toHaveLength(1);
   });
 
-  it('propose la recherche globale quand la page n’a pas de recherche', async () => {
-    // Sans champ de page, la loupe reste le seul recours depuis un téléphone.
+  it('garde le même composant de recherche sans recherche locale', async () => {
     const { wrapper } = mountBar({}, ref(pageSearch({ showSearch: false, hasFilters: false })));
-    await wrapper.vm.$nextTick();
-
-    const loupe = wrapper.find('.app-topbar__search-compact');
-    expect(loupe.exists()).toBe(true);
-    await loupe.trigger('click');
-    expect(wrapper.findComponent(AppTopBar).emitted('open-palette')).toBeTruthy();
+    const input = wrapper.get('.ui-search-field__input');
+    await input.setValue('dune');
+    expect(input.element.value).toBe('dune');
+    expect(wrapper.findComponent(AppTopBar).emitted('open-palette').at(-1)).toEqual(['dune']);
+    expect(wrapper.find('.app-topbar__search-compact').exists()).toBe(false);
   });
-  it('propose de porter la recherche à toute l’application', async () => {
-    // Sur une page qui filtre, le champ ne peut rien faire apparaître : si ce qu'on
-    // cherche n'est pas dans la liste, la seule issue est la recherche globale. Le
-    // libellé dit donc « chercher », par opposition au « filtrer » du champ.
+  it('ouvre les résultats complémentaires avec la même saisie', async () => {
     const { wrapper } = mountBar({}, ref(pageSearch({ kind: 'filter', query: 'dune' })));
-    await wrapper.vm.$nextTick();
-
-    const echappee = wrapper.find('.app-topbar__escape');
-    expect(echappee.exists()).toBe(true);
-    expect(echappee.text()).toBe('Chercher « dune » dans toute l’application');
-
-    await echappee.trigger('click');
+    const more = wrapper.get('.ui-search-field__more');
+    expect(more.text()).toBe('Afficher plus');
+    await more.trigger('click');
     expect(wrapper.findComponent(AppTopBar).emitted('open-palette')[0]).toEqual(['dune']);
+  });
+
+  it('conserve une saisie commencée avant le chargement du contexte', async () => {
+    const { wrapper, search } = mountBar({}, ref(null));
+    const input = wrapper.get('input');
+    input.element.focus();
+    await input.setValue('dune');
+    search.value = pageSearch({ onQuery: value => { search.value.query = value; } });
+    await wrapper.vm.$nextTick();
+    expect(input.element.value).toBe('dune');
+    expect(search.value.query).toBe('dune');
   });
 
   it('ne propose l’échappée qu’à partir de deux caractères', async () => {
@@ -128,6 +130,6 @@ describe('AppTopBar en compact', () => {
     const { wrapper } = mountBar({}, ref(pageSearch({ query: 'd' })));
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.find('.app-topbar__escape').exists()).toBe(false);
+    expect(wrapper.find('.ui-search-field__more').exists()).toBe(false);
   });
 });
