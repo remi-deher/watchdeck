@@ -11,7 +11,7 @@ import { onUnmounted, ref, watchEffect, type Ref } from 'vue';
 export type PageSearchKind = 'search' | 'filter';
 
 export interface PageSearch {
-  /** Faux lorsqu'une page fournit uniquement des filtres contextuels. */
+  /** Recherche locale : false conserve la barre et cherche dans la sheet complémentaire. */
   showSearch: boolean;
   kind: PageSearchKind;
   /** Lignes retenues et lignes totales, pour un filtre : « 43 sur 348 ». */
@@ -42,7 +42,7 @@ let owner: symbol | null = null;
  * filtres et leur effet — mais il s'affiche dans la barre, ou il ne defile pas et ou il
  * n'entre plus en concurrence visuelle avec la recherche globale. Faire remonter l'etat
  * plutot que descendre le rendu evite au shell de connaitre quoi que ce soit des pages :
- * il affiche ce qu'on lui donne, et rien quand on ne lui donne rien.
+ * il affiche le contexte fourni et garde la même saisie sur toutes les pages.
  */
 export function providePageSearch(search: Ref<PageSearch | null>): void {
   const token = Symbol('page-search');

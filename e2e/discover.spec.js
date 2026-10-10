@@ -116,7 +116,7 @@ test("affiche la navigation dédiée et replie les filtres", async ({ page }) =>
   // recherche, et le demontage de la precedente ne doit pas l'effacer.
   await onglets.getByRole("link", { name: "Séries" }).click();
   await expect(page).toHaveURL(/\/discover\/shows$/);
-  await expect(await pageSearchBox(page)).toHaveAttribute("aria-label", /Rechercher une série/);
+  await expect(await pageSearchBox(page)).toHaveAttribute("placeholder", /Rechercher une série/);
   await expect(onglets.getByRole("link", { name: "Séries" })).toHaveAttribute("aria-current", "page");
 
   await onglets.getByRole("link", { name: "Films" }).click();

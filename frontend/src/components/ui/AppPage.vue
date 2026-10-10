@@ -149,29 +149,25 @@ const emit = defineEmits<{
 // La barre de contexte affiche ce titre : c'est elle, desormais, qui le rend visible.
 providePageTitle(computed(() => props.title));
 
-/* Idem pour la recherche : la page en garde la propriete (requete, filtres, effet),
-   la barre n'en fait que le rendu. Une page qui declare `hide-search` n'en fournit
-   aucune, et la barre retombe alors sur le declencheur de la palette. */
+/* Chaque gabarit fournit un contexte à la barre commune, même sans recherche locale.
+   `hide-search` désactive seulement le filtrage de la page : la recherche complémentaire,
+   les outils, l'action et les filtres restent disponibles selon ce contexte. */
 providePageSearch(
-  computed<PageSearch | null>(() =>
-    props.hideSearch && !props.hasFilters
-      ? null
-      : {
-          showSearch: !props.hideSearch,
-          kind: props.searchKind,
-          matchCount: props.matchCount,
-          totalCount: props.totalCount,
-          query: props.query,
-          placeholder: props.placeholder,
-          scopeLabel: props.searchScope || props.title,
-          hasFilters: props.hasFilters,
-          filtersOpen: props.filtersOpen,
-          activeCount: props.activeCount,
-          onQuery: (value: string) => emit('update:query', value),
-          onSearch: (event: Event) => emit('search', event),
-          onToggleFilters: () => emit('toggle-filters'),
-        }
-  )
+  computed<PageSearch>(() => ({
+    showSearch: !props.hideSearch,
+    kind: props.hideSearch ? 'search' : props.searchKind,
+    matchCount: props.matchCount,
+    totalCount: props.totalCount,
+    query: props.query,
+    placeholder: props.hideSearch ? 'Rechercher…' : props.placeholder,
+    scopeLabel: props.searchScope || props.title,
+    hasFilters: props.hasFilters,
+    filtersOpen: props.filtersOpen,
+    activeCount: props.activeCount,
+    onQuery: (value: string) => emit('update:query', value),
+    onSearch: (event: Event) => emit('search', event),
+    onToggleFilters: () => emit('toggle-filters'),
+  }))
 );
 
 /* Au-dela du seuil `expanded`, les sections remontent dans la barre de contexte : la
@@ -190,8 +186,7 @@ const { hostReady } = usePageTools();
 const toolsInBar = computed(() => hostReady.value);
 const toolsSlot: Slot = () => [...(slots.tools?.() ?? []), ...(slots.actions?.() ?? [])];
 providePageTools(() => (hasTools.value && toolsInBar.value ? toolsSlot : null));
-/* L'action du contexte (pause, ajouter…) prend le segment de droite de la capsule, a la
-   place de « Filtres ». */
+/* L'action du contexte (pause, ajouter…) occupe la zone centrale, avant « Filtres ». */
 const actionSlot: Slot = () => slots['quick-action']?.() ?? [];
 providePageTools(() => (slots['quick-action'] && toolsInBar.value ? actionSlot : null), 'action');
 const { sections: derivedSections, activeKey, destinationLabel } = usePageSections();

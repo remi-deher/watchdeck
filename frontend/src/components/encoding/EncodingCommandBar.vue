@@ -76,7 +76,6 @@ const pauseMutation = useMutation({
 </script>
 
 <style scoped lang="scss">
-@use '@/styles/foundations/breakpoints' as bp;
 .cmd { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
 .cmd.is-compact { flex-wrap: nowrap; padding: 0; border: 0; background: transparent; }
 .cmd-state { display: flex; align-items: center; gap: var(--space-2); }
@@ -93,8 +92,5 @@ const pauseMutation = useMutation({
 /* En outil de page (dans la barre de recherche) : l'etat et la pause seulement ; les
    automatismes se lisent dans la Vue d'ensemble et les Reglages. */
 .cmd.is-compact .cmd-pill, .cmd.is-compact .cmd-meta, .cmd.is-compact .cmd-spacer { display: none; }
-/* Sur telephone, dans la barre : un point d'etat et un bouton sans texte. */
-@include bp.until(phablet) {
-  .cmd.is-compact .cmd-state strong, .cmd.is-compact .cmd-label { display: none; }
-}
+/* La zone d'action dispose de sa rangée sur téléphone : les libellés restent lisibles. */
 </style>
