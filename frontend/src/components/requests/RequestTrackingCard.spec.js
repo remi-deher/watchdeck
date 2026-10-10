@@ -104,3 +104,12 @@ describe('RequestTrackingCard', () => {
     expect(sortie.find('.rt-note').exists()).toBe(false);
   });
 });
+
+it('lit le motif et les étapes du parcours entier plutôt que les fragments historiques', () => {
+  const wrapper = carte({ tracking: null, lifecycle: [{ key: 'plex', done: true }],
+    journey: { tracking: { kind: 'importing', label: 'Présence Plex à confirmer' },
+      steps: [{ key: 'submitted', label: 'Transmis', state: 'completed' }, { key: 'plex', label: 'Plex', state: 'current' }] } });
+  expect(wrapper.find('.rt-motif').attributes('title')).toBe('Présence Plex à confirmer');
+  expect(wrapper.findAll('.rt-life li')).toHaveLength(2);
+  expect(wrapper.findAll('.rt-life .done')).toHaveLength(1);
+});

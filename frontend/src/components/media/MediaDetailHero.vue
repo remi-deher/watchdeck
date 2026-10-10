@@ -31,9 +31,9 @@
           <!-- Annee, note et genres tiennent en une phrase : trois lignes de pastilles en moins.
                L'origine (demande Seerr, ajout *ARR) vit dans l'onglet Demandes, qui la detaille. -->
           <p v-if="factsLine" class="mdh-facts">{{ factsLine }}</p>
-          <div v-if="statusLabel && !isMusic || movieLanguage" class="mdh-badges">
-            <span v-if="statusLabel && !isMusic" class="badge" :class="statusClass">{{ statusLabel }}</span>
-            <span v-if="movieLanguage" class="badge language-tag" :class="languageState.variant">{{ languageState.label }}</span>
+          <div v-if="(availabilityStatus || statusLabel) && !isMusic || movieLanguage" class="mdh-badges">
+            <span v-if="(availabilityStatus || statusLabel) && !isMusic" class="badge" :class="availabilityStatus?.variant || statusClass">{{ availabilityStatus?.label || statusLabel }}</span>
+            <MediaLanguageBadge class="badge" v-if="movieLanguage" :state="detail" />
           </div>
           <!-- Une serie detaille sa langue par saison ; un film la porte dans la rangee de
                badges ci-dessus, au meme endroit. -->
@@ -43,7 +43,7 @@
             <span v-if="seasonSummary.partial.length" class="badge pending_approval">Partielle : {{ formatSeasonLabel(seasonSummary.partial) }}</span>
             <span v-if="seasonSummary.vo.length" class="badge">VO : {{ formatSeasonLabel(seasonSummary.vo) }}</span>
           </div>
-          <p v-if="detail.waiting_reason && !isMusic" class="mdh-waiting">{{ detail.waiting_reason }}</p>
+          <p v-if="waitingReason && !isMusic" class="mdh-waiting">{{ waitingReason }}</p>
           <dl v-if="releaseDates.length && !isMusic" class="mdh-dates">
             <div v-for="entry in releaseDates" :key="entry.label">
               <dt>{{ entry.label }}</dt>
@@ -105,8 +105,10 @@
 </template>
 
 <script setup lang="ts">
+import { isInPlex, mediaAvailabilityBadge } from "@/utils/mediaAvailability";
 import { proxyUrl, srcSetFor } from '@/utils/mediaImage';
-import { mediaTypeLabel, vfLanguageState, isMusicType } from '@/utils/labels';
+import { mediaTypeLabel, isMusicType } from '@/utils/labels';
+import MediaLanguageBadge from './MediaLanguageBadge.vue';
 import { computed, ref, watch } from 'vue';
 import { ArrowLeft, Ellipsis, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, RefreshCw, Search } from '@lucide/vue';
 import { formatPlexWebUrl, openPlexLink } from '@/mediaUrl';
@@ -164,7 +166,8 @@ watch(() => props.detail?.poster_url, () => { posterFailed.value = false; });
 
 const isMusic = computed(() => isMusicType(props.detail?.media_type));
 const isShow = computed(() => props.detail?.media_type === 'show');
-const canRequest = computed(() => !props.detail?.available && !props.detail?.in_library && !props.detail?.requested && !props.detail?.request_id);
+const availabilityStatus = computed(() => props.detail?.availability ? mediaAvailabilityBadge(props.detail) : null);
+const canRequest = computed(() => !isInPlex(props.detail || {}) && !props.detail?.requested && !props.detail?.request_id);
 
 const releaseSourceType = computed<'library_item' | 'request' | null>(() => {
   if (props.detail?.vf_source_type === 'library' || props.detail?.library_id || props.detail?._kind === 'library') {
@@ -192,6 +195,9 @@ const canSearchReleases = computed(() => {
 
 /* « 2024 · ★ 7,8 · Science-fiction, Aventure » : ce que les pastilles d'annee, de note et de
    genres disaient, sur une ligne. */
+const waitingReason = computed(() => props.detail?.journey
+  ? props.detail.journey.blocker?.label || props.detail.journey.next_step?.label
+  : props.detail?.waiting_reason);
 const factsLine = computed(() => {
   const d = props.detail || {};
   return [d.year, d.vote ? `★ ${d.vote}` : '', d.genres?.length ? d.genres.join(', ') : '']
@@ -220,7 +226,7 @@ function openExternal(href: string): void {
   window.open(href, '_blank', 'noopener,noreferrer');
 }
 
-const languageState = computed(() => vfLanguageState(props.detail || {}));
+
 const plexWebUrl = computed(() => formatPlexWebUrl(props.detail?.plex_guid));
 const emit = defineEmits<{
   (e: 'back'): void;
@@ -401,7 +407,8 @@ const releaseDates = computed(() => {
   font-weight: 800;
   line-height: 1.25;
 }
-.mdh-badges > .badge.available {
+.mdh-badges > .badge.available,
+.mdh-badges > .badge.in-plex {
   border-color: var(--green);
   background: var(--green);
   color: var(--text);

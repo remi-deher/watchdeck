@@ -69,3 +69,13 @@ describe('retained transfer measurements',()=>{
   expect(m.lastRate).toBe(25e6);expect(m.rate).toBeNull();expect(m.seconds).toBeNull();expect(m.copied).toBe(100);
  });
 });
+
+
+it('utilise la mesure du travail entier et conserve une progression inconnue', () => {
+  const current = {...job(), work: {progress: {percent: null, scope: 'copy'}}};
+  expect(transferMetrics(current, 105).percent).toBeNull();
+  const wrapper = mount(StorageTransferMetrics, {props: {job: current}});
+  expect(wrapper.find('.copy-heading strong').text()).toBe('—');
+  expect(wrapper.find('[role="progressbar"]').exists()).toBe(false);
+  wrapper.unmount();
+});

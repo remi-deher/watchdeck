@@ -43,3 +43,14 @@ describe('VfScanHistory', () => {
     expect(wrapper.text()).toContain('2 releases');
   });
 });
+
+
+it('lit le travail observé et ne fabrique pas de progression', () => {
+  const wrapper = mount(VfScanHistory, { props: { formatDate, formatDuration, statusLabel,
+    liveScan: { status: 'idle', work: { key: 'scan:vf-upgrades', source: 'scan', state: 'running', label: 'En cours', stage: null,
+      progress: { percent: null, scope: 'items', label: 'Éléments traités' }, reason: null, stale: false } },
+  } });
+  expect(wrapper.find('.live-card').exists()).toBe(true);
+  expect(wrapper.find('.live-card-track').exists()).toBe(false);
+  expect(wrapper.find('.scan-live-bar-fill').exists()).toBe(false);
+});

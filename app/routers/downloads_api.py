@@ -15,8 +15,10 @@ from sqlalchemy.future import select
 from ..cache import cache
 from ..database import AsyncSessionLocal, get_db_async
 from ..dependencies import require_admin
-from ..models import ArrInstance, DownloadClient, MediaRequest
+from ..models import ArrInstance, DownloadClient, LibraryItem, MediaRequest
 from ..realtime import publish
+from ..services.media_ref import media_ref
+from ..services.work_ref import DownloadClientErrorResponse, WorkRecord, download_work
 from ..utils import wrap_image_proxy
 from .arr_shared import _QUEUE_CACHE_TTL, DOWNLOAD_CLIENTS_CACHE_KEY, _direct_cache, invalidate_download_clients_cache
 
@@ -55,7 +57,7 @@ async def tracker_favicon(
     return Response(content=content, media_type=content_type, headers=headers)
 
 
-@router.get("/downloads/clients")
+@router.get("/downloads/clients", response_model=list[WorkRecord | DownloadClientErrorResponse])
 async def download_client_queue(db: AsyncSession = Depends(get_db_async)):
     """File torrent complète, servie en SWR pour éviter une connexion à chaque navigation."""
 
@@ -63,13 +65,15 @@ async def download_client_queue(db: AsyncSession = Depends(get_db_async)):
         async with AsyncSessionLocal() as fresh_db:
             return await _compute_download_client_queue(fresh_db)
 
-    return await cache.get_or_refresh(
+    rows = await cache.get_or_refresh(
         DOWNLOAD_CLIENTS_CACHE_KEY,
         soft_ttl_seconds=2,
         hard_ttl_seconds=20,
         compute_sync=lambda: _compute_download_client_queue(db),
         compute_background=_background,
     )
+
+    return [{**row, "work": download_work(row)} if row.get("hash") else row for row in rows]
 
 
 async def _compute_download_client_queue(db: AsyncSession) -> list[dict]:
@@ -90,6 +94,13 @@ async def _compute_download_client_queue(db: AsyncSession) -> list[dict]:
         .all()
     )
     requests = (await db.execute(select(MediaRequest).filter(MediaRequest.torrent_hash.isnot(None)))).scalars().all()
+    library_ids = {row.library_item_id for row in requests if row.library_item_id}
+    library = (
+        (await db.execute(select(LibraryItem).where(LibraryItem.id.in_(library_ids)))).scalars().all()
+        if library_ids
+        else []
+    )
+    media_by_id = {item.id: media_ref(item) for item in library}
     requests_by_hash = {str(row.torrent_hash).lower(): row for row in requests if row.torrent_hash}
 
     async def load(client):
@@ -122,7 +133,9 @@ async def _compute_download_client_queue(db: AsyncSession) -> list[dict]:
                     "hash": torrent_hash,
                     "title": torrent.get("name") or "Torrent sans nom",
                     "status": torrent.get("state") or "unknown",
-                    "progress": round(float(torrent.get("progress") or 0) * 100, 1),
+                    "progress": round(float(torrent["progress"]) * 100, 1)
+                    if torrent.get("progress") is not None
+                    else None,
                     "size": torrent.get("size") or 0,
                     "download_speed": 0 if is_stale else (torrent.get("dlspeed") or 0),
                     "upload_speed": 0 if is_stale else (torrent.get("upspeed") or 0),
@@ -144,12 +157,13 @@ async def _compute_download_client_queue(db: AsyncSession) -> list[dict]:
                     "request_id": request.id if request else None,
                     "library_id": request.library_item_id if request else None,
                     "managed_by": "watchdeck" if request else "external",
+                    "media": media_by_id.get(request.library_item_id) if request else None,
                     "is_stale": is_stale,
                     "stale_since_seconds": stale_sec,
                     "client_error": client_error if is_stale else None,
                 }
             )
-    return output
+    return [{**row, "work": download_work(row)} if row.get("hash") else row for row in output]
 
 
 @router.post("/downloads/clients/{client_id}/{torrent_hash}/control")
@@ -278,14 +292,14 @@ async def mutate_client_metadata(
         raise HTTPException(502, f"Gestion des catégories et tags impossible : {exc}") from exc
 
 
-@router.get("/downloads/direct")
+@router.get("/downloads/direct", response_model=list[WorkRecord])
 async def direct_downloads(db: AsyncSession = Depends(get_db_async)):
     """Torrents poussés en direct-client (hors *arr), suivis via download_client_id + torrent_hash sur les demandes."""
     from ..services.download_clients import get_torrent_status
 
     now = time.monotonic()
     if _direct_cache["data"] is not None and now - _direct_cache["ts"] < _QUEUE_CACHE_TTL:
-        return _direct_cache["data"]
+        return [{**row, "work": download_work(row)} for row in _direct_cache["data"]]
 
     reqs = (
         (
@@ -313,13 +327,20 @@ async def direct_downloads(db: AsyncSession = Depends(get_db_async)):
 
     statuses = await asyncio.gather(*[_status(req, client) for req, client in tracked])
 
+    library_ids = {req.library_item_id for req, _client in tracked if req.library_item_id}
+    library = (
+        (await db.execute(select(LibraryItem).where(LibraryItem.id.in_(library_ids)))).scalars().all()
+        if library_ids
+        else []
+    )
+    media_by_id = {item.id: media_ref(item) for item in library}
     out = []
     for (req, client), st in zip(tracked, statuses):
         if not st:
             continue
-        progress = round(st.get("progress") or 0, 1)
+        progress = round(st["progress"], 1) if st.get("progress") is not None else None
         eta = st.get("eta") or 0
-        if progress >= 100 or eta <= 0:
+        if (progress is not None and progress >= 100) or eta <= 0:
             timeleft = "—"
         else:
             h, m = eta // 3600, (eta % 3600) // 60
@@ -327,7 +348,10 @@ async def direct_downloads(db: AsyncSession = Depends(get_db_async)):
         out.append(
             {
                 "title": req.title + (f" ({req.year})" if req.year else ""),
-                "status": "completed" if progress >= 100 else "downloading",
+                "status": st.get("status") or "unknown",
+                "download_id": req.torrent_hash,
+                "download_client_id": client.id,
+                "media": media_by_id.get(req.library_item_id),
                 "progress": progress,
                 "size": None,
                 "sizeleft": None,
@@ -341,6 +365,7 @@ async def direct_downloads(db: AsyncSession = Depends(get_db_async)):
                 "library_id": req.library_item_id,
             }
         )
+    out = [{**row, "work": download_work(row)} for row in out]
     _direct_cache["data"] = out
     _direct_cache["ts"] = now
     return out

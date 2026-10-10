@@ -1,5 +1,5 @@
 <template>
-  <div class="poster-shell" :class="{ 'is-loaded': isLoaded }">
+  <div class="poster-shell" :style="backdropUrl ? { backgroundImage: `url(${proxyUrl(backdropUrl, { kind: 'backdrop' })})` } : undefined" :class="{ 'is-loaded': isLoaded }">
     <img
       v-if="posterUrl && !failed"
       :src="proxyUrl(posterUrl, { width: 780 }) ?? undefined"
@@ -37,6 +37,7 @@ import { proxyUrl, srcSetFor } from '@/utils/mediaImage';
 const props = withDefaults(
   defineProps<{
     posterUrl?: string | null;
+    backdropUrl?: string | null;
     alt?: string;
     isMusic?: boolean;
     sizes?: string;

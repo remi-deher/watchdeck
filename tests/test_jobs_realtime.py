@@ -78,10 +78,12 @@ async def test_download_event_exposes_job_result_for_targeted_refresh():
 async def test_worker_job_deduplicates_concurrent_execution():
     redis = FakeRedis()
     redis.values["watchdeck:jobs:lock:sample"] = "another-worker"
+    redis.values["watchdeck:jobs:state:sample"] = json.dumps({"status": "running"})
     work = AsyncMock()
     with patch("app.jobs.publish", new=AsyncMock()), patch("app.jobs._log_job_run", new=AsyncMock()):
         result = await jobs._run({"redis": redis}, "sample", work, force=True)
     assert result == {"status": "skipped"}
+    assert json.loads(redis.values["watchdeck:jobs:state:sample"])["status"] == "running"
     work.assert_not_awaited()
 
 

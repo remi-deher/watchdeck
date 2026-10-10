@@ -12,34 +12,41 @@ import { computed, onUnmounted, ref, watchEffect, type Slot } from 'vue';
  */
 /* La carte elle-meme n'est pas reactive (les fournisseurs l'ecrivent depuis leurs
    effets, qui ne doivent pas en dependre) : `version` signale ses changements. */
-const entries = new Map<symbol, Slot>();
+/* Deux zones dans la capsule : `tools` (retours d'etat et boutons, a gauche) et `action`
+   (le segment de droite, la ou serait « Filtres » : une action propre au contexte). */
+export type PageToolsZone = 'tools' | 'action';
+const entries = new Map<symbol, { zone: PageToolsZone; slot: Slot }>();
 const version = ref(0);
-const current = computed<Slot | null>(() => {
-  void version.value;
-  const slots = [...entries.values()];
-  return slots.length ? () => slots.flatMap((slot) => slot()) : null;
-});
+function zoneSlot(zone: PageToolsZone) {
+  return computed<Slot | null>(() => {
+    void version.value;
+    const slots = [...entries.values()].filter((entry) => entry.zone === zone).map((entry) => entry.slot);
+    return slots.length ? () => slots.flatMap((slot) => slot()) : null;
+  });
+}
+const current = zoneSlot('tools');
+const action = zoneSlot('action');
 /* La barre du haut est montee : sans elle (tests isoles, fenetres), la page garde ses
    outils dans sa propre rangee. */
 const hostReady = ref(false);
 
-function set(token: symbol, slot: Slot | null): void {
-  if ((entries.get(token) ?? null) === slot) return;
-  if (slot) entries.set(token, slot);
+function set(token: symbol, slot: Slot | null, zone: PageToolsZone = 'tools'): void {
+  if ((entries.get(token)?.slot ?? null) === slot) return;
+  if (slot) entries.set(token, { zone, slot });
   else entries.delete(token);
   version.value++;
 }
 
-export function providePageTools(tools: () => Slot | null): void {
+export function providePageTools(tools: () => Slot | null, zone: PageToolsZone = 'tools'): void {
   const token = Symbol('page-tools');
-  watchEffect(() => set(token, tools()));
+  watchEffect(() => set(token, tools(), zone));
   // Vue monte la page suivante avant de demonter la precedente : chaque fournisseur ne
   // retire que ses propres outils.
   onUnmounted(() => set(token, null));
 }
 
 export function usePageTools() {
-  return { tools: current, hostReady };
+  return { tools: current, action, hostReady };
 }
 
 /** Appele par la barre du haut a son montage et a son demontage. */

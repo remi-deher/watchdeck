@@ -21,12 +21,14 @@ from ..dependencies import require_admin
 from ..models import ArrInstance, LibraryItem, Settings
 from ..realtime import publish
 from ..services import fileflows, fileflows_queue
+from ..services.media_ref import media_ref
+from ..services.work_ref import EncodingFilesResponse, EncodingStatusResponse, encoding_work
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/fileflows", tags=["fileflows"], dependencies=[Depends(require_admin)])
 
-STATUS_CACHE_KEY = "watchdeck:fileflows:status:{instance_id}"
+STATUS_CACHE_KEY = "watchdeck:fileflows:status:v2:{instance_id}"
 STATUS_CACHE_TTL = 8
 RECENT_LIMIT = 5
 
@@ -68,7 +70,7 @@ def _with_media(rows: list[dict[str, Any]], index: dict[str, dict[str, Any]]) ->
     return [{**row, "media": fileflows.match_media(index, row["name"])} for row in rows]
 
 
-@router.get("/status")
+@router.get("/status", response_model=EncodingStatusResponse, response_model_exclude_unset=True)
 async def fileflows_status(refresh: bool = False, db: AsyncSession = Depends(get_db_async)):
     """État global, plus les derniers échecs et traitements : de quoi remplir l'accueil."""
     inst = await fileflows.get_instance(db)
@@ -93,7 +95,14 @@ async def fileflows_status(refresh: bool = False, db: AsyncSession = Depends(get
         **base,
         "connected": True,
         **state,
-        "runners": [{**r, "media": fileflows.match_media(index, r["name"])} for r in state["runners"]],
+        "runners": [
+            {
+                **r,
+                "media": fileflows.match_media(index, r["name"]),
+                "work": encoding_work(r, instance_id=inst.id, runner=True),
+            }
+            for r in state["runners"]
+        ],
         "recent_failed": await fileflows.with_timings(
             inst.url, inst.api_key, _with_media(failed[:RECENT_LIMIT], index)
         ),
@@ -101,6 +110,9 @@ async def fileflows_status(refresh: bool = False, db: AsyncSession = Depends(get
             inst.url, inst.api_key, _with_media(processed[:RECENT_LIMIT], index)
         ),
     }
+    for field in ("recent_failed", "recent_processed"):
+        for row in payload[field]:
+            row["work"] = encoding_work(row, instance_id=inst.id)
     try:
         await cache.set_json(key, payload, ttl_seconds=STATUS_CACHE_TTL)
     except Exception:  # noqa: BLE001
@@ -108,7 +120,7 @@ async def fileflows_status(refresh: bool = False, db: AsyncSession = Depends(get
     return payload
 
 
-@router.get("/files")
+@router.get("/files", response_model=EncodingFilesResponse)
 async def fileflows_files(
     status: int = fileflows.STATUS_QUEUED,
     page: int = Query(0, ge=0, le=10_000),
@@ -124,6 +136,8 @@ async def fileflows_files(
     )
     index = await fileflows.folder_index(db)
     files = _with_media(rows, index)
+    for row in files:
+        row["work"] = encoding_work(row, instance_id=inst.id, paused=state.get("paused", False))
     # Vraie duree de traitement (attente du disque exclue) pour les fichiers termines.
     if status in (fileflows.STATUS_PROCESSED, fileflows.STATUS_FAILED):
         files = await fileflows.with_timings(inst.url, inst.api_key, files)
@@ -170,6 +184,7 @@ async def _media_files(db: AsyncSession, item_id: int) -> tuple[ArrInstance, Opt
     if not folder:
         return inst, None, []
     files = await _guard(fileflows.files_for_item(inst.url, inst.api_key, folder))
+    files = [{**row, "media": media_ref(item), "work": encoding_work(row, instance_id=inst.id)} for row in files]
     return inst, folder, files
 
 

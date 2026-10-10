@@ -76,11 +76,30 @@ for (const [path, selector, name] of PAGES) {
     await mockApi(page);
     await page.goto(path);
     await expect(page.locator(selector).first()).toBeVisible({ timeout: 15_000 });
-    // Une seule rangee d'onglets propres a la page. Sur tablette, le shell y ajoute les
-    // sections du menu (rail replie), comme pour la Bibliotheque : elles ne comptent pas.
-    expect(await page.locator('.app-page__sticky [aria-label="Vues de l’encodage"]').count()).toBeLessThanOrEqual(1);
+    // Une seule rangee de navigation : les sections, dont la courante porte ses vues en
+    // menu ; plus de rangee d'onglets a part, sur aucun ecran.
+    expect(await page.locator('.app-page__sticky .app-subnav').count()).toBe(1);
+    if (path !== "/encoding") {
+      const current = page.locator('.app-page__sticky .app-subnav__item--parent');
+      await expect(current).toBeVisible();
+      await current.click();
+      await expect(page.locator('.app-subnav__menu [role="menuitem"]')).toHaveCount(3);
+      await page.keyboard.press('Escape');
+    }
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     expect(overflow, "débordement horizontal").toBe(false);
     if (process.env.ENCODING_SHOTS) await page.screenshot({ path: `${process.env.ENCODING_SHOTS}/${testInfo.project.name}-${name}.png`, fullPage: true });
   });
 }
+
+
+test('la file lit le travail entier : zéro réel et verrou en attente', async ({ page }) => {
+  await mockApi(page);
+  const work = {key: 'encoding:1:runner:a', source: 'encoding', state: 'running', label: 'En cours', stage: 'Vidéo', progress: {percent: 0, scope: 'step', label: 'Progression de l’étape'}, reason: null, stale: false};
+  await page.route('**/api/fileflows/status', route => route.fulfill({json: {...STATUS, runners: [{...RUNNER, work}, {...RUNNER, path: '/usb3/locked.mkv', name: 'Verrou.mkv', work: {...work, key: 'encoding:1:runner:b', state: 'waiting', stage: 'Verrou', reason: 'Attente du verrou de disque'}}]}}));
+  await page.goto('/encoding/queue');
+  await expect(page.locator('.live-card')).toHaveCount(1);
+  await expect(page.locator('.live-card-track i')).toHaveAttribute('style', /width: 0%/);
+  await expect(page.locator('.track-queue')).toContainText('Attente du verrou de disque');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
+});

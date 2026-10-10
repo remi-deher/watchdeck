@@ -185,17 +185,18 @@ async def publish_pause(url: str, api_key: str | None, state: dict[str, Any]) ->
 
 async def set_runners(url: str, api_key: str | None, runners: int) -> int | None:
     """Règle le nombre de runners du nœud principal ; renvoie l'ancienne valeur si changée."""
-    nodes = await fileflows._call(url, api_key, "GET", "node") or []
-    node = next((n for n in nodes if isinstance(n, dict) and n.get("Uid")), None)
-    if node is None:
-        return None
-    detail = await fileflows._call(url, api_key, "GET", f"node/{node['Uid']}")
+    try:
+        route, detail = await fileflows.main_node(url, api_key)
+    except fileflows.FileFlowsError as exc:
+        if str(exc) == "Aucun nœud FileFlows":
+            return None
+        raise
     previous = int(detail.get("FlowRunners") or 0)
     runners = max(1, min(MAX_RUNNERS, int(runners)))
     if previous == runners:
         return None
     detail["FlowRunners"] = runners
-    await fileflows._call(url, api_key, "POST", "node", json=detail)
+    await fileflows.save_node(url, api_key, route, detail)
     return previous
 
 

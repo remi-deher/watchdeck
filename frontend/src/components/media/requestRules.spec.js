@@ -98,3 +98,10 @@ describe('journal', () => {
     expect(arr.map((e) => e.label)).toEqual(['Ajoutée directement dans Sonarr']);
   });
 });
+
+ it('privilégie le parcours serveur même si les anciens champs annoncent disponible', () => {
+  const canonical = { ...row, journey: { label: 'À confirmer dans Plex', origin: { kind: 'arr', label: 'Ajout direct' },
+    steps: [{ key: 'awaiting_plex', label: 'Attente Plex', state: 'current', occurred_at: null }] } };
+  expect(journeyHeadline(canonical)).toBe('À confirmer dans Plex');
+  expect(journeySteps(canonical)).toEqual([{ key: 'awaiting_plex', label: 'Attente Plex', state: 'current', at: null }]);
+ });

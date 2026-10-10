@@ -7,7 +7,8 @@
         <div><component :is="group.icon"/><div><h2>{{ group.title }}</h2><p>{{ group.description }}</p></div></div>
         <span>{{ group.items.length }}</span>
       </header>
-      <div v-if="group.key==='intervention'" class="download-card-grid issue-grid">
+      <LiveStrip v-if="group.key === 'active'" :items="group.items.map(liveItem)" :title="group.title" live-label="En cours" :idle="{title: 'Aucun téléchargement'}" @select="item => openSheet(item.row)" @action="(item, key) => emit('action', item.row, key === 'retry', key === 'retry')" />
+      <div v-else-if="group.key==='intervention'" class="download-card-grid issue-grid">
         <!-- Carte d'intervention : le diagnostic *arr passe avant la progression (100 %, inutile ici). -->
         <article v-for="row in group.items" :key="rowKey(row)" class="download-card issue-card">
           <div class="issue-top">
@@ -179,6 +180,7 @@
 </template>
 
 <script setup lang="ts">
+import LiveStrip from '@/components/ui/LiveStrip.vue';
 import { AlertTriangle, CheckCircle2, Download, FileVideo, Film, Link, RotateCcw, Tv, X } from '@lucide/vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiProgress from '@/components/ui/UiProgress.vue';
@@ -195,7 +197,7 @@ import { proxyUrl } from '@/utils/mediaImage';
 
 export interface QueueGroup { key: string; title: string; description: string; icon: unknown; items: any[] }
 
-defineProps<{
+const props = defineProps<{
   groups: QueueGroup[];
   /** Historique filtre : ses premiers elements remplissent la file vide. */
   history: any[];
@@ -211,6 +213,7 @@ const emit = defineEmits<{
   (e: 'action', row: any, blocklist: boolean, search: boolean): void;
 }>();
 
+function liveItem(row: any) { return {key: rowKey(row), title: row.title, media: row.media, poster: row.media ? undefined : row.poster_url, backdrop: row.media ? undefined : row.backdrop_url, work: row.work, progress: row.work ? row.work.progress.percent : row.progress ?? null, who: row.instance || row.download_client, facts: extractQuality(row) ? [{key: 'quality', label: extractQuality(row)}] : [], row, actions: canAct(row) ? [{key: 'retry', label: 'Relancer', disabled: props.actingKeys.has(rowKey(row))}, {key: 'remove', label: 'Retirer', tone: 'danger' as const, disabled: props.actingKeys.has(rowKey(row))}] : []}; }
 const { hasPosterError, onPosterError } = usePosterErrors();
 const { ouvrir } = useOuvrirFiche();
 

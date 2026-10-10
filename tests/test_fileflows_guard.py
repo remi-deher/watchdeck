@@ -127,6 +127,45 @@ async def test_publish_pause_and_runners():
 
 
 @pytest.mark.asyncio
+async def test_runners_on_fileflows_2609_agent_route():
+    """FileFlows 26.09 : le nœud est sous « agent » ; « node » renvoie la page web."""
+    calls = []
+
+    async def call(url, key, method, path, **kwargs):
+        calls.append((method, path, kwargs.get("json")))
+        if path == "agent":
+            return [{"Uid": "A", "Version": "26.09.9"}] if method == "GET" else {}
+        if path == "agent/A":
+            return {"Uid": "A", "FlowRunners": 3, "Schedule": "1" * 672}
+        raise fileflows.FileFlowsError("Route FileFlows inconnue (version incompatible ?)")
+
+    with patch.object(fileflows, "_call", new=call):
+        assert await fileflows_guard.set_runners("http://ff", None, 2) == 3
+        assert await fileflows.check_connection("http://ff") == (True, "FileFlows connecté (v26.09.9)")
+    assert ("POST", "agent", {"Uid": "A", "FlowRunners": 2, "Schedule": "1" * 672}) in calls
+    assert not any(path.startswith("node") for _, path, _ in calls)
+
+
+@pytest.mark.asyncio
+async def test_node_route_errors():
+    async def html(url, key, method, path, **kwargs):
+        raise fileflows.FileFlowsError("Route FileFlows inconnue (version incompatible ?)")
+
+    async def empty(url, key, method, path, **kwargs):
+        return [] if method == "GET" else {}
+
+    with patch.object(fileflows, "_call", new=html):
+        assert await fileflows.check_connection("http://ff") == (
+            False,
+            "Route FileFlows inconnue (version incompatible ?)",
+        )
+        with pytest.raises(fileflows.FileFlowsError):
+            await fileflows_guard.set_runners("http://ff", None, 2)
+    with patch.object(fileflows, "_call", new=empty):
+        assert await fileflows_guard.set_runners("http://ff", None, 2) is None
+
+
+@pytest.mark.asyncio
 async def test_throughput_from_samples():
     store = {}
 

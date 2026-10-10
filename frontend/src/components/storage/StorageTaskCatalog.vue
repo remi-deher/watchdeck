@@ -19,7 +19,7 @@
       <template v-else>
         <UiEmptyState v-if="!filteredJobs.length" title="Aucune tâche" message="Créez un transfert ou changez de filtre." compact />
         <PanelCard v-for="job in filteredJobs" :key="job.id">
-          <header class="task-head"><div><h2>{{ job.params?.name || `Tâche #${job.id}` }} <UiBadge>{{ status(job.status) }}</UiBadge></h2><p>{{ locationName(job.source_id) }} → {{ locationName(job.destination_id) }} · #{{ job.id }}</p></div></header>
+          <header class="task-head"><div><h2>{{ job.params?.name || `Tâche #${job.id}` }} <UiBadge>{{ job.work?.label || status(job.status) }}</UiBadge></h2><p>{{ locationName(job.source_id) }} → {{ locationName(job.destination_id) }} · #{{ job.id }}</p></div></header>
           <p v-if="job.status==='draft'" class="draft-note">Tâche enregistrée, aucun transfert lancé</p><StorageCurrentMedia :job="job" :status="status" />
           <StorageTransferMetrics v-if="job.status!=='draft'" :job="job" compact />
           <UiFeedback v-if="issueCount(job)" type="warning" :message="`${issueCount(job)} titre(s) à traiter. Les motifs et chemins sont accessibles dans le détail.`" />

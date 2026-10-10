@@ -494,6 +494,9 @@ async def test_live_telemetry_reads_only_measurements_in_two_queries():
     db = NS(execute=AsyncMock(side_effect=[job_result, item_result]))
     result = await api.transfer_telemetry(ids="4", db=db)
     assert result[0]["id"] == 4 and result[0]["released_bytes"] == 200
+    assert result[0]["work"]["state"] == "running"
+    assert result[0]["work"]["stage"] == "Copie"
+    assert result[0]["work"]["progress"]["percent"] == pytest.approx(200 / 300 * 100)
     assert result[0]["items"][0]["progress"]["bytes_per_second"] == 25_000_000
     assert "snapshot" not in str(db.execute.call_args_list)
     assert "proofs" not in str(db.execute.call_args_list)

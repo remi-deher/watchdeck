@@ -1,9 +1,12 @@
+import type { WorkRef } from '@/types/generated/mediaAvailability';
+import type { MediaRef } from '@/types';
+
 /* Gabarit « Suivre » : les donnees qu'une page lui confie. Elle repond a la question
    « ou en est ce qui tourne ? » ; le gabarit decide de l'ordre et de la presentation. */
 
 /** Etat d'un element suivi. L'ordre d'affichage est fixe : bloque, en cours, en pause,
     en attente -- ce qui demande d'agir d'abord, ce qui patiente ensuite. */
-export type TrackState = 'blocked' | 'running' | 'paused' | 'waiting';
+export type TrackState = 'blocked' | 'running' | 'paused' | 'waiting' | 'unknown' | 'completed' | 'cancelled';
 
 export interface TrackAction {
   key: string;
@@ -24,12 +27,15 @@ export interface TrackCause {
 }
 
 export interface TrackItem {
+  work?: WorkRef;
   key: string;
   state: TrackState;
   title: string;
   /** Une ligne d'identification : instance, disque, client… */
   subtitle?: string;
-  /** Affiche ; a defaut, l'icone. */
+  /** Le media concerne : son affiche (et son fond en cours) s'affichent d'office. */
+  media?: MediaRef | null;
+  /** Affiche hors media de la bibliotheque ; a defaut, l'icone. */
   poster?: string | null;
   icon?: any;
   /** Etiquettes courtes : episode, qualite, taille… */

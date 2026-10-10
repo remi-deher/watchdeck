@@ -8,17 +8,10 @@
         <h2>Santé des services</h2>
         <p>{{ updatedLabel }}</p>
       </div>
-      <span class="service-health-verdict" :class="`is-${verdict.tone}`">
+      <span v-if="counts.error || counts.warn" class="service-health-verdict" :class="`is-${verdict.tone}`">
         <component :is="verdict.icon" aria-hidden="true" />{{ verdict.label }}
       </span>
-      <UiButton
-        variant="ghost"
-        size="sm"
-        icon-only
-        aria-label="Vérifier à nouveau"
-        :loading="healthQuery.isFetching.value"
-        @click="refresh"
-      ><RefreshCw :size="16" /></UiButton>
+
     </header>
 
     <div class="service-health-meter" role="img" :aria-label="meterLabel">
@@ -60,11 +53,12 @@
 </template>
 
 <script setup lang="ts">
+import { serviceTone as toneOf } from '@/composables/healthPresentation';
+import { formatUptime, formatCheckedAgo } from '@/utils/format';
 import { computed, ref, watch } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useIntervalFn } from '@vueuse/core';
-import { AlertTriangle, CheckCircle2, ChevronDown, CircleHelp, Compass, Mail, RefreshCw, Rss, Search, Server, Tv, Video, XCircle } from '@lucide/vue';
-import UiButton from '@/components/ui/UiButton.vue';
+import { AlertTriangle, CheckCircle2, ChevronDown, CircleHelp, Compass, Mail, Rss, Search, Server, Tv, Video, XCircle } from '@lucide/vue';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
 import { formatRelativeDate, parseApiDate } from '@/utils/format';
@@ -72,6 +66,7 @@ import { formatRelativeDate, parseApiDate } from '@/utils/format';
 type Tone = 'ok' | 'warn' | 'error' | 'off' | 'loading';
 interface ServiceIssue { level: 'warning' | 'error'; message: string }
 interface ServiceInfo {
+  health?: import("@/types/generated/mediaAvailability").ServiceHealth;
   ok?: boolean | null; state?: string; message?: string; response_ms?: number | null; action_url?: string; action_label?: string;
   /* Details facultatifs, lus sur le service lui-meme (voir service_health_details.py). */
   version?: string; instance_name?: string; started_at?: string; platform?: string; instances?: number;
@@ -110,27 +105,14 @@ const health = computed(() => healthQuery.data.value || null);
 const now = ref(new Date());
 useIntervalFn(() => { now.value = new Date(); }, 30_000);
 
-function toneOf(info: ServiceInfo | undefined): Tone {
-  if (!info?.state) return 'loading';
-  if (info.state === 'ok') return info.issues?.length ? 'warn' : 'ok';
-  if (info.state === 'error') return 'error';
-  return 'off';
-}
 function statusOf(info: ServiceInfo | undefined, tone: Tone): string {
+  if (info?.health) return info.health.reason || info.health.label;
   if (tone === 'loading') return 'Vérification…';
   if (tone === 'error') return info?.message && info.message !== 'OK' ? info.message : 'Injoignable';
   if (tone === 'off') return info?.state === 'disabled' ? 'Désactivé' : 'Non configuré';
   return info?.response_ms != null ? 'Opérationnel' : 'Configuré';
 }
 /* « depuis 3 j » : depuis quand le service tourne sans redemarrage. */
-function uptimeOf(startedAt: string | undefined, now: Date): string {
-  if (!startedAt) return '';
-  const minutes = Math.floor((now.getTime() - parseApiDate(startedAt).getTime()) / 60_000);
-  if (!Number.isFinite(minutes) || minutes < 0) return '';
-  if (minutes < 60) return `actif depuis ${Math.max(1, minutes)} min`;
-  if (minutes < 48 * 60) return `actif depuis ${Math.floor(minutes / 60)} h`;
-  return `actif depuis ${Math.floor(minutes / 1440)} j`;
-}
 /* « 4.0.9.2244 » devient « 4.0.9 » : le numero de build n'aide pas a lire la carte. */
 function shortVersion(version: string): string {
   return version.split('.').slice(0, 3).join('.');
@@ -157,7 +139,7 @@ function factsOf(key: string, info: ServiceInfo | undefined, tone: Tone, now: Da
     if (key === 'plex' && info?.sessions != null) {
       facts.push(info.sessions ? `${info.sessions} lecture${info.sessions > 1 ? 's' : ''} en cours` : 'aucune lecture');
     }
-    const uptime = uptimeOf(info?.started_at, now);
+    const uptime = formatUptime(info?.started_at, now);
     if (uptime) facts.push(uptime);
   }
   return facts.length ? facts.join(' · ') : statusOf(info, tone);
@@ -229,15 +211,9 @@ const meterLabel = computed(() => {
 const updatedLabel = computed(() => {
   const checkedAt = health.value?.checked_at ? parseApiDate(health.value.checked_at) : null;
   if (!checkedAt) return 'Première vérification en cours';
-  const seconds = Math.max(0, Math.floor((now.value.getTime() - checkedAt.getTime()) / 1000));
-  if (seconds < 60) return 'Vérifié à l’instant';
-  if (seconds < 3600) return `Vérifié il y a ${Math.floor(seconds / 60)} min`;
-  return `Vérifié il y a ${Math.floor(seconds / 3600)} h`;
+  return formatCheckedAgo(checkedAt, now.value);
 });
 
-function refresh() {
-  void queryClient.invalidateQueries({ queryKey: ['health'] });
-}
 
 watch(() => healthQuery.data.value, (data) => {
   if (!data) return;
@@ -245,8 +221,7 @@ watch(() => healthQuery.data.value, (data) => {
 });
 
 useRealtime(['health.updated'], (_type, detail: any) => {
-  if (detail && detail.services) queryClient.setQueryData(['health'], detail);
-  else void queryClient.invalidateQueries({ queryKey: ['health'] });
+  void queryClient.invalidateQueries({ queryKey: ['health'] });
 });
 </script>
 

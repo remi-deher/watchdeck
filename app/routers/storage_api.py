@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from ..database import get_db_async
 from ..dependencies import require_admin
 from ..models import ArrInstance, StorageLocation, StorageTransfer, StorageTransferItem
+from ..services.work_ref import WorkRecord, transfer_work
 from ..storage import service
 from ..storage.local_mounts import media_path
 from ..storage.planning import absolute_path
@@ -264,13 +265,13 @@ async def preview(body: PreviewBody, db=Depends(get_db_async)):
         raise HTTPException(422, str(exc)) from exc
 
 
-@router.get("/transfers")
+@router.get("/transfers", response_model=list[WorkRecord])
 async def transfers(db=Depends(get_db_async)):
     jobs = (await db.execute(select(StorageTransfer).order_by(StorageTransfer.id.desc()).limit(50))).scalars()
     return [await service.transfer_json(db, j) for j in jobs]
 
 
-@router.get("/transfers/telemetry")
+@router.get("/transfers/telemetry", response_model=list[WorkRecord])
 async def transfer_telemetry(
     ids: str = Query(..., pattern=r"^\d+(,\d+){0,49}$", max_length=600), db=Depends(get_db_async)
 ):
@@ -282,6 +283,7 @@ async def transfer_telemetry(
         StorageTransfer.error,
         StorageTransfer.updated_at,
         StorageTransfer.worker_seen_at,
+        StorageTransfer.params["transfer_mode"].as_string().label("transfer_mode"),
     )
     rows = (
         await db.execute(select(*columns).where(StorageTransfer.id.in_([int(value) for value in ids.split(",")])))
@@ -304,9 +306,11 @@ async def transfer_telemetry(
     ).mappings()
     for row in items:
         job = jobs[row["transfer_id"]]
-        job["items"].append({key: value for key, value in row.items() if key not in ("transfer_id", "size_bytes")})
+        job["items"].append({key: value for key, value in row.items() if key != "transfer_id"})
         if row["status"] == "completed":
             job["released_bytes"] += row["size_bytes"]
+    for job in jobs.values():
+        job["work"] = transfer_work(job)
     return list(jobs.values())
 
 

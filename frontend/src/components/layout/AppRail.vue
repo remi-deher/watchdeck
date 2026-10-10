@@ -70,23 +70,6 @@
                 ></span>
               </template>
             </RouterLink>
-            <ul
-              v-if="density === 'expanded' && destination.key === activeKey && sections.length > 1"
-              class="app-rail__subnav"
-              :aria-label="`Sections ${destination.label}`"
-            >
-              <li v-for="section in sections" :key="section.key">
-                <RouterLink
-                  class="app-rail__sublink"
-                  :to="section.to || destination.to"
-                  :aria-current="section.key === activeSectionKey ? 'page' : undefined"
-                >
-                  <component v-if="section.icon" :is="section.icon" aria-hidden="true" />
-                  <span>{{ section.label }}</span>
-                  <ArrowUpRight v-if="section.external" class="app-rail__external" aria-hidden="true" />
-                </RouterLink>
-              </li>
-            </ul>
           </li>
         </ul>
       </div>
@@ -126,7 +109,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
-import { ArrowLeft, ArrowUpRight, Clapperboard, Moon, PanelLeftClose, PanelLeftOpen, Settings, Sun, UserRound } from '@lucide/vue';
+import { ArrowLeft, Clapperboard, Moon, PanelLeftClose, PanelLeftOpen, Settings, Sun, UserRound } from '@lucide/vue';
 import { useTheme } from '@/composables/useTheme';
 import { ADMIN_ENTRY, adminAreasFor, destinationsFor, type NavDestination } from '@/navigation';
 import { useAdminAttention } from '@/composables/useAdminAttention';
@@ -134,7 +117,6 @@ import type { AttentionSeverity } from '@/adminAttention';
 
 const { resolved: resolvedTheme, toggle: toggleTheme } = useTheme();
 const themeLabel = computed(() => (resolvedTheme.value === 'dark' ? 'Passer au thème clair' : 'Passer au thème sombre'));
-import { usePageSections } from '@/composables/usePageSections';
 
 const props = withDefaults(
   defineProps<{
@@ -155,7 +137,6 @@ const props = withDefaults(
 );
 
 defineEmits<{ (e: 'toggle-rail'): void }>();
-const { sections, activeKey: activeSectionKey } = usePageSections();
 const attention = useAdminAttention({ enabled: () => props.isAdmin });
 
 function severityLabel(severity: AttentionSeverity | null): string {
@@ -230,7 +211,7 @@ onBeforeUnmount(() => {
 
 /* Les sections de page s'ajoutent et se retirent sous la destination active : le
    contenu du rail change sans que sa boite bouge. */
-watch([() => groups.value.length, () => sections.value.length], () => void nextTick(measureOverflow));
+watch(() => groups.value.length, () => void nextTick(measureOverflow));
 </script>
 
 <style scoped lang="scss">

@@ -6,7 +6,7 @@
     <div class="run-head">
       <span class="eyebrow">Lectures consécutives</span>
       <strong>Lecture {{ index + 1 }} sur {{ run.length }}</strong>
-      <PlaybackMethodBadge v-if="mixed" method="mixed" compact :title="mixedTitle" />
+      <PlaybackMethodBadge v-if="mixed" :playbacks="run" compact />
       <div class="run-arrows">
         <UiButton variant="ghost" icon-only title="Lecture précédente" aria-label="Lecture précédente" :disabled="index === 0" @click="$emit('open', run[index - 1].id)"><ChevronLeft /></UiButton>
         <UiButton variant="ghost" icon-only title="Lecture suivante" aria-label="Lecture suivante" :disabled="index === run.length - 1" @click="$emit('open', run[index + 1].id)"><ChevronRight /></UiButton>
@@ -17,7 +17,7 @@
         <button type="button" :class="{ current: position === index }" :aria-current="position === index ? 'true' : undefined" @click="position !== index && $emit('open', item.id)">
           <span class="run-number">{{ position + 1 }}</span>
           <span class="run-label">{{ item.label }}</span>
-          <PlaybackMethodBadge :method="item.method" compact />
+          <PlaybackMethodBadge :playback="item" compact />
           <small>{{ formatTime(item.started_at) }}<template v-if="item.watched_ms"> · {{ formatDuration(item.watched_ms) }}</template></small>
         </button>
       </li>
@@ -31,7 +31,6 @@ import { ChevronLeft, ChevronRight } from '@lucide/vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import type { LectureDeSerie } from '@/composables/useMediaOverlay';
 import { formatDurationExact as formatDuration, formatTime } from '@/utils/format';
-import { playbackMethodLabel } from '@/utils/labels';
 import PlaybackMethodBadge from './PlaybackMethodBadge.vue';
 
 const props = defineProps<{ run: LectureDeSerie[]; currentId: string | number }>();
@@ -39,11 +38,6 @@ defineEmits<{ (e: 'open', id: string): void }>();
 
 const index = computed(() => (props.run.length > 1 ? props.run.findIndex((item) => String(item.id) === String(props.currentId)) : -1));
 const mixed = computed(() => new Set(props.run.map((item) => item.method || '')).size > 1);
-const mixedTitle = computed(() => {
-  const counts = new Map<string, number>();
-  for (const item of props.run) counts.set(item.method || '', (counts.get(item.method || '') || 0) + 1);
-  return `Lecture mixte : ${[...counts].map(([method, count]) => `${count} × ${playbackMethodLabel(method, { fallback: 'inconnu' }).toLowerCase()}`).join(', ')}`;
-});
 </script>
 
 <style scoped>

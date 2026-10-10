@@ -19,7 +19,7 @@ async function mockApi(page) {
       await route.fulfill({ json: { role: "admin", is_owner: true } });
       return;
     }
-    if (pathname === "/api/users") {
+    if (["/api/users", "/api/scheduled-tasks"].includes(pathname)) {
       await route.fulfill({ json: [] });
       return;
     }
@@ -332,10 +332,10 @@ test("le contenu n'est masque ni par la barre de contexte ni par le dock", async
   );
   // Le dock est opaque et fixe : sans reserve, il recouvrirait la fin du contenu.
   expect(reserved, "le dock reste degage").toBeGreaterThanOrEqual(dock.height - 1);
-  // La barre, elle, ne reserve rien : elle flotte, et c'est son masquage au defilement
-  // qui decouvre ce qu'elle couvre. Lui reserver sa hauteur reprendrait en bas la place
-  // qu'on vient de rendre en haut.
-  expect(reserved, "la barre ne reserve aucune place").toBeLessThan(dock.height + topbar.height);
+  // La barre flotte au-dessus du dock et se masque au defilement ; mais une page trop
+  // courte pour defiler laissait son dernier element dessous, sans recours (le bouton
+  // « Recherche interactive » des Demandes). Le bas lui reserve donc sa hauteur.
+  expect(reserved, "la barre reste degagee").toBeGreaterThanOrEqual(dock.height + topbar.height - 1);
 });
 
 test("le rail se replie et se deploie, et le choix survit au rechargement", async ({ page }) => {
@@ -1022,7 +1022,7 @@ test("une saisie trop courte n'interroge pas le catalogue", async ({ page }) => 
   await expect(palette.getByRole("option").first()).toBeVisible();
 });
 
-test("les sections changent de surface selon la largeur, sans jamais se dupliquer", async ({ page }, testInfo) => {
+test("les sections vivent dans la page a toutes les largeurs, jamais dans le menu", async ({ page }, testInfo) => {
   // Ce test pilote lui-meme sa largeur : le rejouer sur les profils tactiles, qui
   // emulent un appareil, ne verifierait rien de plus et se heurterait a leur viewport.
   test.skip(testInfo.project.name !== "desktop", "test pilote par la largeur, pas par l'appareil");
@@ -1032,21 +1032,16 @@ test("les sections changent de surface selon la largeur, sans jamais se duplique
   const inRail = page.locator(".app-rail__subnav");
   const inPage = page.locator(".app-page__sticky .app-subnav");
 
-  // Au-dela du seuil deploye, la barre de contexte les porte ; en dessous, la page.
-  // Jamais les deux : une rangee affichee deux fois donne deux etats actifs a suivre.
-  //
-  // Les sections d'Acquisition sont reservees aux administrateurs : elles n'existent
-  // qu'une fois la session revenue, d'ou le delai large sur cette premiere attente.
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await expect(inRail).toBeVisible({ timeout: 15000 });
-  await expect(inPage).toHaveCount(0);
+  // Le menu ne porte qu'un niveau (les entrees) ; les sections sont dans la page, rail
+  // deploye ou non. Les sections d'Acquisition sont reservees aux administrateurs : elles
+  // n'existent qu'une fois la session revenue, d'ou le delai large.
+  for (const width of [1440, 1100]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(inPage).toBeVisible({ timeout: 15000 });
+    await expect(inRail).toHaveCount(0);
+  }
 
-  await page.setViewportSize({ width: 1100, height: 900 });
-  await expect(inPage).toBeVisible();
-  await expect(inRail).toHaveCount(0);
-
-  // Le titre de la page ne doit jamais ceder la place aux sections : c'est le seul
-  // endroit ou il s'affiche depuis que le bandeau de titre a quitte la page.
+  // Le titre de la page ne cede jamais la place aux sections.
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(page.locator('.app-rail__brand-name')).toBeVisible();
 });

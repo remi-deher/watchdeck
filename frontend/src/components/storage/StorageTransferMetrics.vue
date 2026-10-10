@@ -1,7 +1,7 @@
 <template>
   <div class="transfer-metrics" :class="{compact}">
-    <div class="copy-heading"><span><strong>{{ Math.round(metrics.percent) }} %</strong> du volume copié</span><span>{{ job.items.filter((i:any)=>i.status==='completed').length }} / {{ job.items.length }} titres terminés</span></div>
-    <UiProgress v-if="job.params?.transfer_mode!=='arr' && metrics.total>0" :value="metrics.percent" :label="`Volume copié de la tâche ${job.id}`" />
+    <div class="copy-heading"><span><strong>{{ metrics.percent == null ? '—' : `${Math.round(metrics.percent)} %` }}</strong> du volume copié</span><span>{{ job.items.filter((i:any)=>i.status==='completed').length }} / {{ job.items.length }} titres terminés</span></div>
+    <UiProgress v-if="job.params?.transfer_mode!=='arr' && metrics.total>0 && metrics.percent != null" :value="metrics.percent" :label="`Volume copié de la tâche ${job.id}`" />
     <dl>
       <div><dt>Total</dt><dd>{{ gb(metrics.total) }}</dd></div>
       <div><dt>Transféré</dt><dd>{{ gb(metrics.copied) }}</dd></div>

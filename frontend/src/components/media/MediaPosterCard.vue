@@ -17,7 +17,7 @@
         @keydown.enter="handleKeyboardActivate"
         @keydown.space="handleKeyboardActivate"
       >
-        <MediaPoster :poster-url="item.poster_url" :is-music="isMusic" :alt="`Affiche de ${title}`">
+        <MediaPoster :poster-url="poster" :backdrop-url="backdrop" :is-music="isMusic" :alt="`Affiche de ${title}`">
           <template #badges>
             <div class="poster-badges catalog-status-badge">
               <slot name="badges"><MediaStatusBadge :item="item" /></slot>
@@ -72,13 +72,17 @@ import { Download, Star } from '@lucide/vue';
 import { mediaTypeLabel, isMusicType } from '@/utils/labels';
 import MediaCardShell from './MediaCardShell.vue';
 import MediaPoster from './MediaPoster.vue';
+import type { MediaRef } from '@/types';
 import MediaStatusBadge from './MediaStatusBadge.vue';
 import { memoriserApercu } from '@/composables/useFicheApercu';
 import { destinationDeFiche, etatDeSurface } from '@/composables/useMediaOverlay';
 
 const props = withDefaults(
   defineProps<{
-    item: any;
+    media?: MediaRef;
+    item?: any;
+    poster?: string | null;
+    backdrop?: string | null;
     to?: string | Record<string, any> | null;
     actionLabel?: string;
     requestable?: boolean;
@@ -103,19 +107,22 @@ const emit = defineEmits<{
   (e: 'open', item: any): void;
 }>();
 
+const item = computed(() => (props.media || props.item || {}) as MediaRef & { name?: string; vote_average?: number; vote?: number });
+const poster = computed(() => props.poster || item.value?.poster_url);
+const backdrop = computed(() => props.backdrop || item.value?.backdrop_url);
 const router = useRouter();
 const route = useRoute();
 
-const isMusic = computed(() => isMusicType(props.item.media_type));
-const title = computed(() => props.item.title || props.item.name || 'Sans titre');
+const isMusic = computed(() => isMusicType(item.value.media_type));
+const title = computed(() => item.value.title || item.value.name || 'Sans titre');
 const rating = computed(() => {
-  const value = Number(props.item.vote_average || props.item.vote || 0);
+  const value = Number(item.value.vote_average || item.value.vote || 0);
   return value > 0 ? value.toFixed(1) : '';
 });
 const accessibleLabel = computed(() => [
   title.value,
-  mediaTypeLabel(props.item.media_type),
-  props.item.year,
+  mediaTypeLabel(item.value.media_type),
+  item.value.year,
 ].filter(Boolean).join(', '));
 const linkAttributes = computed(() => props.to
   ? { to: props.to }
@@ -140,8 +147,8 @@ function handleActivate(event?: MouseEvent | KeyboardEvent): void {
   /* Ce que la carte sait du media sert a dessiner la fiche avant sa reponse -- y compris
      quand la carte delegue l'ouverture a son parent (mediatheque). */
   if (!props.to) {
-    memoriserApercu(props.item);
-    emit('open', props.item);
+    memoriserApercu(item.value);
+    emit('open', item.value);
     return;
   }
   // Les clics enrichis (nouvel onglet, telechargement) restent au navigateur.
@@ -153,14 +160,14 @@ function handleActivate(event?: MouseEvent | KeyboardEvent): void {
 
   /* On releve la position de la vignette avant de naviguer : c'est de la qu'elle partira
      quand l'affiche de la fiche apparaitra, une fois les donnees chargees. */
-  memoriserApercu(props.item);
+  memoriserApercu(item.value);
   void router.push(cible);
 }
 
 function handleKeyboardActivate(e: KeyboardEvent): void {
   if (!props.to) {
     e.preventDefault();
-    emit('open', props.item);
+    emit('open', item.value);
     return;
   }
   handleActivate(e);

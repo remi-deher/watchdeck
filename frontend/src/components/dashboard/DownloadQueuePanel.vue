@@ -8,6 +8,8 @@
   >
     <template #action><RouterLink to="/downloads" class="panel-link">Tout voir</RouterLink></template>
 
+    <LiveStrip v-if="live.length" :items="live" title="Téléchargements en cours" live-label="En cours" :idle="{title: 'Aucun téléchargement'}" @select="item => item.to && ouvrirFiche(item.to)" />
+
     <component
       :is="queueDetailPath(item) ? 'RouterLink' : 'article'"
       v-for="item in visible"
@@ -54,6 +56,7 @@
 </template>
 
 <script setup lang="ts">
+import LiveStrip from '@/components/ui/LiveStrip.vue';
 import { useOuvrirFiche } from '@/composables/useMediaOverlay';
 import { computed } from 'vue';
 import PanelCard from '@/components/ui/PanelCard.vue';
@@ -71,7 +74,7 @@ import {
 } from '@/downloads/queueRules';
 import type { QueueRow } from '@/downloads/queueRules';
 
-const { auClic: ouvrirFicheAuClic } = useOuvrirFiche();
+const { auClic: ouvrirFicheAuClic, ouvrir: ouvrirFiche } = useOuvrirFiche();
 const props = withDefaults(
   defineProps<{
     queue?: QueueRow[];
@@ -90,8 +93,9 @@ const sorted = computed(() => {
   return [...props.queue].sort((a, b) => rank(a) - rank(b) || (b.progress || 0) - (a.progress || 0));
 });
 
-const visible = computed(() => sorted.value.slice(0, props.limit));
-const hidden = computed(() => Math.max(0, props.queue.length - visible.value.length));
+const visible = computed(() => sorted.value.slice(0, props.limit).filter(row => row.work?.state !== 'running'));
+const live = computed(() => sorted.value.slice(0, props.limit).filter(row => row.work?.state === 'running').map(row => ({key: rowKey(row), title: row.title || 'Téléchargement', work: row.work, media: row.media, poster: row.media ? undefined : row.poster_url, backdrop: row.media ? undefined : row.backdrop_url, who: row.instance || row.download_client, to: queueDetailPath(row)})));
+const hidden = computed(() => Math.max(0, props.queue.length - visible.value.length - live.value.length));
 
 const summary = computed(() => {
   if (!props.queue.length) return '';

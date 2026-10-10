@@ -90,6 +90,12 @@ créable : `service.ts`, `user.ts`…) : étapes, champs typés, règles, étape
 conditionnels, test, création, résultat. Jamais de formulaire de création écrit dans une
 page ; un type de champ manquant s'ajoute au gabarit, pour tous.
 
+Un média de la bibliothèque se transmet toujours entier : côté serveur par
+`services/media_ref.py` (`media_ref`, toutes ses images), côté interface en `MediaRef`
+(`@/types`). Un composant commun qui affiche un média le reçoit dans `media` et montre
+d'office toute image disponible (affiche, fond) ; la page ne recopie jamais `poster` /
+`backdrop` d'un média (ces champs restent pour ce qui n'en est pas un : client, disque).
+
 Ce qui tourne maintenant s'affiche toujours avec `LiveStrip` (lectures Plex, fichiers en
 cours d'encodage, téléchargements, transferts) : la page traduit ses objets en cartes
 (`LiveItem` : image, badge, coin, titre ou logo, état, progression, « qui / sur quoi »,
@@ -106,12 +112,32 @@ collante ne porte que les onglets, centrés sur la page. La feuille des filtres 
 pied : les filtres s'appliquent en direct, chacun se retire par sa pastille, « Tout
 effacer » à partir de deux.
 
+La capsule de recherche est le même composant partout, adapté au contexte ; chaque
+partie est facultative : la recherche, les retours d'état et boutons (`tools`, ex. le
+voyant « FileFlows actif »), et le segment de droite, qui porte l'action du contexte
+(emplacement `quick-action` de `PageTemplate` : Pause, Ajouter…) ou, à défaut, « Filtres »
+si la page filtre. Une page sans filtre utile n'en met pas (la File de l'encodage : sa
+pause prend le segment).
+
+Configurer n'a pas de sommaire : chaque section est une carte dont l'en-tête (icône,
+titre, ce qu'elle règle) se distingue des réglages ; la recherche de la barre du haut
+retrouve une section (`query`, `keywords`).
+
 Un gabarit ou un bloc qui a besoin d'un outil de page (période d'Analyser ou de
 Comprendre, vue d'Anticiper) le pose dans `PageTools`. Un `UiSegmentedControl` ne se
 pose jamais en haut de page pour filtrer : un filtre de liste se place juste au-dessus de
 la liste qu'il filtre, et une bascule qui cadre toute la page (période, vue) passe dans
 les outils de page. Pas de filtre qui répète ce que la page montre déjà (Suivre n'a pas
 de filtre d'état : ses groupes portent titre et nombre).
+
+Le menu (rail, dock) ne porte qu'un niveau : les entrées. Leurs sections ne s'y listent
+plus ; elles vivent dans la page, sur tous les écrans.
+
+Navigation d'une page sur gabarit : une seule rangée, la même sur tous les écrans, celle
+des sections de l'entrée du menu. Les vues de la section courante (`tabs` de
+`PageTemplate`) ne forment plus une rangée à part : elles s'ouvrent en menu depuis la
+section courante (« Traitements · File ▾ ») ; toucher une autre section mène à sa
+première vue. Sans sections, les vues gardent leur rangée d'onglets.
 
 Blocs communs hors gabarit : `MiniCalendar` (dates d'un élément en liste, par mois,
 couleur et icône par type : cinéma, streaming, physique, épisode), à utiliser dans une

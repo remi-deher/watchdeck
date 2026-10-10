@@ -86,9 +86,55 @@ describe('useRealtimeQuery', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['demandes'] });
   });
 
+  it('relit une projection métier au lieu de la reconstruire depuis un fragment SSE', () => {
+    const before = { items: [{ id: 1, status: 'pending', availability: { plex: 'unknown' } }] };
+    queryClient.setQueryData(['demandes'], before);
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue();
+    realtimeHandler('request.updated', { payload: { id: 1, status: 'available' } });
+    expect(queryClient.getQueryData(['demandes'])).toEqual(before);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['demandes'] });
+  });
+
+  it('relit un travail entier au lieu de mélanger état brut et progression connue', () => {
+    const before = {items: [{id: 1, work: {state: 'running', progress: {percent: 45}}, media: {backdrop_url: '/art.jpg'}}]};
+    queryClient.setQueryData(['demandes'], before);
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue();
+    realtimeHandler('request.updated', {payload: {id: 1, status: 'completed'}});
+    expect(queryClient.getQueryData(['demandes'])).toEqual(before);
+    expect(invalidate).toHaveBeenCalledWith({queryKey: ['demandes']});
+  });
+
   it('expose apply pour les mises a jour locales', () => {
     expect(api.apply({ id: 1, status: 'rejected' })).toBe(true);
     expect(queryClient.getQueryData(['demandes']).items[0].status).toBe('rejected');
+  });
+
+  it('invalide un parcours entier plutôt que de lui appliquer un statut isolé', () => {
+    const before = { items: [{ id: 1, journey: { status: 'awaiting_plex', next_step: { kind: 'plex' } } }] };
+    queryClient.setQueryData(['demandes'], before);
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue();
+    realtimeHandler('request.updated', { payload: { id: 1, status: 'available' } });
+    expect(queryClient.getQueryData(['demandes'])).toEqual(before);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['demandes'] });
+  });
+
+  it('relit une projection vide au lieu d’insérer un objet créé incomplet', () => {
+    queryClient.setQueryData(['projection'], { items: [] });
+    const Host = defineComponent({
+      setup() {
+        useRealtimeQuery(['projection'], ['request.updated'], {
+          invalidateOnly: true,
+          getList: (data) => data.items,
+          setList: (data, items) => ({ ...data, items }),
+        });
+        return () => h('div');
+      },
+    });
+    mount(Host, { global: { plugins: [[VueQueryPlugin, { queryClient }]] } });
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue();
+    realtimeHandler('request.updated', { payload: { id: 1, action: 'created', status: 'pending' } });
+    expect(queryClient.getQueryData(['projection'])).toEqual({ items: [] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['projection'] });
   });
 
   it('peut transformer la charge utile et viser toutes les occurrences', () => {

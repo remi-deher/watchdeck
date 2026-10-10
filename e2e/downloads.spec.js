@@ -50,9 +50,10 @@ test("la file d'attente regroupe les interventions et confirme avant de retirer"
   const calls = await mockApi(page);
   await page.goto("/downloads?view=queue");
   const groups = page.locator(".download-group");
+  await expect(groups.first()).toBeVisible({ timeout: 30_000 });
   await expect(groups.filter({ hasText: "Intervention requise" })).toContainText("Film bloqué");
   await expect(groups.filter({ hasText: "En téléchargement" })).toContainText("Film en cours 1080p");
-  await expect(page.locator(".quality-badge").first()).toHaveText("1080P");
+  await expect(groups.filter({ hasText: "En téléchargement" }).getByText("1080P", { exact: true })).toHaveText("1080P");
 
   // Sur un runner lent, les panneaux Radarr / Sonarr arrivent apres la file et la
   // decalent : le clic tombait a l'ancienne position du bouton, sur un autre bloc. On

@@ -16,3 +16,13 @@ describe('ScanStatusItem', () => {
     expect(wrapper.emitted('action')).toHaveLength(1);
   });
 });
+
+
+it('affiche le travail entier et conserve un zéro mesuré sans fausse fin', () => {
+  const work = { key: 'scan:plex', source: 'scan', state: 'running', label: 'En cours', stage: null,
+    progress: { percent: 0, scope: 'items', label: 'Éléments traités' }, reason: null, stale: false };
+  const wrapper = mount(ScanStatusItem, { props: { title: 'Plex', subtitle: '', actionLabel: 'Sync', status: 'idle', work } });
+  expect(wrapper.find('.live-card').exists()).toBe(true);
+  expect(wrapper.text()).toContain('0 %');
+  expect(wrapper.find('.live-card-track i').attributes('style')).toContain('0%');
+});

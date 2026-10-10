@@ -10,6 +10,7 @@ from app.dependencies import require_admin, require_auth
 from app.main import app
 from app.models import ArrInstance, LibraryItem, Settings
 from app.services import fileflows, fileflows_queue
+from app.services.work_ref import encoding_work
 from tests.async_support import make_test_session
 
 UID_A = "11111111-1111-1111-1111-111111111111"
@@ -186,7 +187,13 @@ def test_timing_routes(client_db):
     db.add(item)
     db.commit()
     rows = [fileflows.normalize_file({"u": UID_A, "dn": "Film (2009)/f.mkv", "s": 1})]
-    timed = [{**rows[0], "timing": {"processing_seconds": 42}}]
+    timed = [
+        {
+            **rows[0],
+            "timing": {"processing_seconds": 42},
+            "work": encoding_work(rows[0], instance_id=1),
+        }
+    ]
     with (
         patch.object(fileflows, "file_timing", new=AsyncMock(return_value={"processing_seconds": 42})),
         patch.object(fileflows, "list_files", new=AsyncMock(return_value=rows)),

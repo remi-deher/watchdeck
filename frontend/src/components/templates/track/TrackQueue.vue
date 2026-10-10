@@ -29,13 +29,14 @@
 import { computed, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import UiButton from '@/components/ui/UiButton.vue';
+import { resolveTrackItem } from '@/composables/workPresentation';
 import type { TrackItem } from './types';
 
 const props = withDefaults(defineProps<{ items: TrackItem[]; limit?: number }>(), { limit: 5 });
 const emit = defineEmits<{ action: [item: TrackItem, key: string] }>();
 
 const expanded = ref(false);
-const shown = computed(() => (expanded.value ? props.items : props.items.slice(0, props.limit)));
+const shown = computed(() => ((expanded.value ? props.items : props.items.slice(0, props.limit)).map(resolveTrackItem)));
 const hidden = computed(() => props.items.length - shown.value.length);
 </script>
 

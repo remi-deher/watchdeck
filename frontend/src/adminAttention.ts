@@ -33,6 +33,7 @@ export interface AttentionItem {
 }
 
 export interface HealthService {
+  health?: import("@/types/generated/mediaAvailability").ServiceHealth;
   state?: string;
   message?: string;
   action_url?: string;
@@ -43,6 +44,7 @@ export interface HealthService {
 }
 
 export interface ScheduledTaskState {
+  work?: import("@/types").WorkRef;
   job: string;
   label: string;
   state?: { status?: string; last_error?: string | null; finished_at?: string | null } | null;
@@ -206,7 +208,7 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
     const meta = HEALTH_SERVICES[key];
     if (!meta || !info) continue;
     const name = serviceName(key, info);
-    if (info.state === 'error') {
+    if (info.health ? info.health.state === 'unreachable' : info.state === 'error') {
       items.push({
         key: `service-${key}`,
         severity: 'error',
@@ -215,7 +217,7 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
         detail: info.message && info.message !== 'OK' ? info.message : 'Injoignable au dernier contrôle.',
         action: { label: 'Corriger', to: internalPath(info.action_url, meta.to) },
       });
-    } else if (info.state === 'ok' && Array.isArray(info.issues) && info.issues.length) {
+    } else if ((info.health ? info.health.state === 'warning' : info.state === 'ok') && Array.isArray(info.issues) && info.issues.length) {
       const count = Math.max(info.issues.length, info.issue_count || 0);
       const hasError = info.issues.some((issue) => issue.level === 'error');
       items.push({
@@ -226,7 +228,7 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
         detail: info.issues[0].message,
         action: { label: 'Voir', to: internalPath(info.action_url, meta.to) },
       });
-    } else if (key === 'plex' && info.state && info.state !== 'ok' && info.state !== 'error') {
+    } else if (key === 'plex' && (info.health ? ['not_configured', 'disabled'].includes(info.health.state) : info.state && info.state !== 'ok' && info.state !== 'error')) {
       // Plex est le seul service sans lequel l'application ne sert a rien : son absence
       // merite une ligne, celle de Seer ou de Prowlarr non.
       items.push({
@@ -241,13 +243,13 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
   }
 
   for (const task of Array.isArray(input.tasks) ? input.tasks : []) {
-    if (task?.state?.status !== 'failed') continue;
+    if (task.work ? task.work.state !== 'blocked' : task?.state?.status !== 'failed') continue;
     items.push({
       key: `task-${task.job}`,
       severity: 'warn',
       area: 'admin-automation',
       title: `« ${task.label} » a échoué`,
-      detail: task.state.last_error?.trim() || 'La dernière exécution s’est terminée en erreur.',
+      detail: (task.work?.reason || task.state?.last_error)?.trim() || 'La dernière exécution s’est terminée en erreur.',
       action: { label: 'Voir la tâche', to: '/settings/automation/scheduled-tasks' },
     });
   }

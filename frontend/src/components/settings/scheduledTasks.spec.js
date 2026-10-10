@@ -31,3 +31,12 @@ describe('nextRun', () => {
     expect(nextRunLabel({ job: 'x', label: 'X', interval_seconds: 60, state: null }, now)).toBe('');
   });
 });
+
+
+it('trie selon le travail entier plutôt que le dernier statut technique', () => {
+  const tasks = [
+    { job: 'a', label: 'A', state: { status: 'failed' }, work: { state: 'running' } },
+    { job: 'b', label: 'B', state: { status: 'complete' }, work: { state: 'blocked' } },
+  ];
+  expect(sortTasks(tasks).map(task => task.job)).toEqual(['b', 'a']);
+});

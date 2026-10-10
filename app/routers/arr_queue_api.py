@@ -18,6 +18,8 @@ from ..errors import IntegrationUnavailableError, ValidationError
 from ..models import ArrInstance, LibraryItem, MediaRequest
 from ..services import radarr, sonarr
 from ..services.arr_queue_service import fetch_instance_queue
+from ..services.media_ref import media_ref
+from ..services.work_ref import WorkRecord, download_work
 from ..utils import async_get_or_404, wrap_image_proxy
 from .arr_shared import ARR_QUEUE_CACHE_KEY, ARR_WANTED_CACHE_KEYS, invalidate_arr_queue_cache
 
@@ -25,7 +27,7 @@ router = APIRouter(prefix="/api", tags=["arr"], dependencies=[Depends(require_ad
 logger = logging.getLogger(__name__)
 
 
-@router.get("/arr/queue")
+@router.get("/arr/queue", response_model=list[WorkRecord])
 async def arr_download_queue(db: AsyncSession = Depends(get_db_async)):
     """File d'attente de téléchargement unifiée : agrège les queues de toutes les instances Sonarr/Radarr actives."""
     return await cached_download_queue(db)
@@ -38,13 +40,15 @@ async def cached_download_queue(db: AsyncSession) -> list[dict]:
         async with AsyncSessionLocal() as fresh_db:
             return await _compute_arr_download_queue(fresh_db)
 
-    return await cache.get_or_refresh(
+    rows = await cache.get_or_refresh(
         ARR_QUEUE_CACHE_KEY,
         soft_ttl_seconds=5,
         hard_ttl_seconds=30,
         compute_sync=lambda: _compute_arr_download_queue(db),
         compute_background=_background,
     )
+
+    return [{**row, "work": download_work(row)} for row in rows]
 
 
 async def _compute_arr_download_queue(db: AsyncSession) -> list[dict]:
@@ -129,7 +133,9 @@ async def _compute_arr_download_queue(db: AsyncSession) -> list[dict]:
             rec["library_id"] = li.id if li else None
             rec["request_id"] = req.id if (req and not li) else None
             rec["linked_request_id"] = req.id if req else None
+            rec["media"] = media_ref(li)
             rec.update(operational)
+            rec["work"] = download_work(rec)
             items.append(rec)
     items.sort(key=lambda x: x.get("progress") or 0)
     return jsonable_encoder(items)

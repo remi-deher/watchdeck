@@ -18,11 +18,15 @@ afterEach(()=>{wrapper?.unmount();wrapper=null;vi.useRealTimers();vi.restoreAllM
 describe('one-second live telemetry',()=>{
  it('reads only telemetry each second and preserves names and snapshots',async()=>{
   const {jobs}=setup();
-  request.mockResolvedValue([{id:4,status:'running',items:[{id:15,status:'copying',progress:{bytes_per_second:25e6}}]}]);
+  const work={key:'transfer:4',state:'running',stage:'Copie',progress:{percent:25,scope:'copy'}};
+  jobs.value[0].items[0].media={id:1,poster_url:'/poster.jpg',backdrop_url:'/backdrop.jpg'};
+  request.mockResolvedValue([{id:4,status:'running',work,items:[{id:15,status:'copying',progress:{bytes_per_second:25e6}}]}]);
   await vi.advanceTimersByTimeAsync(1000);await flushPromises();
   expect(request).toHaveBeenCalledExactlyOnceWith('/api/storage/transfers/telemetry?ids=4');
   expect(jobs.value[0].items[0]).toMatchObject({title:'Keep title',snapshot:{source_arr:'/data/Series'},progress:{bytes_per_second:25e6}});
   expect(jobs.value[0].params.name).toBe('Keep name');
+  expect(jobs.value[0].work).toEqual(work);
+  expect(jobs.value[0].items[0].media).toEqual({id:1,poster_url:'/poster.jpg',backdrop_url:'/backdrop.jpg'});
   await vi.advanceTimersByTimeAsync(1000);expect(request).toHaveBeenCalledTimes(2);
   wrapper.unmount();await vi.advanceTimersByTimeAsync(2000);expect(request).toHaveBeenCalledTimes(2);
  });

@@ -146,6 +146,8 @@
 </template>
 
 <script setup lang="ts">
+import type { AvailabilityRecord, AvailabilityPage } from "@/types/generated/mediaAvailability";
+import { isInPlex } from "@/utils/mediaAvailability";
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useWindowVirtualGrid } from '@/composables/useWindowVirtualGrid';
@@ -474,7 +476,7 @@ const isCancel = (e: any) => e?.name === 'AbortError' || e?.name === 'CancelledE
 
 const libraryQuery = useInfiniteQuery({
   queryKey: computed(() => ['library', 'items', gridRequest.value?.library]),
-  queryFn: ({ pageParam, signal }) => api<any[]>(`/api/library?${gridRequest.value?.library}&offset=${pageParam}`, { signal }),
+  queryFn: ({ pageParam, signal }) => api<AvailabilityRecord[]>(`/api/library?${gridRequest.value?.library}&offset=${pageParam}`, { signal }),
   initialPageParam: 0,
   getNextPageParam: (last: any[], pages: any[][]) => (last.length === PAGE_SIZE ? pages.reduce((sum, page) => sum + page.length, 0) : undefined),
   // Aucun media Plex ne peut correspondre aux filtres : on economise l'appel.
@@ -483,7 +485,7 @@ const libraryQuery = useInfiniteQuery({
 });
 const requestsQuery = useQuery({
   queryKey: computed(() => ['library', 'requests', gridRequest.value?.requests]),
-  queryFn: ({ signal }) => api<any>(`/api/requests-list?${gridRequest.value?.requests}`, { signal }),
+  queryFn: ({ signal }) => api<AvailabilityPage>(`/api/requests-list?${gridRequest.value?.requests}`, { signal }),
   enabled: gridActive,
   staleTime: 30_000,
 });
@@ -711,9 +713,8 @@ function _requestListParams(): URLSearchParams {
   const p = new URLSearchParams({ limit: '500' });
   const q = query.value.trim();
   if (q) p.set('query', q);
-  // « Dans Plex » couvre les LibraryItem synces, les demandes « disponible » (Radarr/Sonarr
-  // a confirme avant le prochain sync Plex quotidien) et les series « partiellement
-  // disponible » : au moins un episode est deja regardable.
+  // « Dans Plex » exige un lien vers la bibliothèque synchronisée.
+  if (statusFilters.value.length === 1 && statusFilters.value[0] === 'library') p.set('in_plex', 'true');
   const selectedStatuses = statusFilters.value.includes('library')
     ? [...new Set([...statusFilters.value.filter(value => value !== 'library'), 'available', 'partially_available'])]
     : statusFilters.value;
@@ -744,6 +745,7 @@ function applyRequestData(requests: any, stats: any): void {
   requestSummary.value = requests;
   allRequestsRaw.value = requests.items || [];
   pendingRequests.value = allRequestsRaw.value
+    .filter((x: any) => statusFilters.value.length !== 1 || statusFilters.value[0] !== 'library' || isInPlex(x))
     .filter((x: any) => !wantsLibraryItems.value || !x.library_item_id || x.status === 'partially_available')
     .map((x: any) => ({ ...x, _kind: 'request', poster_url: proxyUrl(x.poster_url) }));
   rawMetrics.value = stats || {};

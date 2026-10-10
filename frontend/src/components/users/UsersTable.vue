@@ -43,7 +43,7 @@
          (`86dd231816e161be`), et jamais le pseudo reel. -->
     <template #cell-person="{ row: user }">
       <button class="text-button user-identity" @click="$emit('open',user.id)">
-        <UiAvatar :src="user.avatar_url" :initials="accountInitials(user)" :off="!user.enabled" />
+        <UiAvatar :person="user" />
         <span class="user-identity-text">
           <strong>{{ accountName(user) }}</strong>
           <small v-if="accountHandle(user)">{{ accountHandle(user) }}</small>
@@ -87,7 +87,6 @@ import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import BulkActionBar from '@/components/ui/BulkActionBar.vue';
 import {
   accountHandle,
-  accountInitials,
   accountName,
   resolveSource,
   roleLabel,

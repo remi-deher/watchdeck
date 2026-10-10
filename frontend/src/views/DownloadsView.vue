@@ -496,6 +496,7 @@ const queueGroups = computed((): QueueGroup[] => {
   return [
     { key: 'intervention', title: 'Intervention requise', description: 'Import bloqué, erreur ou média à associer', icon: AlertTriangle, items: intervention },
     { key: 'active', title: 'En téléchargement', description: 'Transferts actuellement en progression', icon: Download, items: remaining.filter((row: any) => statusKey(row) === 'downloading') },
+    { key: 'unknown', title: 'État à vérifier', description: 'Le client ne confirme pas son activité actuelle', icon: AlertTriangle, items: remaining.filter((row: any) => statusKey(row) === 'unknown') },
     { key: 'waiting', title: 'En attente', description: 'Éléments en file ou temporairement en pause', icon: Clock3, items: remaining.filter((row: any) => ['queued', 'paused', 'completed'].includes(statusKey(row))) },
   ].filter(group => group.items.length);
 });

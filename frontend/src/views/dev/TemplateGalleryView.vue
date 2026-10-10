@@ -155,8 +155,8 @@ const issues: HandleIssue[] = [
   { key: 'subs', label: 'Sous-titres absents', count: 4 },
 ];
 const handleItems: HandleItem[] = [
-  { key: 'dune', issue: 'vf', urgency: 'high', title: 'Dune : deuxième partie', poster: POSTER, problem: 'Aucune piste française', proposal: 'release MULTi 2160p trouvée (Radarr)', actions: [{ key: 'replace', label: 'Remplacer' }, { key: 'ignore', label: 'Ignorer' }] },
-  { key: 'mc', issue: 'track', urgency: 'medium', title: 'Le Comte de Monte-Cristo', poster: POSTER, problem: 'VF présente mais piste par défaut en anglais', proposal: 'mettre la VF par défaut dans Plex', actions: [{ key: 'align', label: 'Aligner' }, { key: 'ignore', label: 'Ignorer' }] },
+  { key: 'dune', issue: 'vf', urgency: 'high', title: 'Dune : deuxième partie', media: { id: 1, title: 'Dune : deuxième partie', media_type: 'movie', poster_url: POSTER }, problem: 'Aucune piste française', proposal: 'release MULTi 2160p trouvée (Radarr)', actions: [{ key: 'replace', label: 'Remplacer' }, { key: 'ignore', label: 'Ignorer' }] },
+  { key: 'mc', issue: 'track', urgency: 'medium', title: 'Le Comte de Monte-Cristo', media: { id: 2, title: 'Le Comte de Monte-Cristo', media_type: 'movie', poster_url: POSTER }, problem: 'VF présente mais piste par défaut en anglais', proposal: 'mettre la VF par défaut dans Plex', actions: [{ key: 'align', label: 'Aligner' }, { key: 'ignore', label: 'Ignorer' }] },
   { key: 'radarr', issue: 'subs', urgency: 'low', title: 'Profil Radarr « HD-1080p »', problem: 'Aucun sous-titre français demandé', proposal: 'ajouter le français aux langues', actions: [{ key: 'edit', label: 'Modifier le profil' }, { key: 'ignore', label: 'Ignorer' }] },
 ];
 

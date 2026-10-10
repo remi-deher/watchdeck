@@ -55,6 +55,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatByteRate as formatSpeed } from '@/utils/format';
+import { formatPreciseBytes as formatBytes } from '@/utils/format';
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { AlertTriangle, ArrowRight, Clock3, Download, ExternalLink, Film, Gauge, HardDrive, Library, Network, Search, Server, Share2, Tv, Upload } from '@lucide/vue';
@@ -112,19 +114,9 @@ function getClientSpeed(clientId: string | number): number {
   return getClientTorrents(clientId).reduce((acc: number, row: any) => acc + Number(row.download_speed || 0), 0);
 }
 
-function formatSpeed(bytesPerSec: number): string {
-  if (!bytesPerSec) return '0 o/s';
-  const units = ['o/s', 'Ko/s', 'Mo/s', 'Go/s'];
-  const i = Math.min(Math.floor(Math.log(bytesPerSec) / Math.log(1024)), units.length - 1);
-  return `${(bytesPerSec / Math.pow(1024, i)).toFixed(i > 1 ? 1 : 0)} ${units[i]}`;
-}
 
-function formatBytes(bytes: number): string {
-  if (!bytes) return '0 o';
-  const units = ['o', 'Ko', 'Mo', 'Go', 'To'];
-  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  return `${(bytes / Math.pow(1024, i)).toFixed(i > 1 ? 2 : 0)} ${units[i]}`;
-}
+
+
 
 function formatHost(url: string): string {
   if (!url) return '—';

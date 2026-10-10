@@ -19,6 +19,7 @@ from ..dependencies import require_admin
 from ..models import ArrInstance, Settings
 from ..realtime import publish
 from ..services import admin_alerts, fileflows, fileflows_guard, fileflows_history, fileflows_monitor, fileflows_queue
+from ..services.work_ref import EncodingOverviewResponse, encoding_work
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ async def _changed() -> None:
 # --------------------------------------------------------------------------- vue d'ensemble
 
 
-@router.get("/overview")
+@router.get("/overview", response_model=EncodingOverviewResponse)
 async def fileflows_overview(db: AsyncSession = Depends(get_db_async)):
     """Une ligne par disque : fichier en cours, attente du verrou, file, pause Plex."""
     inst = await _instance(db)
@@ -101,7 +102,13 @@ async def fileflows_overview(db: AsyncSession = Depends(get_db_async)):
         if (runner.get("step") or "").startswith(WAIT_STEP):
             entry["lock_waiting"] += 1
             continue
-        entry["running"].append({**runner, "media": fileflows.match_media(index, runner["name"])})
+        entry["running"].append(
+            {
+                **runner,
+                "media": fileflows.match_media(index, runner["name"]),
+                "work": encoding_work(runner, instance_id=inst.id, runner=True),
+            }
+        )
 
     rate = await fileflows_guard.throughput()
     per_hour = rate.get("per_hour")
@@ -360,19 +367,15 @@ class ControlBody(BaseModel):
     schedule_preset: Optional[Literal["always", "night", "not_evening", "daytime", "custom"]] = None
 
 
-async def _node(inst: ArrInstance) -> dict[str, Any]:
-    nodes = await fileflows._call(inst.url, inst.api_key, "GET", "node") or []
-    node = next((n for n in nodes if isinstance(n, dict) and n.get("Uid")), None)
-    if node is None:
-        raise fileflows.FileFlowsError("Aucun nœud FileFlows")
-    return await fileflows._call(inst.url, inst.api_key, "GET", f"node/{node['Uid']}")
+async def _node(inst: ArrInstance) -> tuple[str, dict[str, Any]]:
+    return await fileflows.main_node(inst.url, inst.api_key)
 
 
 @router.get("/control")
 async def fileflows_control(db: AsyncSession = Depends(get_db_async)):
     inst = await _instance(db)
     settings = await _settings(db)
-    node = await _guard(_node(inst))
+    _, node = await _guard(_node(inst))
     schedule = str(node.get("Schedule") or "")
     return {
         "runners_mode": settings.fileflows_runners_mode,
@@ -405,11 +408,11 @@ async def fileflows_control_save(body: ControlBody, db: AsyncSession = Depends(g
     if body.runners_mode == "manual":
         await _guard(fileflows_guard.set_runners(inst.url, inst.api_key, body.runners))
     if body.schedule_preset and body.schedule_preset != "custom":
-        node = await _guard(_node(inst))
+        route, node = await _guard(_node(inst))
         schedule = fileflows_guard.schedule_for(body.schedule_preset)
         if node.get("Schedule") != schedule:
             node["Schedule"] = schedule
-            await _guard(fileflows._call(inst.url, inst.api_key, "POST", "node", json=node))
+            await _guard(fileflows.save_node(inst.url, inst.api_key, route, node))
     await _changed()
     return {"ok": True}
 

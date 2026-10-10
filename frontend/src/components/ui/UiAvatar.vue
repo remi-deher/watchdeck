@@ -1,19 +1,21 @@
 <template>
-  <AvatarRoot class="ui-avatar" :class="[`ui-avatar--${size}`, `ui-avatar--${tone}`, { 'is-off': off }]" aria-hidden="true">
+  <AvatarRoot class="ui-avatar" :class="[`ui-avatar--${size}`, `ui-avatar--${tone}`, { 'is-off': disabled }]" aria-hidden="true">
     <!-- Reka Avatar : les initiales prennent le relais tant que l'image charge, ou si elle
          echoue, au lieu d'une image cassee. Decoratif : le nom est toujours ecrit a cote. -->
-    <AvatarImage v-if="src" :src="src" alt="" />
+    <AvatarImage v-if="image" :src="image" alt="" />
     <!-- Sans image, aucun delai : `undefined` et surtout pas 0, que Reka lit comme « jamais »
          (les initiales ne s'affichaient pas dans la liste des utilisateurs). -->
-    <AvatarFallback :delay-ms="src ? 300 : undefined">{{ initials || nameInitials(name) }}</AvatarFallback>
+    <AvatarFallback :delay-ms="image ? 300 : undefined">{{ initials || nameInitials(displayName) }}</AvatarFallback>
   </AvatarRoot>
 </template>
 
 <script setup lang="ts">
 import { AvatarFallback, AvatarImage, AvatarRoot } from 'reka-ui';
-import { nameInitials } from '@/utils/userLabels';
+import { computed } from 'vue';
+import { nameInitials, personName, type PersonRef } from '@/utils/userLabels';
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
+  person?: PersonRef | null;
   src?: string | null;
   /** Nom dont on tire les initiales, a defaut de `initials`. */
   name?: string | null;
@@ -23,7 +25,10 @@ withDefaults(defineProps<{
   tone?: 'neutral' | 'accent';
   /** Compte desactive : l'image passe en niveaux de gris. */
   off?: boolean;
-}>(), { src: '', name: '', initials: '', size: 'md', tone: 'neutral', off: false });
+}>(), { src: '', name: '', initials: '', size: 'md', tone: 'neutral' });
+const image = computed(() => props.src || props.person?.avatar_url || props.person?.user_avatar_url || '');
+const displayName = computed(() => props.name || (props.person ? personName(props.person) : ''));
+const disabled = computed(() => props.off || props.person?.enabled === false);
 </script>
 
 <style scoped>

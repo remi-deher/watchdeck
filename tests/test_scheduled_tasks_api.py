@@ -51,6 +51,8 @@ def test_list_scheduled_tasks_without_settings(client, db):
     assert arr_row["configurable"] is True
     assert arr_row["settings_field"] == "arr_poll_interval_seconds"
     assert arr_row["state"] is None
+    assert arr_row["work"]["state"] == "unknown"
+    assert arr_row["work"]["progress"]["percent"] is None
 
 
 def test_acquisition_batches_exposes_active_and_blocked_imports(client, db):

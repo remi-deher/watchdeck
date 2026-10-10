@@ -260,3 +260,20 @@ describe('ServiceHealthPanel details', () => {
     expect(toggle.attributes('aria-expanded')).toBe('true');
   });
 });
+
+
+describe('Santé observée', () => {
+  it('préfère le contrat entier à un ancien état et ne propose pas de refresh', async () => {
+    localStorage.clear();
+    apiMock.mockResolvedValue({ services: { plex: {
+      state: 'ok', health: { key: 'plex', state: 'unknown', label: 'État inconnu', reason: null },
+    } } });
+    const wrapper = mount(ServiceHealthPanel, {
+      global: { ...global, plugins: [[VueQueryPlugin, { queryClient: createQueryClient() }]] },
+    });
+    await flushPromises();
+    expect(wrapper.text()).toContain('État inconnu');
+    expect(wrapper.find('.service-health-verdict').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="Vérifier à nouveau"]').exists()).toBe(false);
+  });
+});

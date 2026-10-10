@@ -2,7 +2,7 @@
   <AppPage hide-search title="Profil" :error="error" :success="message" @dismiss-success="message = ''">
     <!-- En-tete : qui je suis, puis mes chiffres. Les onglets viennent dessous. -->
     <header class="profile-hero">
-      <UiAvatar class="profile-hero__avatar" :src="account?.avatar_url" :name="name" tone="accent" size="lg" />
+      <UiAvatar class="profile-hero__avatar" :person="account" tone="accent" size="lg" />
       <div class="profile-hero__text">
         <h2>Bonjour {{ firstName }}</h2>
         <p>{{ heroLine }}</p>

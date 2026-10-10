@@ -8,7 +8,7 @@
       <MediaPosterCard
         v-for="item in items.slice(0, 15)"
         :key="`${item.media_type}:${item.tmdb_id}`"
-        :item="item"
+        :media="item"
         :to="detailPath(item)"
         :action-label="cardActionLabel(item)"
         :requestable="allowRequest && canRequest(item)"

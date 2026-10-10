@@ -23,6 +23,7 @@
         live-label="En cours"
         :idle="{ title: 'Rien en cours' }"
         @select="(live) => live.to && router.push(live.to)"
+        @action="(live, key) => emit('action', live.trackItem, key)"
       />
       <section v-else class="track__group" :class="`is-${group.state}`" :aria-labelledby="`track-${group.state}`">
         <header class="track__group-head">
@@ -67,6 +68,7 @@ import { AlertTriangle, CheckCircle2, Clock, History, Loader, PauseCircle, XCirc
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import TrackCard from './track/TrackCard.vue';
 import TrackQueue from './track/TrackQueue.vue';
+import { resolveTrackItem } from '@/composables/workPresentation';
 import type { TrackItem, TrackLabels, TrackRecent, TrackState } from './track/types';
 
 export type { TrackAction, TrackCause, TrackItem, TrackLabels, TrackRecent, TrackState } from './track/types';
@@ -88,12 +90,15 @@ const props = withDefaults(
 );
 const emit = defineEmits<{ action: [item: TrackItem, key: string] }>();
 
-const ORDER: TrackState[] = ['blocked', 'running', 'paused', 'waiting'];
+const ORDER: TrackState[] = ['blocked', 'running', 'paused', 'waiting', 'unknown'];
 const GROUPS: Record<TrackState, { title: string; icon: any }> = {
   blocked: { title: 'Demande une intervention', icon: AlertTriangle },
   running: { title: 'En cours', icon: Loader },
   paused: { title: 'En pause', icon: PauseCircle },
   waiting: { title: 'En attente', icon: Clock },
+  unknown: { title: 'État à vérifier', icon: AlertTriangle },
+  completed: { title: 'Terminé', icon: CheckCircle2 },
+  cancelled: { title: 'Annulé', icon: XCircle },
 };
 
 const text = computed(() => {
@@ -113,9 +118,13 @@ const router = useRouter();
 function toLive(item: TrackItem): LiveItem {
   return {
     key: item.key,
+    work: item.work,
+    actions: item.actions,
+    trackItem: item,
     title: item.title,
     status: item.eta || '',
     progress: item.progress ?? null,
+    media: item.media || null,
     poster: item.poster || null,
     icon: item.icon,
     badge: item.step ? { label: item.step, tone: 'accent' } : null,
@@ -127,7 +136,7 @@ function toLive(item: TrackItem): LiveItem {
 }
 
 const groups = computed(() =>
-  ORDER.map((state) => ({ state, items: props.items.filter((item) => item.state === state) })).filter((group) => group.items.length),
+  ORDER.map((state) => ({ state, items: props.items.map(resolveTrackItem).filter((item) => item.state === state) })).filter((group) => group.items.length),
 );
 </script>
 

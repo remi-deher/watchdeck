@@ -31,7 +31,10 @@
     <!-- Outils de la page (etat d'un service, pause…), a gauche de « Filtres » : largeur
          bornee, ce qui deborde defile, la recherche ne bouge jamais. -->
     <div v-if="$slots.tools" class="ui-search-field__tools"><slot name="tools" /></div>
-    <template v-if="hasFilters">
+    <!-- Le segment de droite : l'action du contexte (pause, ajouter…) si la page en donne
+         une, sinon « Filtres » si elle filtre, sinon rien. -->
+    <div v-if="$slots.action" class="ui-search-field__action"><slot name="action" /></div>
+    <template v-else-if="hasFilters">
       <button
         type="button"
         class="ui-search-field__filter"
@@ -136,7 +139,8 @@ function onInput(event: Event): void {
    occupe toute la hauteur et vient au ras du bord, comme un segment de la capsule et
    non comme une pastille posee dedans. Sans cela il restait un liseré de fond entre le
    bouton et le contour -- huit pixels a droite, un en haut et en bas. */
-.ui-search-field:has(.ui-search-field__filter) { padding-right: 0; }
+.ui-search-field:has(.ui-search-field__filter),
+.ui-search-field:has(.ui-search-field__action) { padding-right: 0; }
 .ui-search-field__icon { flex: none; width: 16px; height: 16px; color: var(--muted); }
 .ui-search-field input {
   flex: 1;
@@ -238,6 +242,11 @@ function onInput(event: Event): void {
   cursor: pointer;
 }
 .ui-search-field__filter:hover { color: var(--text); }
+/* Segment d'action : meme couture et meme coin que « Filtres » ; le bouton fourni par la
+   page y perd son cadre pour faire corps avec la capsule. */
+.ui-search-field__action { display: flex; flex: none; align-items: stretch; height: 100%; border-left: 1px solid var(--border); border-radius: 0 calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0; overflow: hidden; }
+.ui-search-field__action :deep(button) { height: 100%; min-height: 0; padding: 0 12px; border: 0; border-radius: 0; background: transparent; box-shadow: none; font-size: var(--fs-sm); }
+.ui-search-field__action :deep(button:hover) { background: rgb(var(--ink) / .05); }
 .ui-search-field__filter.active { color: var(--accent); }
 .ui-search-field__filter svg { width: 15px; height: 15px; }
 .ui-search-field__count {

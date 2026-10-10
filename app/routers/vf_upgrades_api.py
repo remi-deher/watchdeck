@@ -8,7 +8,7 @@ from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -36,6 +36,7 @@ from ..services.arr_language_config import (
     push_custom_format,
     recommended_custom_format,
 )
+from ..services.handling_problem import HandlingProblem, audit_problems
 from ..services.request_lifecycle import transition_request
 from ..services.vf_technical_guard import blocking_reasons
 from ..services.vf_upgrade_lifecycle import (
@@ -55,6 +56,7 @@ from ..services.vf_upgrade_scanner import (
     scan_vf_upgrades,
     vf_upgrade_scan_state,
 )
+from ..services.work_ref import WorkRecord, task_work
 from ..utils import now_utc_naive
 from .arr_shared import _resolve_arr_instance
 
@@ -99,7 +101,14 @@ def _media_payload(media, source_type: str) -> dict:
         "library_item": "library",
         "request": "request",
     }.get(source_type)
+    from ..services.media_availability import media_availability
+    from ..services.media_ref import media_ref
+    from ..utils import wrap_backdrop_proxy
+
     return {
+        **media_ref(media),
+        "backdrop_url": wrap_backdrop_proxy(getattr(media, "art_url", None)),
+        "availability": media_availability(media, library=media if source_type == "library_item" else None),
         "id": media.id,
         "source_type": source_type,
         "title": media.title,
@@ -447,13 +456,42 @@ async def vf_upgrade_dashboard(
     await db.commit()
     return {
         "items": items,
-        "scan": vf_upgrade_scan_state,
+        "scan": {**vf_upgrade_scan_state, "work": task_work("vf-upgrades", vf_upgrade_scan_state, scan=True)},
         "waiting_total": waiting_total,
         "waiting_limit": waiting_limit,
     }
 
 
-@router.get("/vf-upgrades/audit")
+class AuditProblemRecord(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    id: int
+    title: str
+    media_type: str
+    year: int | None
+    poster_url: str | None
+    backdrop_url: str | None
+    has_vf: bool | None
+    fr_is_default: bool | None
+    sub_fr_status: str | None
+    forced_fr_status: str | None
+    issues: list[str]
+    problems: list[HandlingProblem]
+
+
+class AuditProblemCounts(BaseModel):
+    total: int
+    audio_secondary: int
+    sub_fr_not_default: int
+    forced_sub_not_default: int
+    partial_vf: int
+
+
+class AuditProblemsResponse(BaseModel):
+    items: list[AuditProblemRecord]
+    counts: AuditProblemCounts
+
+
+@router.get("/vf-upgrades/audit", response_model=AuditProblemsResponse)
 async def vf_upgrade_audit(
     issue_type: str | None = None,
     media_type: str | None = None,
@@ -510,6 +548,7 @@ async def vf_upgrade_audit(
             {
                 **item_payload,
                 "issues": issues,
+                "problems": audit_problems(row, issues),
                 "arr_id": row.arr_id,
                 "arr_instance_id": row.arr_instance_id,
                 "suggestions_status": active_by_id.get(row.id, []),
@@ -1218,9 +1257,9 @@ async def vf_upgrade_install_custom_format(instance_id: int, db: AsyncSession = 
     }
 
 
-@router.get("/vf-upgrades/scan-status")
+@router.get("/vf-upgrades/scan-status", response_model=WorkRecord)
 async def vf_upgrade_scan_status():
-    return vf_upgrade_scan_state
+    return {**vf_upgrade_scan_state, "work": task_work("vf-upgrades", vf_upgrade_scan_state, scan=True)}
 
 
 @router.get("/vf-upgrades/scan-runs")

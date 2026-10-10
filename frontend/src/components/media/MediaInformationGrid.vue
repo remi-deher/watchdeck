@@ -3,10 +3,10 @@
     <!-- Fiche d'information Musique -->
     <template v-if="isMusic">
       <article class="information-card state-card">
-        <header><Activity/><div><span>Bibliothèque Plex</span><strong>{{ detail.in_library ? 'Présent dans Plex' : 'Musique Plex' }}</strong></div></header>
+        <header><Activity/><div><span>Bibliothèque Plex</span><strong>{{ isInPlex(detail) ? 'Présent dans Plex' : 'Musique Plex' }}</strong></div></header>
         <dl>
           <div><dt>Type</dt><dd>{{ detail.media_type === 'artist' ? 'Artiste' : 'Album' }}</dd></div>
-          <div><dt>Plex</dt><dd>{{ detail.in_library ? 'Disponible' : 'Synchronisé' }}</dd></div>
+          <div><dt>Plex</dt><dd>{{ plexPresenceLabel(detail) }}</dd></div>
           <div v-if="detail.year"><dt>Année</dt><dd>{{ detail.year }}</dd></div>
         </dl>
       </article>
@@ -23,21 +23,26 @@
       <article class="information-card state-card">
         <header><Activity/><div><span>État actuel</span><strong>{{ currentState }}</strong></div></header>
         <dl>
-          <div><dt>Plex</dt><dd>{{ detail.in_library ? 'Disponible' : 'Absent' }}</dd></div>
-          <div><dt>Source</dt><dd>{{ detail.origin_label || 'Ajout direct' }}</dd></div>
+          <div><dt>Plex</dt><dd>{{ plexPresenceLabel(detail) }}</dd></div>
+          <div><dt>Source</dt><dd>{{ detail.journey?.origin.label || detail.origin_label || 'Ajout direct' }}</dd></div>
           <div><dt>Prochaine action</dt><dd>{{ nextAction }}</dd></div>
         </dl>
-        <p v-if="detail.waiting_reason" class="information-note">{{ detail.waiting_reason }}</p>
+        <p v-if="waitingReason" class="information-note">{{ waitingReason }}</p>
       </article>
 
       <article class="information-card">
         <header><Layers3/><div><span>Couverture</span><strong>{{ coverageTitle }}</strong></div></header>
-        <dl v-if="detail.media_type==='show'">
+        <dl v-if="detail.media_type==='show' && detail.availability">
+          <div v-if="detail.availability.episodes.seasons_total"><dt>Saisons avec fichiers complets · *ARR</dt><dd>{{ detail.availability.episodes.seasons_available }} / {{ detail.availability.episodes.seasons_total }}</dd></div>
+          <div><dt>Fichiers d’épisodes · *ARR</dt><dd>{{ detail.availability.episodes.available ?? '?' }} / {{ detail.availability.episodes.aired ?? '?' }} diffusés</dd></div>
+          <div><dt>Langue</dt><dd><MediaLanguageBadge :state="detail" /></dd></div>
+        </dl>
+        <dl v-else-if="detail.media_type==='show'">
           <div><dt>Saisons complètes</dt><dd>{{ coverage.complete }} / {{ coverage.total }}</dd></div>
           <div><dt>Épisodes</dt><dd>{{ coverage.available }} / {{ coverage.episodes }}</dd></div>
-          <div><dt>Langue</dt><dd>{{ languageLabel }}</dd></div>
+          <div><dt>Langue</dt><dd><MediaLanguageBadge :state="detail" /></dd></div>
         </dl>
-        <dl v-else><div><dt>Disponibilité</dt><dd>{{ detail.in_library ? 'Dans Plex' : 'En attente' }}</dd></div><div><dt>Langue</dt><dd>{{ languageLabel }}</dd></div></dl>
+        <dl v-else><div><dt>Disponibilité</dt><dd>{{ plexPresenceLabel(detail) }}</dd></div><div><dt>Langue</dt><dd><MediaLanguageBadge :state="detail" /></dd></div></dl>
       </article>
 
       <article class="information-card">
@@ -48,7 +53,7 @@
 
       <article class="information-card">
         <header><Users/><div><span>Demandes</span><strong>{{ requestersCount }} demandeur{{ requestersCount>1?'s':'' }}</strong></div></header>
-        <dl><div><dt>Première demande</dt><dd>{{ firstRequestDate }}</dd></div><div><dt>Source</dt><dd>{{ detail.origin_label || 'Inconnue' }}</dd></div><div><dt>Demandes liées</dt><dd>{{ requests.length }}</dd></div></dl>
+        <dl><div><dt>Première demande</dt><dd>{{ firstRequestDate }}</dd></div><div><dt>Source</dt><dd>{{ detail.journey?.origin.label || detail.origin_label || 'Inconnue' }}</dd></div><div><dt>Demandes liées</dt><dd>{{ requests.length }}</dd></div></dl>
       </article>
 
       <article class="information-card notification-card">
@@ -61,10 +66,12 @@
 </template>
 
 <script setup lang="ts">
+import { isInPlex, plexPresenceLabel, mediaAvailabilityBadge } from "@/utils/mediaAvailability";
 import { formatDateTime } from '@/utils/format';
+import MediaLanguageBadge from './MediaLanguageBadge.vue';
 import { computed } from 'vue';
 import { Activity, BellRing, CalendarClock, Layers3, Users } from '@lucide/vue';
-import { vfLanguageState, isMusicType } from '@/utils/labels';
+import { isMusicType } from '@/utils/labels';
 
 const props = withDefaults(
   defineProps<{
@@ -78,9 +85,11 @@ const props = withDefaults(
 const isMusic = computed(() => isMusicType(props.detail?.media_type));
 const requests = computed(() => props.detail.requests || []);
 const notifications = computed(() => props.detail.notification_history || []);
-const currentState = computed(() => props.detail.operational_status_label || (props.detail.in_library ? 'Disponible' : 'En attente'));
+const waitingReason = computed(() => props.detail.journey ? props.detail.journey.blocker?.label : props.detail.waiting_reason);
+const currentState = computed(() => props.detail.journey?.label || (props.detail.availability ? mediaAvailabilityBadge(props.detail)?.label : null) || props.detail.operational_status_label || (isInPlex(props.detail) ? 'Disponible' : 'En attente'));
 const nextAction = computed(() =>
-  props.detail.in_library
+  props.detail.journey ? props.detail.journey.next_step?.label || 'Aucune étape attendue' :
+  isInPlex(props.detail)
     ? 'Aucune action requise'
     : props.detail.waiting_reason
     ? 'Vérifier le blocage'
@@ -105,18 +114,16 @@ const coverage = computed(() => {
   };
 });
 const coverageTitle = computed(() =>
-  props.detail.media_type === 'show'
+  props.detail.availability && props.detail.media_type === 'show'
+    ? ({ unknown: 'Couverture inconnue', absent: 'Aucun fichier', partial: 'Fichiers partiels', up_to_date: 'Fichiers à jour sur les épisodes diffusés' } as Record<string, string>)[props.detail.availability.episodes.state]
+    : props.detail.media_type === 'show'
     ? coverage.value.total
       ? `${coverage.value.complete} saison${coverage.value.complete > 1 ? 's' : ''} complète${coverage.value.complete > 1 ? 's' : ''}`
       : 'Couverture inconnue'
-    : props.detail.in_library
+    : isInPlex(props.detail)
     ? 'Film disponible'
     : 'Film attendu'
 );
-const languageLabel = computed(() => {
-  const state = vfLanguageState(props.detail);
-  return state.variant === 'unknown' ? 'Non analysée' : state.label;
-});
 const upcoming = computed(() =>
   (props.detail.calendar || []).filter((event: any) => new Date(event.date) > new Date()).slice(0, 3)
 );

@@ -21,6 +21,7 @@ from ..services import arr_orphans, email_providers, prowlarr, radarr, sonarr
 from ..services import service_health_details as health_details
 from ..services.plex_api import check_connection as plex_test
 from ..services.seer import check_connection as seer_test
+from ..services.service_health import HealthResponse, health_payload
 from ..utils import now_utc, now_utc_naive, wrap_image_proxy
 
 _WATCHLIST_TICK_SECONDS = 30
@@ -116,12 +117,12 @@ async def _timed_prowlarr_check(inst: ArrInstance) -> tuple[bool | None, str, fl
     return ok, "OK" if ok else "Connexion impossible", round((time.monotonic() - t0) * 1000, 1)
 
 
-@router.get("/health")
+@router.get("/health", response_model=HealthResponse)
 async def health_check(db: AsyncSession = Depends(get_db_async)):
     """État structuré de tous les services connectés avec latences."""
     cached = await cache.get_json("watchdeck:health")
     if cached:
-        return cached
+        return health_payload(cached)
     s = (await db.execute(select(Settings))).scalars().first()
     checks: dict[str, tuple] = {}
     sonarr_inst = await _preferred_instance(db, "sonarr")
@@ -240,6 +241,7 @@ async def health_check(db: AsyncSession = Depends(get_db_async)):
         "checked_at": now_utc().isoformat(),
         "services": services,
     }
+    payload = health_payload(payload)
     await cache.set_json("watchdeck:health", payload, ttl_seconds=20)
     from ..realtime import publish
 

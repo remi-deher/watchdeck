@@ -2,20 +2,13 @@
   <!-- File de l'encodage (gabarit Suivre) : ou en est ce qui tourne ? Les echecs d'abord
        (cause et relance), puis ce que font les runners, puis la file dans l'ordre de
        passage (mise en tete), et les derniers termines avant l'historique. La recherche
-       est celle de la barre du haut, la bibliotheque un filtre de la feuille commune. -->
+       est celle de la barre du haut ; son action est la pause (pas de filtre : les groupes
+       disent deja tout). -->
   <EncodingShell
     v-model:query="search"
     title="File"
     :search="{ placeholder: 'Rechercher un fichier…', kind: 'search', scope: 'File d’encodage' }"
-    :filter-count="library ? 1 : 0"
-    :filter-chips="library ? [{ key: 'library', label: library, onRemove: () => (library = '') }] : []"
-    @reset-filters="library = ''"
   >
-    <template #filters>
-      <FilterGroup label="Bibliothèque">
-        <UiChipGroup label="Bibliothèque" :options="libraryOptions" v-model="library" />
-      </FilterGroup>
-    </template>
 
     <TrackTemplate
       :items="items"
@@ -42,8 +35,6 @@ import { useToast } from '@/composables/useToast';
 import { queryKeys } from '@/queryKeys';
 import { humanizeError } from '@/utils/apiError';
 import { formatRelativeDate } from '@/utils/format';
-import FilterGroup from '@/components/ui/FilterGroup.vue';
-import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import TrackTemplate, { type TrackItem, type TrackRecent } from '@/components/templates/TrackTemplate.vue';
 import EncodingShell from '@/components/encoding/EncodingShell.vue';
 import FileflowsLogModal from '@/components/encoding/FileflowsLogModal.vue';
@@ -57,12 +48,10 @@ const connected = computed(() => Boolean(status.value?.configured && status.valu
 
 /* Recherche et bibliotheque dans l'adresse : un lien y mene directement. */
 const search = ref(String(route.query.q || ''));
-const library = ref(String(route.query.library || ''));
 const debouncedSearch = refDebounced(search, 350);
-watch([debouncedSearch, library], () => {
+watch(debouncedSearch, () => {
   const query: Record<string, string> = {};
   if (debouncedSearch.value.trim()) query.q = debouncedSearch.value.trim();
-  if (library.value) query.library = library.value;
   void router.replace({ query });
 });
 
@@ -82,14 +71,8 @@ const queuedQuery = filesQuery(FILEFLOWS_STATUS.queued);
 const failedQuery = filesQuery(FILEFLOWS_STATUS.failed);
 
 /* FileFlows ne filtre pas sa liste par bibliotheque : le filtre porte sur ce qui est charge. */
-const inLibrary = (name: string) => !library.value || name === library.value;
-const queued = computed(() => (queuedQuery.data.value?.files || []).filter((file) => inLibrary(file.library)));
-const failed = computed(() => (failedQuery.data.value?.files || []).filter((file) => inLibrary(file.library)));
-const libraryOptions = computed(() => {
-  const names = new Set([...(queuedQuery.data.value?.files || []), ...(failedQuery.data.value?.files || [])].map((file) => file.library).filter(Boolean));
-  for (const runner of status.value?.runners || []) if (runner.library) names.add(runner.library);
-  return [{ value: '', label: 'Toutes' }, ...[...names].sort().map((name) => ({ value: name, label: name }))];
-});
+const queued = computed(() => (queuedQuery.data.value?.files || []));
+const failed = computed(() => (failedQuery.data.value?.files || []));
 
 function mediaTitle(media: FileflowsMedia): string {
   return media.year ? `${media.title} (${media.year})` : media.title;
@@ -101,11 +84,12 @@ const searched = (name: string) => !debouncedSearch.value.trim() || name.toLower
 /* Echecs (bloques), runners (en cours), file (en attente, dans l'ordre de passage). */
 const items = computed<TrackItem[]>(() => [
   ...failed.value.map((file): TrackItem => ({
-    key: `failed-${file.uid}`,
+    key: file.work?.key || `failed-${file.uid}`,
+    work: file.work,
     state: 'blocked',
     title: titleOf(file),
     subtitle: [file.library, file.flow].filter(Boolean).join(' · '),
-    poster: file.media?.poster_url || null,
+    media: file.media || null,
     icon: Film,
     to: linkOf(file.media),
     cause: { headline: file.failure_reason || 'Traitement en échec', hint: 'Le journal donne le détail de l’étape qui a échoué.' },
@@ -114,19 +98,22 @@ const items = computed<TrackItem[]>(() => [
       { key: `log:${file.uid}`, label: 'Journal', icon: ScrollText },
     ],
   })),
-  ...(status.value?.runners || []).filter((runner) => inLibrary(runner.library) && searched(runner.name)).map((runner): TrackItem => ({
-    key: `run-${runner.path}`,
+  ...(status.value?.runners || []).filter((runner) => searched(runner.name)).map((runner): TrackItem => ({
+    key: runner.work?.key || `run-${runner.path}`,
+    work: runner.work,
     state: 'running',
     title: runner.media ? mediaTitle(runner.media) : fileBaseName(runner.name),
     subtitle: runner.library,
-    poster: runner.media?.poster_url || null,
+    media: runner.media || null,
     icon: Film,
     to: linkOf(runner.media),
     step: runner.step || 'Démarrage…',
-    progress: runner.percent || null,
+    progress: runner.percent ?? null,
   })),
   ...queued.value.map((file, index): TrackItem => ({
-    key: `queued-${file.uid}`,
+    key: file.work?.key || `queued-${file.uid}`,
+    work: file.work,
+    media: file.media,
     state: 'waiting',
     title: titleOf(file),
     subtitle: file.library,

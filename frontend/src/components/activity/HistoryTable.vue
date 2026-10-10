@@ -41,11 +41,11 @@
           <small>{{ row.item.user_name || 'Utilisateur Plex' }}<template v-if="row.count > 1"> &middot; {{ row.count }} lectures consécutives</template></small>
         </span>
         <span class="history-client">
-          <span><Monitor/><strong>{{ deviceLabel(row.item) }}</strong></span>
+          <UiClientIdentity :client="row.item" />
           <span><Network/><code>{{ addressLabel(row.item) }}</code></span>
           <span class="history-place"><MapPin/><span>{{ locationLabel(row.item) }}</span></span>
         </span>
-        <PlaybackMethodBadge :method="row.method" :title="row.method === 'mixed' ? mixedTitle(row) : ''"/>
+        <PlaybackMethodBadge :playback="row.item" :playbacks="row.items"/>
         <span class="history-duration">{{ formatDuration(row.watchedMs) }}</span>
         <time>{{ formatDate(row.item.started_at) }}</time>
         </button>
@@ -64,6 +64,8 @@
 </template>
 
 <script setup lang="ts">
+import UiClientIdentity from '@/components/ui/UiClientIdentity.vue';
+import { plexClientName } from '@/utils/plexClient';
 import UiTooltip from '@/components/ui/UiTooltip.vue';
 import { playbackTitle } from '@/playbackToast';
 import { computed, ref, watch } from 'vue';
@@ -71,13 +73,12 @@ import { useIntersectionObserver } from '@vueuse/core';
 import UiSectionHeader from '@/components/ui/UiSectionHeader.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { downloadTextFile } from '@/utils/download';
-import { ArrowDown, ArrowUp, FileDown, MapPin, Monitor, Network } from '@lucide/vue';
+import { ArrowDown, ArrowUp, FileDown, MapPin, Network } from '@lucide/vue';
 import { formatDurationExact as formatDuration, formatDateTimeShort, formatLongDay } from '@/utils/format';
 import { isToday, isYesterday } from 'date-fns';
 import { localIso } from '@/utils/timeBuckets';
 import MediaArtwork from './MediaArtwork.vue';
 import PlaybackMethodBadge from './PlaybackMethodBadge.vue';
-import { playbackMethodLabel } from '@/utils/labels';
 
 export interface HistoryItem {
   id?: number | string;
@@ -174,12 +175,6 @@ function runMethod(items: HistoryItem[]): string {
   const methods = new Set(items.map((item) => item.playback_method || ''));
   return methods.size > 1 ? 'mixed' : items[0]?.playback_method || '';
 }
-function mixedTitle(row: HistoryRow): string {
-  const counts = new Map<string, number>();
-  for (const item of row.items) counts.set(item.playback_method || '', (counts.get(item.playback_method || '') || 0) + 1);
-  return `Lecture mixte : ${[...counts].map(([method, count]) => `${count} × ${playbackMethodLabel(method, { fallback: 'inconnu' }).toLowerCase()}`).join(', ')}`;
-}
-
 /* Le repliement ne porte que sur des lectures *consecutives* du meme media : les reprises
    d'un episode ou d'un film. Deux visionnages separes dans le temps restent deux lignes,
    comme deux episodes qui se suivent : ce sont des evenements distincts. */
@@ -202,7 +197,7 @@ const rows = computed<HistoryRow[]>(() => {
       previous &&
       previous.item.user_name === item.user_name &&
       groupKey(previous.item) === groupKey(item) &&
-      deviceLabel(previous.item) === deviceLabel(item);
+      plexClientName(previous.item) === plexClientName(item);
     if (sameRun) {
       previous.items.push(item);
       previous.count += 1;
@@ -283,7 +278,7 @@ function exportCsv(): void {
   const lines = [header, ...rows.value.map((row) => [
     displayTitle(row.item),
     row.item.user_name || '',
-    deviceLabel(row.item),
+    plexClientName(row.item),
     row.item.address || '',
     locationLabel(row.item),
     row.method || '',
@@ -301,9 +296,6 @@ function exportCsv(): void {
 
 function displayTitle(item: HistoryItem): string {
   return item.grandparent_title || item.title ? playbackTitle(item) : '';
-}
-function deviceLabel(item: HistoryItem): string {
-  return item.player || item.product || item.platform || 'Appareil inconnu';
 }
 function addressLabel(item: HistoryItem): string {
   return item.address || 'IP indisponible';

@@ -7,12 +7,12 @@
 
 <script setup lang="ts">
 import { useSlots } from 'vue';
-import { providePageTools, usePageTools } from '@/composables/usePageTools';
+import { providePageTools, usePageTools, type PageToolsZone } from '@/composables/usePageTools';
 
-const props = withDefaults(defineProps<{ disabled?: boolean }>(), { disabled: false });
+const props = withDefaults(defineProps<{ disabled?: boolean; zone?: PageToolsZone }>(), { disabled: false, zone: 'tools' });
 const slots = useSlots();
 const { hostReady } = usePageTools();
-providePageTools(() => (hostReady.value && !props.disabled && slots.default ? () => slots.default!() : null));
+providePageTools(() => (hostReady.value && !props.disabled && slots.default ? () => slots.default!() : null), props.zone);
 </script>
 
 <style scoped>

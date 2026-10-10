@@ -68,3 +68,10 @@ describe('MediaWorkflowTimeline - historique', () => {
     expect(wrapper.find('.workflow-history-toggle').exists()).toBe(false);
   });
 });
+
+it('rend les étapes du parcours complet en priorité', () => {
+  const wrapper = mount(MediaWorkflowTimeline, { props: { steps: [{ key: 'old', label: 'Disponible', state: 'completed' }],
+    journey: { steps: [{ key: 'plex', label: 'Confirmation Plex attendue', state: 'current', occurred_at: null }] } } });
+  expect(wrapper.text()).toContain('Confirmation Plex attendue');
+  expect(wrapper.text()).not.toContain('Disponible');
+});

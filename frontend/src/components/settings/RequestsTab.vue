@@ -133,12 +133,14 @@ function customQuota(entry: QuotaException): string {
 /* Dernière lecture de la watchlist, lue dans les tâches planifiées. */
 const tasksQuery = useQuery({ queryKey: ['settings', 'scheduled-tasks'], queryFn: () => api<any[]>('/api/scheduled-tasks') });
 const watchlistState = computed(() => {
-  const state = (tasksQuery.data.value || []).find((task: any) => task.job === 'watchlist')?.state;
+  const task = (tasksQuery.data.value || []).find((task: any) => task.job === 'watchlist');
+  const state = task?.state;
+  if (task?.work && !['completed', 'blocked'].includes(task.work.state)) return { failed: false, text: `${task.work.label}${task.work.reason ? ` : ${task.work.reason}` : ''}` };
   if (!state?.finished_at) return null;
   const when = formatRelativeDate(state.finished_at).toLowerCase();
   const source = form.watchlist_source_priority === 'rss' ? 'Universal Watchlist' : 'API Plex';
-  return state.status === 'failed'
-    ? { failed: true, text: `Dernière lecture en échec ${when}${state.last_error ? ` : ${state.last_error}` : ''}` }
+  return (task.work ? task.work.state === 'blocked' : state.status === 'failed')
+    ? { failed: true, text: `Dernière lecture en échec ${when}${(task.work?.reason || state.last_error) ? ` : ${task.work?.reason || state.last_error}` : ''}` }
     : { failed: false, text: `Dernière lecture ${when} · source : ${source}` };
 });
 

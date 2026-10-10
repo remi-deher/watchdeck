@@ -88,7 +88,7 @@ describe('queueCounts', () => {
     const counts = queueCounts(rows);
 
     expect(counts).toEqual({
-      downloading: 2, queued: 1, paused: 1, completed: 0,
+      downloading: 2, queued: 1, paused: 1, completed: 0, unknown: 0,
       intervention: 2, importPending: 1, blocked: 1,
     });
     // Chaque ligne compte pour exactement une catégorie.
@@ -150,5 +150,20 @@ describe('interventionInfo', () => {
     const info = interventionInfo(row({ request_id: null, library_id: null }));
     expect(info.badge).toBe('À associer');
     expect(info.hint).toContain('Associez');
+  });
+});
+
+
+describe('contrat observé des téléchargements', () => {
+  it('ne compte pas une observation périmée comme en cours ou en attente', () => {
+    const item = row({work: {state: 'unknown', label: 'État inconnu', stage: null}});
+    expect(statusKey(item)).toBe('unknown');
+    expect(statusLabel(item)).toBe('État inconnu');
+    expect(queueCounts([item])).toMatchObject({unknown: 1, downloading: 0, queued: 0});
+  });
+  it('ne classe pas un import en attente automatique comme une intervention obligatoire', () => {
+    const item = row({progress: 100, tracked_state: 'importPending', work: {state: 'waiting', label: 'En attente', stage: 'En attente d’import'}});
+    expect(statusKey(item)).toBe('queued');
+    expect(requiresIntervention(item)).toBe(false);
   });
 });

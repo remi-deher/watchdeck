@@ -84,16 +84,17 @@ describe('AppPage', () => {
     }
   });
 
-  it('ne rend aucune rangee de sections en compact : le dock les porte', () => {
-    // Sur telephone, la rangee s'ajoutait a la barre du haut et au dock. Les sections
-    // vivent desormais dans la feuille ouverte depuis la destination active du dock,
-    // et la page ne doit surtout pas en afficher un second exemplaire.
-    const restore = stubShellMode('compact');
-    try {
-      const wrapper = mountPage({ sections: librarySections, activeSection: 'vf' });
-      expect(wrapper.find('.app-subnav__item').exists()).toBe(false);
-    } finally {
-      restore();
+  it('rend la rangee de sections sur tous les ecrans : le menu ne porte que l’entree', () => {
+    // Une seule navigation, la meme partout : le rail et le dock ne portent qu'un niveau,
+    // les sections vivent dans la page, telephone compris.
+    for (const mode of ['compact', 'medium', 'expanded']) {
+      const restore = stubShellMode(mode);
+      try {
+        const wrapper = mountPage({ sections: librarySections, activeSection: 'vf' });
+        expect(wrapper.find('.app-subnav__item').exists(), mode).toBe(true);
+      } finally {
+        restore();
+      }
     }
   });
 

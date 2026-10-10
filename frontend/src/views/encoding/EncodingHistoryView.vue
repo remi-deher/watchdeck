@@ -28,7 +28,7 @@ import { computed, ref } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
 import {
-  PROCESSING_KIND_LABELS, fileBaseName, fileflowsHistoryQuery, formatSeconds, passChanges, useFileflowsStatus,
+  PROCESSING_KIND_LABELS, fileBaseName, fileflowsHistoryQuery, formatSeconds, passChanges, passTags, useFileflowsStatus,
   type FileflowsPass, type FileflowsTiming,
 } from '@/composables/useFileflows';
 import { useToast } from '@/composables/useToast';
@@ -73,6 +73,7 @@ const events = computed<UnderstandEvent[]>(() => passes.value.map((pass) => ({
   outcome: pass.status === 'failed' ? 'failed' : 'success',
   title: fileBaseName(pass.path),
   detail: pass.status === 'failed' ? (pass.failure_reason || 'Échec') : [kindLabel(pass), ...passChanges(pass).slice(-1)].filter(Boolean).join(' · '),
+  tags: passTags(pass),
   context: pass.disk || '',
 })));
 
@@ -100,6 +101,7 @@ const detail = computed<UnderstandDetail | null>(() => {
     subtitle: [formatDateTimeShort(pass.ended_at), pass.disk, pass.processing_seconds != null ? `traité en ${formatSeconds(pass.processing_seconds)}` : null].filter(Boolean).join(' · '),
     outcome: pass.status === 'failed' ? 'failed' : 'success',
     cause: pass.failure_reason || (passChanges(pass).join(' · ') || undefined),
+    tags: passTags(pass),
     comparison: [
       { label: 'Taille', before: size(pass.original_size ?? pass.before?.size), after: pass.status === 'failed' ? '—' : size(pass.final_size ?? pass.after?.size) },
       { label: 'Vidéo', before: pass.before?.video?.codec || '—', after: pass.after?.video?.codec || '—' },

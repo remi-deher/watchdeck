@@ -1,3 +1,4 @@
+import type { MediaAvailability } from '@/types/media';
 import type { VfUpgradeStatus } from '@/types/vfUpgrades';
 
 /* Formes des donnees de la page « Ameliorations VF & Flux ».
@@ -9,17 +10,20 @@ import type { VfUpgradeStatus } from '@/types/vfUpgrades';
  */
 
 export type AuditIssue = 'audio_secondary' | 'sub_fr_not_default' | 'forced_sub_not_default' | 'partial_vf' | string;
-export type SubtitleStatus = 'ok' | 'not_default' | 'forced_default' | 'forced_not_default' | 'absent' | 'no_track' | null | undefined;
-export type ForcedStatus = 'ok' | 'not_default' | null | undefined;
+export type SubtitleStatus = 'ok' | 'not_default' | 'forced_default' | 'forced_not_default' | 'absent' | 'no_track' | string | null | undefined;
+export type ForcedStatus = 'ok' | 'not_default' | string | null | undefined;
 
 export interface AuditItem {
+  problems?: import('@/types/generated/mediaAvailability').HandlingProblem[];
+  availability?: MediaAvailability;
   id: number;
   title?: string;
   media_type: 'movie' | 'show' | string;
   year?: number | null;
   poster_url?: string | null;
-  has_vf?: boolean;
-  fr_is_default?: boolean;
+  backdrop_url?: string | null;
+  has_vf?: boolean | null;
+  fr_is_default?: boolean | null;
   sub_fr_status?: SubtitleStatus;
   forced_fr_status?: ForcedStatus;
   issues?: AuditIssue[];
@@ -55,6 +59,7 @@ export interface ScanRunItem {
 }
 
 export interface LiveScan {
+  work?: import("@/types").WorkRef;
   status?: string;
   [field: string]: unknown;
 }

@@ -12,7 +12,7 @@
         <p>Dernière observation : {{ new Date(row.observed_at+'Z').toLocaleString() }}</p>
         <p v-if="row.data.files_observed_at">Fichiers actualisés : {{ new Date(row.data.files_observed_at+'Z').toLocaleString() }}</p>
         <p v-if="row.source==='arr'">Dossier Arr : <code>{{ row.data.path }}</code></p>
-        <ul v-if="row.data.files?.length"><li v-for="file in row.data.files" :key="file.path+file.rating_key"><code>{{ file.path }}</code> · {{ file.size_bytes==null?'Taille inconnue':(file.size_bytes/1e9).toFixed(2)+' Go' }} · {{ file.present?'Observé par '+(row.source==='plex'?'Plex':'Arr'):'Ancien emplacement' }}</li></ul>
+        <ul v-if="row.data.files?.length"><li v-for="file in row.data.files" :key="file.path+file.rating_key"><code>{{ file.path }}</code> · {{ file.size_bytes==null?'Taille inconnue':formatDecimalGigabytes(file.size_bytes) }} · {{ file.present?'Observé par '+(row.source==='plex'?'Plex':'Arr'):'Ancien emplacement' }}</li></ul>
         <UiButton v-if="row.source==='plex'" :disabled="refreshing!==0" @click="refresh(row.id)">{{ refreshing===row.id?'Actualisation…':'Actualiser la fiche Plex' }}</UiButton>
       </li>
     </ul>
@@ -21,6 +21,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import { formatDecimalGigabytes } from '@/utils/format';
 import {onMounted,ref} from 'vue';
 import {api} from '@/api';
 import UiButton from '@/components/ui/UiButton.vue';

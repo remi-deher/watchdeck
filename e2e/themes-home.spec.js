@@ -7,7 +7,7 @@ test('les palettes restaurées gardent un accueil lisible et sans débordement',
     const json = path === '/api/session' ? { role: 'admin', is_owner: true }
       : path === '/api/playback/live' ? { active: [{session_id: 1, id: 1, title: 'Interstellar', user_name: 'Alex', player: 'Apple TV', playback_method: 'direct_play', state: 'playing', duration_ms: 600000, progress_ms: 180000}, {session_id: 2, id: 2, title: 'The Last of Us', user_name: 'Marie', player: 'Navigateur', playback_method: 'transcode', state: 'playing', duration_ms: 600000, progress_ms: 280000}] }
       : path === '/api/arr/queue' ? [{queue_id: 1, title: 'Dune : Deuxième partie', instance: 'Radarr', status: 'downloading', progress: 72, size: 1000000000, sizeleft: 280000000, timeleft: '00:08:00'}]
-      : ['/api/users', '/api/disk-space'].includes(path) ? [] : {};
+      : ['/api/users', '/api/disk-space', '/api/scheduled-tasks'].includes(path) ? [] : {};
     await route.fulfill({ json });
   });
   await page.goto('/dashboard');

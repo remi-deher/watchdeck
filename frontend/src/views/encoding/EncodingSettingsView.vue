@@ -2,9 +2,9 @@
   <!-- Reglages de l'encodage (gabarit Configurer) : sections par intention, un seul
        enregistrement pour la page. Appliques par la tache « Pilotage FileFlows » (chaque
        minute). -->
-  <EncodingShell title="Réglages">
+  <EncodingShell title="Réglages" v-model:query="query" :search="{ placeholder: 'Rechercher un réglage…', kind: 'filter', scope: 'Réglages de l’encodage' }">
     <UiFeedback v-if="controlQuery.isError.value" type="error" :message="humanizeError(controlQuery.error.value)" />
-    <ConfigureTemplate v-else :sections="sections" :dirty="dirty" :saving="saveMutation.isPending.value" @save="saveMutation.mutate()" @cancel="reset">
+    <ConfigureTemplate v-else :sections="sections" :query="query" :dirty="dirty" :saving="saveMutation.isPending.value" @save="saveMutation.mutate()" @cancel="reset">
       <template #section-runners>
         <UiRadioCards v-model="form.runners_mode" label="Nombre de runners" :options="runnersModes" />
         <ConfigureField v-if="form.runners_mode === 'manual'" label="Nombre de runners" :help="`Fichiers traités en même temps (offre gratuite : ${control?.max_runners} au plus).`">
@@ -43,7 +43,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
+import { BellRing, CalendarClock, Cpu, ListOrdered, MonitorPlay } from '@lucide/vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
 import { fileflowsControlQuery, useFileflowsStatus, type AlertChannel, type FileflowsControl, type SchedulePreset } from '@/composables/useFileflows';
@@ -126,12 +127,13 @@ function changed(keys: Array<keyof Form>): boolean {
   const saved = snapshot();
   return Boolean(saved) && keys.some((key) => JSON.stringify(saved![key]) !== JSON.stringify(form[key]));
 }
+const query = ref('');
 const sections = computed(() => [
-  { key: 'runners', title: 'Runners', description: 'Combien de fichiers FileFlows traite en même temps.', dirty: changed(['runners_mode', 'runners']) },
-  { key: 'plex', title: 'Pendant une lecture Plex', description: 'Éviter de ralentir un film en cours de lecture.', dirty: changed(['plex_pause', 'plex_pause_relaunched', 'plex_resume_minutes']) },
-  { key: 'queue', title: 'File d’attente', description: 'L’ordre dans lequel les fichiers passent.', dirty: changed(['reorder_enabled']) },
-  { key: 'alerts', title: 'Alertes', description: 'Un traitement en échec prévient l’administrateur sur les canaux cochés.', dirty: changed(['alert_channels']) },
-  { key: 'schedule', title: 'Plages horaires', description: 'Heure locale du serveur FileFlows, tous les jours. Un fichier en cours à la fin d’une plage se termine normalement.', dirty: changed(['schedule_preset']) },
+  { key: 'runners', icon: Cpu, keywords: ['nombre', 'automatique'], title: 'Runners', description: 'Combien de fichiers FileFlows traite en même temps.', dirty: changed(['runners_mode', 'runners']) },
+  { key: 'plex', icon: MonitorPlay, keywords: ['pause', 'reprise', 'délai'], title: 'Pendant une lecture Plex', description: 'Éviter de ralentir un film en cours de lecture.', dirty: changed(['plex_pause', 'plex_pause_relaunched', 'plex_resume_minutes']) },
+  { key: 'queue', icon: ListOrdered, keywords: ['alterner', 'ordre'], title: 'File d’attente', description: 'L’ordre dans lequel les fichiers passent.', dirty: changed(['reorder_enabled']) },
+  { key: 'alerts', icon: BellRing, keywords: ['discord', 'telegram', 'ntfy', 'gotify', 'email'], title: 'Alertes', description: 'Un traitement en échec prévient l’administrateur sur les canaux cochés.', dirty: changed(['alert_channels']) },
+  { key: 'schedule', icon: CalendarClock, keywords: ['nuit', 'journée', 'soirée', 'horaire'], title: 'Plages horaires', description: 'Heure locale du serveur FileFlows, tous les jours. Un fichier en cours à la fin d’une plage se termine normalement.', dirty: changed(['schedule_preset']) },
 ]);
 
 const saveMutation = useMutation({
