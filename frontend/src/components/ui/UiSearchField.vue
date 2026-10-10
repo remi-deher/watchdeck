@@ -1,9 +1,9 @@
 <template>
   <div class="ui-search-field" :class="`is-${kind}`">
     <div class="ui-search-field__search">
-      <!-- L'icone dit la nature du geste avant meme la premiere frappe : une loupe
-           interroge un corpus, un entonnoir retranche d'une liste deja affichee. -->
-      <component :is="kind === 'filter' ? Funnel : Search" aria-hidden="true" class="ui-search-field__icon" />
+      <!-- Meme capsule partout : recherche et filtre ne se distinguent pas a l'oeil. Le
+           compteur « 12 sur 48 » dit seul qu'on regarde un sous-ensemble. -->
+      <Search aria-hidden="true" class="ui-search-field__icon" />
       <!-- `enterkeyhint` : le clavier logiciel annonce « Rechercher » plutot qu'un retour
            a la ligne. Il n'y a pas de ligne suivante ici, la touche valide la recherche.
            Pose avant `$attrs` pour qu'un appelant puisse encore l'infirmer. -->
@@ -52,7 +52,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Funnel, Search, SlidersHorizontal, X } from '@lucide/vue';
+import { Search, SlidersHorizontal, X } from '@lucide/vue';
 import type { PageSearchKind } from '@/composables/usePageSearch';
 
 // Le champ de recherche de l'application, partage par le patron de page et par les
@@ -158,13 +158,6 @@ function onInput(event: Event): void {
 }
 
 
-/* Un filtre se distingue de la recherche : bord teinte et fond legerement pose,
-   pour qu'on sache d'un coup d'oeil qu'on retranche au lieu d'interroger. */
-.ui-search-field.is-filter {
-  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
-  background: color-mix(in srgb, var(--accent) 4%, var(--surface));
-}
-.ui-search-field.is-filter .ui-search-field__icon { color: var(--accent); }
 .ui-search-field__matches {
   flex: none;
   color: var(--muted);

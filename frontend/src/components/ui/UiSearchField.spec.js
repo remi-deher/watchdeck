@@ -1,4 +1,4 @@
-/** Le champ dit ce qu'il fait : interroger un corpus, ou retrancher d'une liste. */
+/** Une seule capsule : recherche et filtre ont le même aspect, seul le compteur les distingue. */
 import { describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
 import UiSearchField from './UiSearchField.vue';
@@ -6,11 +6,12 @@ import UiSearchField from './UiSearchField.vue';
 const mountField = (props = {}) => mount(UiSearchField, { props });
 
 describe('UiSearchField', () => {
-  it('distingue une recherche d’un filtre', () => {
-    // Deux gestes opposés portaient la même barre : on ne pouvait pas savoir, en tapant,
-    // si l'on élargissait ou si l'on retranchait.
+  it('garde la même icône pour une recherche et un filtre', () => {
+    // Le liseré et l'entonnoir distinguaient les deux gestes ; la capsule est désormais
+    // identique partout, c'est le compteur « N sur M » qui signale un sous-ensemble.
     expect(mountField().classes()).toContain('is-search');
     expect(mountField({ kind: 'filter' }).classes()).toContain('is-filter');
+    expect(mountField({ kind: 'filter' }).html()).toBe(mountField().html().replace('is-search', 'is-filter'));
   });
 
   it('annonce « N sur M » quand le total non filtré est connu', () => {
