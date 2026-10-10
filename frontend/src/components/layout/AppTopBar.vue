@@ -92,6 +92,7 @@ watch(() => pageSearch.value?.showSearch, (local, previous) => {
     pageSearch.value?.onQuery(fallbackQuery.value);
     pageSearch.value?.onSearch(new Event('input'));
     fallbackQuery.value = '';
+    resultsOpen.value = false;
   }
 });
 const fieldRef = ref<any>(null);
@@ -112,11 +113,20 @@ const { hidden: toolbarHidden, setHold, reveal } = useChromeAutoHide();
 watch(searchFocused, (active) => setHold('topbar', active), { immediate: true });
 
 const { tools: pageTools, action: pageAction } = usePageTools();
+let barObserver: ResizeObserver | undefined;
 onMounted(() => {
   setPageToolsHost(true);
   window.addEventListener('keydown', focusContextSearch);
+  if (typeof ResizeObserver !== 'undefined') {
+    barObserver = new ResizeObserver(([entry]) => {
+      document.documentElement.style.setProperty('--app-topbar-h', `${entry.target.getBoundingClientRect().height}px`);
+    });
+    if (searchContainer.value) barObserver.observe(searchContainer.value);
+  }
 });
 onUnmounted(() => {
+  barObserver?.disconnect();
+  document.documentElement.style.removeProperty('--app-topbar-h');
   setPageToolsHost(false);
   setHold('topbar', false);
   resultsOpen.value = false;

@@ -110,13 +110,16 @@ test.describe("retour avec un panneau ouvert", () => {
     await page.getByRole("button", { name: "Afficher les filtres" }).first().click();
     await expect(page.getByRole("dialog", { name: "Filtres" })).toBeVisible();
     await page.keyboard.press("Control+k");
-    const palette = page.getByRole("dialog").filter({ has: page.getByRole("combobox") }).last();
+    await expect(page.getByRole("dialog", { name: "Filtres" })).toBeHidden();
+    const input = page.locator('.app-topbar input[type="search"]');
+    await expect(input).toBeFocused();
+    await input.fill('dune');
+    await page.getByRole('button', { name: 'Afficher plus' }).click();
+    const palette = page.getByRole("dialog", { name: /Résultats pour/ });
     await expect(palette).toBeVisible();
 
     await retour(page);
     await expect(palette).toBeHidden();
-    await expect(page.getByRole("dialog", { name: "Filtres" })).toBeVisible();
-    await retour(page);
     await expect(page.getByRole("dialog", { name: "Filtres" })).toBeHidden();
     await expect(page).toHaveURL(/\/downloads\?view=clients&sub=instances/);
   });

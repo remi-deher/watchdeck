@@ -118,7 +118,7 @@ test("sur telephone, la barre Enregistrer se pose au-dessus de la recherche, pas
   expect(saveBox.y + saveBox.height, "l'enregistrement recouvre la recherche").toBeLessThanOrEqual(searchBox.y + 2);
 });
 
-test("chaque page expose un h1 unique, et son titre reste visible dans le shell", async ({ page }) => {
+test("chaque page expose un h1 unique et une recherche contextualisée", async ({ page }) => {
   for (const path of ["/dashboard", "/discover", "/library", "/downloads", "/settings"]) {
     await page.goto(path);
     await expect(page.locator("#main-content")).toBeVisible();
@@ -140,10 +140,11 @@ test("chaque page expose un h1 unique, et son titre reste visible dans le shell"
     if (page.viewportSize().width >= 768) {
       const adminSpace = (await page.locator('.app-rail[data-space="admin"]').count()) > 0;
       const expandedRail = (await page.locator('.app-rail[data-density="expanded"]').count()) > 0;
-      const visibleTitle = expandedRail
-        ? page.locator(adminSpace ? '.app-rail__space-title' : '.app-rail__brand-name')
-        : page.locator('.app-topbar__context');
-      await expect(visibleTitle, `le shell doit afficher "${title}" sur ${path}`).toHaveText(title);
+      if (expandedRail) {
+        await expect(page.locator(adminSpace ? '.app-rail__space-title' : '.app-rail__brand-name')).toHaveText(title);
+      } else {
+        await expect(page.locator('.app-topbar input')).toHaveAttribute('aria-label', `Rechercher — ${title}`);
+      }
     }
   }
 });
@@ -631,6 +632,7 @@ test("la recherche des reglages mene au bon panneau", async ({ page }) => {
   await page.goto("/settings/services");
   const input = page.locator(".app-topbar__field input").first();
   await expect(input).toBeVisible({ timeout: 15000 });
+  await expect(input).toHaveAttribute('placeholder', /réglage/i);
 
   await input.pressSequentially("radarr", { delay: 60 });
 
@@ -959,7 +961,7 @@ test("le niveau 2 s'efface et revient avec la barre du haut", async ({ page }) =
   expect(Math.round(box.y)).toBeCloseTo(Math.round(expectedTop), 0);
 });
 
-test("la palette trouve un film depuis n'importe quelle page", async ({ page }) => {
+test("la sheet trouve un film depuis n'importe quelle page", async ({ page }) => {
   let searchCalls = 0;
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
@@ -984,14 +986,16 @@ test("la palette trouve un film depuis n'importe quelle page", async ({ page }) 
   await expect(page.locator("#main-content")).toBeVisible();
 
   await page.keyboard.press("Control+k");
-  const palette = page.getByRole("dialog", { name: /Rechercher/ });
+  const input = page.locator('.app-topbar input[type="search"]');
+  await expect(input).toBeFocused();
+  await input.fill("dune");
+  await page.getByRole('button', { name: 'Afficher plus' }).click();
+  const palette = page.getByRole("dialog", { name: /Résultats pour/ });
   await expect(palette).toBeVisible();
-
-  await palette.getByRole("combobox").fill("dune");
 
   // Plus d'onglets : les medias arrivent en affiches, au-dessus de la navigation et des
   // reglages, quelle que soit la page d'ou l'on ouvre la palette.
-  const option = palette.getByRole("option", { name: /Dune \(2021\)/ });
+  const option = palette.locator('.poster-link[aria-label="Dune, Film, 2021"]');
   await expect(option).toBeVisible({ timeout: 10000 });
   expect(searchCalls, "la recherche doit etre differee, pas lancee a chaque frappe").toBeLessThanOrEqual(2);
 
@@ -1013,8 +1017,11 @@ test("une saisie trop courte n'interroge pas le catalogue", async ({ page }) => 
   });
   await page.goto("/settings");
   await page.keyboard.press("Control+k");
-  const palette = page.getByRole("dialog", { name: /Rechercher/ });
-  await palette.getByRole("combobox").fill("d");
+  const input = page.locator('.app-topbar input[type="search"]');
+  await expect(input).toBeFocused();
+  await input.fill("d");
+  await input.press('Enter');
+  const palette = page.getByRole("dialog", { name: /Résultats pour/ });
   await page.waitForTimeout(700);
   // Une seule lettre remonterait le catalogue entier pour rien.
   expect(searchCalls).toBe(0);
@@ -1067,6 +1074,7 @@ test("la recherche de page vit dans la barre, et occupe toute sa largeur en comp
   // d'emblee au lieu de se deployer derriere une loupe.
   const input = field.locator("input");
   await expect(input).toBeVisible();
+  await expect(input).toHaveAttribute('placeholder', /bibliothèque/i);
   await expect(page.locator('[aria-label="Ouvrir la navigation"]')).toHaveCount(0);
   await expect(page.locator(".app-topbar__context")).toHaveCount(0);
 

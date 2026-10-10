@@ -231,7 +231,8 @@ function onInput(event: Event): void {
 /* Segment d'action : meme couture et meme coin que « Filtres » ; le bouton fourni par la
    page y perd son cadre pour faire corps avec la capsule. */
 .ui-search-field__action { display: flex; gap: var(--space-2); flex: 0 1 auto; min-width: 0; max-width: 50%; overflow-x: auto; align-items: center; padding: 0 10px; height: 100%; border-left: 1px solid var(--border); border-radius: 0 calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0; white-space: nowrap; scrollbar-width: none; }
-.ui-search-field__action :deep(button) { height: 100%; min-height: 0; padding: 0 12px; border: 0; border-radius: 0; background: transparent; box-shadow: none; font-size: var(--fs-sm); }
+.ui-search-field__action :deep(button) { height: auto; min-height: 0; padding: 0 12px; border: 0; border-radius: 0; background: transparent; box-shadow: none; font-size: var(--fs-sm); }
+.ui-search-field__action :deep(> button) { height: 100%; }
 .ui-search-field__action :deep(button:hover) { background: rgb(var(--ink) / .05); }
 .ui-search-field__filter.active { color: var(--accent); }
 .ui-search-field__filter svg { width: 15px; height: 15px; }
