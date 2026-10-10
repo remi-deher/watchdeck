@@ -985,8 +985,9 @@ test("la sheet trouve un film depuis n'importe quelle page", async ({ page }) =>
   await page.goto("/settings");
   await expect(page.locator("#main-content")).toBeVisible();
 
-  await page.keyboard.press("Control+k");
   const input = page.locator('.app-topbar input[type="search"]');
+  await expect(input).toHaveAttribute('placeholder', /réglage/i);
+  await page.keyboard.press("Control+k");
   await expect(input).toBeFocused();
   await input.fill("dune");
   await page.getByRole('button', { name: 'Afficher plus' }).click();
@@ -1016,8 +1017,9 @@ test("une saisie trop courte n'interroge pas le catalogue", async ({ page }) => 
     return route.fulfill({ json: [] });
   });
   await page.goto("/settings");
-  await page.keyboard.press("Control+k");
   const input = page.locator('.app-topbar input[type="search"]');
+  await expect(input).toHaveAttribute('placeholder', /réglage/i);
+  await page.keyboard.press("Control+k");
   await expect(input).toBeFocused();
   await input.fill("d");
   await input.press('Enter');

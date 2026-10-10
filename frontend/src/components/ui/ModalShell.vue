@@ -13,6 +13,7 @@
         :aria-label="ariaLabel || undefined"
         v-bind="subtitle ? {} : { 'aria-describedby': undefined }"
         @open-auto-focus="onOpenAutoFocus"
+        @close-auto-focus="onCloseAutoFocus"
         @escape-key-down="retenirSiOccupe"
         @pointer-down-outside="retenirSiOccupe"
         @interact-outside="retenirSiOccupe"
@@ -80,6 +81,10 @@ function onOpenAutoFocus(event: Event): void {
   if (!cible) return;
   event.preventDefault();
   cible.focus();
+}
+
+function onCloseAutoFocus(event: Event): void {
+  if (!props.modal && document.activeElement?.closest('.ui-search-field')) event.preventDefault();
 }
 
 /* « Retour » referme la modale au lieu de quitter la page. */
