@@ -6,9 +6,11 @@
        Recherche et filtres, memes interactions partout : la recherche de la page vit dans
        la barre du haut (UiSearchField), sur toutes les pages et au fil du defilement ; son
        bouton « Filtres » porte le nombre de filtres actifs et ouvre la feuille commune
-       (FilterSidebar), qui montre les filtres actifs en tete et se termine par
-       Reinitialiser / Fermer. La page fournit seulement `search`, ses groupes de filtres
-       (emplacement `filters`) et le nombre de filtres actifs. -->
+       (FilterSidebar), qui applique les filtres en direct et montre les pastilles actives.
+       La recherche complémentaire réutilise le même conteneur de sheet. Tous les gabarits
+       de page passent par ce socle : `search` définit la recherche locale, `quick-action`
+       la zone d'action et `filters` la feuille facultative. Sans recherche locale, la
+       barre conserve la recherche complémentaire dans le contexte de la page. -->
   <AppPage
     v-bind="$attrs"
     :title="title"
@@ -37,7 +39,7 @@
       <AppSubnav :items="tabs" :active="activeTab" :aria-label="tabsLabel || `Vues de ${title}`" />
     </template>
     <template v-if="$slots.tools" #tools><slot name="tools" /></template>
-    <!-- L'action du contexte, dans le segment de droite de la capsule de recherche. -->
+    <!-- L'action du contexte, entre la recherche et les filtres lorsqu'ils existent. -->
     <template v-if="$slots['quick-action']" #quick-action><slot name="quick-action" /></template>
 
     <FilterSidebar
@@ -102,7 +104,7 @@ withDefaults(
     tabs?: SubnavItem[];
     activeTab?: string;
     tabsLabel?: string;
-    /** Absente, la barre du haut garde la recherche globale de l'application. */
+    /** Absente, la même barre recherche dans la sheet complémentaire sans filtrer la page. */
     search?: PageSearchOptions | null;
     query?: string;
     /** Resultats retenus et total, pour un filtre : « 43 sur 348 ». */

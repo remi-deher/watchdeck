@@ -63,13 +63,17 @@ function onOpenChange(open: boolean): void { if (!open) requestClose(); }
 /** Une action en cours ne se laisse pas interrompre par Echap ou un clic a cote. */
 /* Un appui sur le bouton qui ouvre le panneau (« Filtres ») ne compte pas comme un appui a
    cote : sinon le panneau se fermait sur l'appui puis se rouvrait au clic du bouton. */
-const DECLENCHEURS = '.ui-search-field__filter, .app-topbar__filter-only';
+const DECLENCHEURS = '.ui-search-field, .app-topbar__filter-only';
 function retenirSiOccupe(event: Event): void {
   const cible = ((event as CustomEvent).detail?.originalEvent?.target ?? event.target) as Element | null;
-  if (props.busy || cible?.closest?.(DECLENCHEURS)) event.preventDefault();
+  if (props.busy || (!props.modal && cible?.closest?.(DECLENCHEURS))) event.preventDefault();
 }
 
 function onOpenAutoFocus(event: Event): void {
+  if (!props.modal && document.activeElement?.closest('.ui-search-field')) {
+    event.preventDefault();
+    return;
+  }
   if (!props.initialFocus) return;
   const panel = (panelRef.value as { $el?: HTMLElement } | null)?.$el;
   const cible = panel?.querySelector<HTMLElement>(props.initialFocus);

@@ -57,3 +57,16 @@ describe('UiSearchField', () => {
     expect(mountField({ query: '' }).find('.ui-search-field__clear').exists()).toBe(false);
   });
 });
+
+
+describe('zones facultatives', () => {
+  it.each([[false, false], [true, false], [false, true], [true, true]])('action %s et filtres %s coexistent', (action, filters) => {
+    const wrapper = mount(UiSearchField, {
+      props: { hasFilters: filters },
+      slots: action ? { action: '<button>Pause</button>' } : {},
+    });
+    expect(wrapper.find('input').exists()).toBe(true);
+    expect(wrapper.find('.ui-search-field__action').exists()).toBe(action);
+    expect(wrapper.find('.ui-search-field__filter').exists()).toBe(filters);
+  });
+});
