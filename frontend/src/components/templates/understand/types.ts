@@ -37,10 +37,22 @@ export interface UnderstandDetail {
   /** Comparaison avant / apres, ligne par ligne. */
   comparison?: Array<{ label: string; before: string; after: string }>;
   steps?: Array<{ label: string; outcome: UnderstandOutcome; duration?: string }>;
+  /** Aperçu du message concerné (un email envoyé) : rendu isolé, charge a l'ouverture. */
+  preview?: UnderstandPreview;
   /** Liens : log, fiche concernee… */
   links?: Array<{ label: string; to: string | Record<string, any> }>;
   /** Au plus une action, qui renvoie vers Traiter ou Suivre (« Relancer »). */
   action?: { key: string; label: string };
+}
+
+export interface UnderstandPreview {
+  loading?: boolean;
+  error?: string;
+  /** Pourquoi l'apercu manque ou est approximatif, en clair. */
+  note?: string;
+  html?: string;
+  /** Nom accessible de l'apercu. */
+  label?: string;
 }
 
 export interface UnderstandOption {

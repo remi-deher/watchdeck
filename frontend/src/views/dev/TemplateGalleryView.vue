@@ -20,6 +20,8 @@
 
     <TrackTemplate v-else-if="current === 'track'" :items="trackItems" :recent="recent" history-to="/dev/gabarits?g=understand" updated="Mis à jour il y a 10 s" :labels="{ items: 'traitements' }" @action="log" />
 
+    <ManageTemplate v-else-if="current === 'manage'" v-model:situation="manageSituation" label="Comptes" :rows="manageRows" :total="3" :columns="MANAGE_COLUMNS" :row-key="(row: any) => row.id" :row-label="(row: any) => row.name" :situations="MANAGE_SITUATIONS" :bulk-actions="MANAGE_BULK" :row-actions="() => MANAGE_ROW" :labels="{ singular: 'compte sélectionné', plural: 'comptes sélectionnés', empty: 'Aucun compte' }" openable @open="log" @action="log" />
+
     <HandleTemplate v-else-if="current === 'handle'" :issues="issues" :items="handleItems" :selection-actions="[{ key: 'ignore', label: 'Ignorer' }, { key: 'fix', label: 'Corriger', tone: 'primary' }]" :labels="{ items: 'films' }" @action="log" @bulk="log" @selection="log" />
 
     <ExploreTemplate v-else-if="current === 'explore'" :view="view" :items="films" :total="37" :unit="['film', 'films']" :chips="chips" @reset="chips = []">
@@ -83,7 +85,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { Clapperboard, Cog, FolderTree, ListOrdered, Tv } from '@lucide/vue';
+import { Clapperboard, Cog, FolderTree, ListOrdered, Pencil, Power, Tv } from '@lucide/vue';
 import MiniCalendar, { type MiniCalendarEntry } from '@/components/ui/MiniCalendar.vue';
 import PlanTemplate, { type PlanEvent, type PlanState } from '@/components/templates/PlanTemplate.vue';
 import FilterGroup from '@/components/ui/FilterGroup.vue';
@@ -94,6 +96,7 @@ import PageTemplate from '@/components/templates/PageTemplate.vue';
 import MonitorTemplate, { type MonitorAttentionItem, type MonitorKpi, type MonitorZoneGroup } from '@/components/templates/MonitorTemplate.vue';
 import TrackTemplate, { type TrackItem, type TrackRecent } from '@/components/templates/TrackTemplate.vue';
 import HandleTemplate, { type HandleIssue, type HandleItem } from '@/components/templates/HandleTemplate.vue';
+import ManageTemplate from '@/components/templates/ManageTemplate.vue';
 import ChooseTemplate, { type ChooseCandidate, type ChooseResult, type ChooseSort } from '@/components/templates/ChooseTemplate.vue';
 import AnalyzeTemplate, { type AnalyzeDrill, type AnalyzeDrillRequest, type AnalyzeKpi, type AnalyzeLead, type AnalyzePeriod } from '@/components/templates/AnalyzeTemplate.vue';
 import BreakdownPanel from '@/components/activity/BreakdownPanel.vue';
@@ -112,8 +115,8 @@ import ConfigureTest from '@/components/templates/configure/ConfigureTest.vue';
 import ResourceList from '@/components/templates/configure/ResourceList.vue';
 import DetailTemplate, { type DetailAction, type DetailBadge } from '@/components/templates/DetailTemplate.vue';
 
-const KEYS = ['monitor', 'track', 'handle', 'analyze', 'choose', 'create', 'plan', 'browse', 'explore', 'understand', 'configure', 'detail'] as const;
-const LABELS = ['Surveiller', 'Suivre', 'Traiter', 'Analyser', 'Choisir', 'Créer', 'Anticiper', 'Parcourir', 'Explorer', 'Comprendre', 'Configurer', 'Fiche'];
+const KEYS = ['monitor', 'track', 'handle', 'manage', 'analyze', 'choose', 'create', 'plan', 'browse', 'explore', 'understand', 'configure', 'detail'] as const;
+const LABELS = ['Surveiller', 'Suivre', 'Traiter', 'Gérer', 'Analyser', 'Choisir', 'Créer', 'Anticiper', 'Parcourir', 'Explorer', 'Comprendre', 'Configurer', 'Fiche'];
 const TABS = KEYS.map((key, i) => ({ key, label: LABELS[i], to: { path: '/dev/gabarits', query: { g: key } } }));
 const route = useRoute();
 const current = computed(() => (KEYS as readonly string[]).includes(String(route.query.g)) ? String(route.query.g) : 'monitor');
@@ -121,6 +124,15 @@ const log = (...args: unknown[]) => console.info('[galerie]', ...args);
 
 const POSTER = 'https://image.tmdb.org/t/p/w300/ehIzBOg7wtHKgtWnSoNHRDuh0GJ.jpg';
 const BACKDROP = 'https://image.tmdb.org/t/p/w1280/9MdDpjeLzGT4xaYiTRmgyzDTmSB.jpg';
+
+/* Gérer */
+const MANAGE_ACCOUNTS = [{ id: 1, name: 'Alice', role: 'Administrateur', situation: '' }, { id: 2, name: 'Bruno', role: 'Utilisateur', situation: 'pending' }, { id: 3, name: 'Chloé', role: 'Utilisateur', situation: '' }];
+const manageSituation = ref('');
+const manageRows = computed(() => MANAGE_ACCOUNTS.filter((row) => !manageSituation.value || row.situation === manageSituation.value));
+const MANAGE_COLUMNS = [{ key: 'name', label: 'Personne', sortable: true, card: 'title' as const }, { key: 'role', label: 'Rôle', sortable: true }];
+const MANAGE_SITUATIONS = [{ value: 'pending', label: 'Approbations', count: 1 }];
+const MANAGE_BULK = [{ key: 'status', label: 'Statut', items: [{ key: 'status:on', label: 'Activer' }, { key: 'status:off', label: 'Désactiver' }] }, { key: 'delete', label: 'Supprimer…', tone: 'danger' as const, confirm: (rows: unknown[]) => ({ title: `Supprimer ${rows.length} compte(s) ?`, confirmLabel: 'Supprimer', danger: true }) }];
+const MANAGE_ROW = [{ key: 'open', label: 'Modifier', icon: Pencil }, { key: 'toggle', label: 'Désactiver', icon: Power }];
 
 /* Surveiller */
 const monitorItems: MonitorAttentionItem[] = [

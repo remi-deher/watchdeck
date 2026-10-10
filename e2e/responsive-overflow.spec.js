@@ -131,12 +131,13 @@ test.describe("En-tete des notifications", () => {
     await page.goto("/notifications");
   });
 
-  test("le badge de distribution reste dans ses limites", async ({ page }) => {
-    const badge = page.locator(".notification-control").first();
+  test("l'etat de l'envoi reste dans ses limites", async ({ page }) => {
+    // L'etat de l'envoi automatique est la barre de commande de la capsule.
+    const badge = page.getByRole("region", { name: "État des envois" });
     await expect(badge).toBeVisible({ timeout: 15_000 });
 
     // Le texte se coupait caractere par caractere (overflow-wrap:anywhere est global)
-    // et sortait par le haut du badge, qui a une hauteur fixe.
+    // et sortait par le haut de la barre, qui a une hauteur fixe.
     const contained = await badge.evaluate((node) => {
       const box = node.getBoundingClientRect();
       return Array.from(node.querySelectorAll("*")).every((child) => {
@@ -146,11 +147,11 @@ test.describe("En-tete des notifications", () => {
       });
     });
 
-    expect(contained, "un element deborde verticalement hors du badge").toBe(true);
+    expect(contained, "un element deborde verticalement hors de la barre").toBe(true);
   });
 
   test("la page ne deborde pas horizontalement", async ({ page }) => {
-    await expect(page.locator(".notification-control").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("region", { name: "État des envois" })).toBeVisible({ timeout: 15_000 });
     expect(await pageOverflows(page)).toBe(false);
   });
 });

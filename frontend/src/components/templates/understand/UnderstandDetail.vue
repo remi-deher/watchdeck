@@ -29,6 +29,17 @@
       </li>
     </ol>
 
+    <section v-if="detail.preview" class="understand-detail__preview" aria-label="Aperçu du message">
+      <p v-if="detail.preview.loading" class="understand-detail__note" role="status">Chargement…</p>
+      <template v-else>
+        <p v-if="detail.preview.error" class="understand-detail__cause is-failed" role="alert">{{ detail.preview.error }}</p>
+        <p v-if="detail.preview.note" class="understand-detail__note">{{ detail.preview.note }}</p>
+        <div v-if="detail.preview.html" class="understand-detail__viewport">
+          <iframe :srcdoc="detail.preview.html" :title="detail.preview.label || 'Aperçu du message'" sandbox="allow-same-origin"></iframe>
+        </div>
+      </template>
+    </section>
+
     <footer v-if="detail.links?.length || detail.action" class="understand-detail__links">
       <UiButton v-if="detail.action" size="sm" variant="primary" @click="emit('action', detail.action.key)">{{ detail.action.label }}</UiButton>
       <UiButton v-for="link in detail.links || []" :key="link.label" size="sm" :to="link.to">{{ link.label }}</UiButton>
@@ -66,6 +77,9 @@ const OUTCOME_LABELS: Record<UnderstandOutcome, string> = { success: 'Réussi', 
 .understand-detail__compare thead th { color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
 .understand-detail__compare tbody th { color: var(--muted); font-weight: 400; }
 .understand-detail__compare tbody tr + tr { border-top: 1px solid var(--border); }
+.understand-detail__note { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.understand-detail__viewport { overflow: auto; padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+.understand-detail__viewport iframe { display: block; width: 100%; min-height: 50vh; border: 0; }
 .understand-detail__steps { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--fs-sm); }
 .understand-detail__steps li { display: flex; align-items: center; gap: var(--space-2); }
 .understand-detail__steps svg { flex: none; width: 16px; height: 16px; color: var(--green); }

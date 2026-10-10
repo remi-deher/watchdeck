@@ -14,6 +14,7 @@ Chaque page relève d'un seul besoin, donc d'un seul gabarit :
 |---|---|---|
 | **Surveiller** | « Est-ce que tout va bien ? » | Verdict global, indicateurs de santé, points d'attention, accès aux pages qui les règlent. Pas de liste exhaustive. |
 | **Traiter** | « Que dois-je faire maintenant ? » | Éléments triés par urgence, indicateurs qui filtrent, actions unitaires et groupées toujours visibles, retour immédiat. |
+| **Gérer** | « Comment je tiens ce parc à jour ? » | Ressources durables (comptes, clients, tâches) : situations à traiter qui filtrent, tableau de contrôle, actions d'une ligne et de la sélection, confirmation avant ce qui est lourd. Ce que Traiter règle disparaît ; ce que Gérer montre reste. |
 | **Suivre** | « Où en est ce qui tourne ? » | Éléments en cours, progression en direct, blocages et leur cause, actions débloquer / relancer / pause / annuler. |
 | **Parcourir** | « Qu'est-ce qu'il y a d'intéressant ? » | Bannière, rails thématiques ; le titre d'un rail mène à la liste complète déjà réglée (Explorer). On n'y règle rien. |
 | **Explorer** | « Je cherche précisément ceci » | On explore pour affiner : recherche, filtres, types en onglets, compteur et filtres actifs, grille d'affiches, ouverture de la fiche. |
@@ -36,13 +37,14 @@ Les gabarits vivent dans `frontend/src/components/templates/` :
 | `MonitorTemplate.vue` (+ `monitor/`) | Surveiller : verdict, indicateurs, attention, parties de la section | Disponible |
 | `TrackTemplate.vue` (+ `track/`) | Suivre : résumé des états (filtre), groupes bloqués / en cours / en pause (cartes), file d'attente compacte et repliable, derniers terminés | Disponible |
 | `HandleTemplate.vue` (+ `handle/`) | Traiter : types de problème (filtre, corrigeable / à décider), action groupée, liste par urgence avec affiche selon le contexte | Disponible |
+| `ManageTemplate.vue` | Gérer : situations (filtre, « Tous » d'abord), `ControlTable` (actions groupées, actions de ligne, actions sur toute la liste `globalActions` quand rien n'est coché, confirmation, ouverture, chargement par paquets) ; la page fournit `rows`, `columns`, `bulkActions`, `rowActions`, les cellules (`cell-<clé>`), réagit à `action` / `open` / `load-more` | Disponible |
 | `BrowseTemplate.vue` | Parcourir : bannière (MediaHeroBanner), rangées `posters` (MediaPosterCollection en rail, carte de la page), `section`, `collapsible` chargée à l'ouverture | Disponible |
 | `AnalyzeTemplate.vue` (+ `analyze/`) | Analyser : période, `MetricCard` avec évolution (`better` dit le bon sens), pistes, liste ouverte (`drill`), blocs (`BreakdownPanel`, `LineChart`, `PopularMediaPanel`, `ActivityHeatmap`) | Disponible |
 | `CreateTemplate.vue` (+ `create/`) | Créer : piloté par une **définition** (données) ; les champs sont rendus par les composants communs selon leur type | Disponible |
 | `ChooseTemplate.vue` (+ `choose/`) | Choisir : contexte, mode, tri, « Relancer la recherche », « Masquer les rejets » (décoché), recommandation, candidats, retour après choix | Disponible |
 | `PlanTemplate.vue` (+ `plan/`) | Anticiper : le calendrier de production devenu commun ; la page charge la période (`update:cursor`, `periodBounds`), fournit ses états (libellé, couleur) et, au besoin, une carte d'Agenda (`agenda-item`) | Disponible |
 | `ExploreTemplate.vue` (+ `explore/`) | Explorer : compteur et filtres actifs, grille / liste, défilement continu ; tri et affichage dans la feuille (ExploreDisplay) | Disponible |
-| `UnderstandTemplate.vue` (+ `understand/`) | Comprendre : période et résultat, bilan facultatif, export, chronologie par jour, détail en feuille | Disponible |
+| `UnderstandTemplate.vue` (+ `understand/`) | Comprendre : période et résultat, bilan facultatif, export, chronologie par jour, détail en feuille (cause, avant / après, étapes, aperçu d'un message), emplacement `after` pour un bloc de lecture complémentaire | Disponible |
 | `ConfigureTemplate.vue` (+ `configure/`) | Configurer : sections par intention avec sommaire, enregistrement global (Enregistrer / Annuler, confirmation avant de quitter), blocs `ConfigureField`, `ConfigureTest`, `ResourceList` | Disponible |
 | `DetailTemplate.vue` (+ `detail/`) | Fiche : en-tête (état en badges, action principale + deux secondaires, reste dans « … »), une seule alerte d'état, onglets de détail, faits | Disponible |
 
@@ -58,6 +60,23 @@ toutes les pages : `search` (placeholder, nature, périmètre) et `v-model:query
 groupes de filtres dans l'emplacement `filters`, `filter-count`, `filter-chips`,
 `@reset-filters`. Jamais de `FilterSidebar`, de bouton Filtres ni de champ de recherche
 posés par une page ou un gabarit.
+
+Une page Gérer s'écrit `PageTemplate` > `ManageTemplate` : les colonnes et les actions sont
+des **définitions** (données, avec leurs textes de confirmation) rangées à côté du domaine
+(`components/users/userDefinitions.ts`), les données et les actions dans un composable
+(`useUserAccounts`) qui décode les clés d'action. La page n'écrit ni barre d'actions, ni menu,
+ni confirmation, ni `UiFeedback` : réussites et échecs passent par `useToast`.
+
+Une page qui mêle une liste sur laquelle on agit et un journal de ce qui s'est passé se
+découpe : la liste suit Gérer, le journal Comprendre (Notifications : file d'attente et journal
+des envois). Un état global qui se suspend (envoi automatique, pause) est une barre de commande
+(`part="state"` en retour de la capsule, `part="hold"` / `"pause"` en action), pas un bandeau.
+
+Tableaux : `UiDataTable` lit (tri, sélection, cartes sur téléphone) ; `ControlTable` y ajoute
+l'action (actions groupées par `BulkActionBar`, actions de ligne — deux visibles, le reste dans
+« … » —, confirmation, ouverture). On n'écrit jamais de barre groupée, de menu de ligne ni de
+fenêtre de confirmation à côté d'un tableau. Un tableau dont les cellules sont des champs à
+remplir n'est pas un tableau : c'est un réglage (Configurer).
 
 Parcourir et Explorer se répondent : le titre d'un rail de Parcourir mène à Explorer
 déjà réglé, par l'adresse (filtre, tri ou section dans la requête), et le retour ramène

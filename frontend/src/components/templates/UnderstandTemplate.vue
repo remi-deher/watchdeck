@@ -5,7 +5,9 @@
             l'export de ce qui est affiche ;
          2. la chronologie groupee par jour : heure, resultat, ce qui s'est passe, contexte ;
          3. le detail d'un evenement dans une feuille, a cote de la liste (par-dessus sur
-            telephone), sans perdre sa place.
+            telephone), sans perdre sa place : cause, avant / apres, etapes, apercu d'un
+            message ;
+         4. un emplacement `after` pour un bloc de lecture complementaire.
        Pas d'action dans la liste : au plus une, dans le detail, qui renvoie vers Traiter
        ou Suivre. -->
   <div class="understand" :class="{ 'has-detail': detail }">
@@ -44,6 +46,8 @@
       <UiEmptyState v-else :icon="History" :title="emptyTitle" :message="emptyMessage" />
 
       <InfiniteScrollTrigger :has-more="hasMore" :loading="loadingMore" @load="emit('load-more')" />
+      <!-- Un bloc de lecture complémentaire sous la chronologie (suivi des envois…). -->
+      <slot name="after" />
     </div>
 
     <div v-if="detail" class="understand__sheet">
@@ -66,7 +70,7 @@ import { parseApiDate } from '@/utils/format';
 import UnderstandDetailPanel from './understand/UnderstandDetail.vue';
 import type { UnderstandDetail, UnderstandEvent, UnderstandOption, UnderstandOutcome, UnderstandSummary } from './understand/types';
 
-export type { UnderstandDetail, UnderstandEvent, UnderstandOption, UnderstandOutcome, UnderstandSummary } from './understand/types';
+export type { UnderstandDetail, UnderstandEvent, UnderstandOption, UnderstandOutcome, UnderstandPreview, UnderstandSummary } from './understand/types';
 
 const props = withDefaults(
   defineProps<{
