@@ -34,6 +34,7 @@ from ..services import deleted_media, radarr, request_quotas, sonarr
 from ..services import seer as seer_service
 from ..services.diagnostics import record_event, update_request_context
 from ..services.email_service import build_correction_email, send_correction_notification
+from ..services.media_availability import AvailabilityRecord, MediaDetailResponse, media_availability
 from ..services.notification_policy import PSEUDO_REQUESTERS
 from ..services.request_lifecycle import transition_request
 from ..utils import (
@@ -272,7 +273,7 @@ def _split_values(raw: Optional[str]) -> list[str]:
     return [value.strip() for value in (raw or "").split(",") if value.strip()]
 
 
-@router.get("/library")
+@router.get("/library", response_model=list[AvailabilityRecord])
 async def list_library(
     query: Optional[str] = None,
     media_type: Optional[str] = None,
@@ -429,6 +430,7 @@ async def list_library(
             "year": item.year,
             "media_type": item.media_type,
             **media_ref(item),
+            "availability": media_availability(item, library=item),
             "poster_url": wrap_image_proxy(item.poster_url),
             "art_url": wrap_backdrop_proxy(item.art_url),
             "genres": [g.strip() for g in (item.genres or "").split(",") if g.strip()],
@@ -505,7 +507,7 @@ async def library_genres(media_type: Optional[str] = None, limit: int = 12, db: 
     return [{"genre": g, "count": c} for g, c in top]
 
 
-@router.get("/library/{item_id}")
+@router.get("/library/{item_id}", response_model=AvailabilityRecord)
 async def get_library_item(item_id: int, db: AsyncSession = Depends(get_db_async)):
     """Détail d'un élément de bibliothèque (pour la modale : identité + lien *arr)."""
     item = await async_get_or_404(db, LibraryItem, item_id, "Library item not found")
@@ -514,7 +516,7 @@ async def get_library_item(item_id: int, db: AsyncSession = Depends(get_db_async
     return serialize_library_item(item)
 
 
-@router.get("/media/detail")
+@router.get("/media/detail", response_model=MediaDetailResponse)
 async def media_detail(
     library_id: Optional[int] = None,
     request_id: Optional[int] = None,

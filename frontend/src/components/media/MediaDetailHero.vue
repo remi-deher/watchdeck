@@ -31,8 +31,8 @@
           <!-- Annee, note et genres tiennent en une phrase : trois lignes de pastilles en moins.
                L'origine (demande Seerr, ajout *ARR) vit dans l'onglet Demandes, qui la detaille. -->
           <p v-if="factsLine" class="mdh-facts">{{ factsLine }}</p>
-          <div v-if="statusLabel && !isMusic || movieLanguage" class="mdh-badges">
-            <span v-if="statusLabel && !isMusic" class="badge" :class="statusClass">{{ statusLabel }}</span>
+          <div v-if="(availabilityStatus || statusLabel) && !isMusic || movieLanguage" class="mdh-badges">
+            <span v-if="(availabilityStatus || statusLabel) && !isMusic" class="badge" :class="availabilityStatus?.variant || statusClass">{{ availabilityStatus?.label || statusLabel }}</span>
             <MediaLanguageBadge class="badge" v-if="movieLanguage" :state="detail" />
           </div>
           <!-- Une serie detaille sa langue par saison ; un film la porte dans la rangee de
@@ -105,6 +105,7 @@
 </template>
 
 <script setup lang="ts">
+import { isInPlex, mediaAvailabilityBadge } from "@/utils/mediaAvailability";
 import { proxyUrl, srcSetFor } from '@/utils/mediaImage';
 import { mediaTypeLabel, isMusicType } from '@/utils/labels';
 import MediaLanguageBadge from './MediaLanguageBadge.vue';
@@ -165,7 +166,8 @@ watch(() => props.detail?.poster_url, () => { posterFailed.value = false; });
 
 const isMusic = computed(() => isMusicType(props.detail?.media_type));
 const isShow = computed(() => props.detail?.media_type === 'show');
-const canRequest = computed(() => !props.detail?.available && !props.detail?.in_library && !props.detail?.requested && !props.detail?.request_id);
+const availabilityStatus = computed(() => props.detail?.availability ? mediaAvailabilityBadge(props.detail) : null);
+const canRequest = computed(() => !isInPlex(props.detail || {}) && !props.detail?.requested && !props.detail?.request_id);
 
 const releaseSourceType = computed<'library_item' | 'request' | null>(() => {
   if (props.detail?.vf_source_type === 'library' || props.detail?.library_id || props.detail?._kind === 'library') {
@@ -402,7 +404,8 @@ const releaseDates = computed(() => {
   font-weight: 800;
   line-height: 1.25;
 }
-.mdh-badges > .badge.available {
+.mdh-badges > .badge.available,
+.mdh-badges > .badge.in-plex {
   border-color: var(--green);
   background: var(--green);
   color: var(--text);

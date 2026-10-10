@@ -206,3 +206,11 @@ describe('MediaDetailHero', () => {
     expect(wrapper.text()).not.toContain('Demande via Seerr');
   });
 });
+
+it('le contrat de disponibilité prime sur un ancien libellé opérationnel', () => {
+  const wrapper = mount(MediaDetailHero, { props: {
+    statusLabel: 'Disponible dans Plex',
+    detail: { title: 'Importé', media_type: 'movie', operational_status: 'completed', availability: { plex: 'absent', episodes: { state: 'unknown' } } },
+  } });
+  expect(wrapper.get('.mdh-badges').text()).toBe('À confirmer dans Plex');
+});

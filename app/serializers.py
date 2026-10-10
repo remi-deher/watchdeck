@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from .models import LibraryItem, MediaRequest, PlexUser
+from .services.media_availability import media_availability
 from .services.media_ref import media_ref
 from .utils import wrap_image_proxy
 
@@ -50,6 +51,7 @@ def serialize_media_request(req: MediaRequest, users: dict[str, str]) -> dict:
     requesters = [users.get(uid, uid) for uid in requester_ids]
     return {
         **media_ref(req),
+        "availability": media_availability(req),
         "id": req.id,
         "title": req.title,
         "year": req.year,
@@ -102,6 +104,7 @@ def serialize_media_request(req: MediaRequest, users: dict[str, str]) -> dict:
 def serialize_library_item(item: LibraryItem) -> dict:
     return {
         **media_ref(item),
+        "availability": media_availability(item, library=item),
         "has_vf": item.has_vf,
         "arr_id": item.arr_id,
         "arr_instance_id": item.arr_instance_id,
@@ -138,6 +141,7 @@ def serialize_media_summary(
     if isinstance(item, LibraryItem):
         return {
             **media_ref(item),
+            "availability": media_availability(item, library=item),
             "tmdb_id": item.tmdb_id,
             "media_type": item.media_type,
             "title": item.title,
@@ -164,6 +168,7 @@ def serialize_media_summary(
         )
         summary = {
             **media_ref(item),
+            "availability": media_availability(item),
             "tmdb_id": item.tmdb_id,
             "media_type": item.media_type,
             "title": item.title,
@@ -187,6 +192,7 @@ def serialize_media_summary(
         return summary
     if isinstance(item, dict):
         summary = {
+            "availability": item.get("availability") or media_availability(item, plex_present=item.get("in_library")),
             "id": item.get("id") or item.get("tmdb_id"),
             "backdrop_url": item.get("backdrop_url"),
             "tmdb_id": item.get("tmdb_id"),

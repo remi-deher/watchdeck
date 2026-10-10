@@ -86,6 +86,15 @@ describe('useRealtimeQuery', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['demandes'] });
   });
 
+  it('relit une projection métier au lieu de la reconstruire depuis un fragment SSE', () => {
+    const before = { items: [{ id: 1, status: 'pending', availability: { plex: 'unknown' } }] };
+    queryClient.setQueryData(['demandes'], before);
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue();
+    realtimeHandler('request.updated', { payload: { id: 1, status: 'available' } });
+    expect(queryClient.getQueryData(['demandes'])).toEqual(before);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['demandes'] });
+  });
+
   it('expose apply pour les mises a jour locales', () => {
     expect(api.apply({ id: 1, status: 'rejected' })).toBe(true);
     expect(queryClient.getQueryData(['demandes']).items[0].status).toBe('rejected');

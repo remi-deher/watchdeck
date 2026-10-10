@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+from app.services.media_availability import media_availability
 from app.services.media_ref import media_ref
 
 from ..models import (
@@ -36,6 +37,7 @@ def _media_payload(
     operational: dict,
     *,
     arr_url: str | None,
+    season_rows: list[dict] | None = None,
     backdrop_url: str | None = None,
     release_dates: dict | None = None,
     first_air_date: str | None = None,
@@ -44,6 +46,12 @@ def _media_payload(
 ) -> dict:
     return {
         **media_ref(media_obj),
+        "availability": media_availability(
+            selected_request or media_obj,
+            library=library_item,
+            plex_present=library_item is not None,
+            season_rows=season_rows,
+        ),
         "kind": "library" if library_item else "request",
         "library_id": library_item.id if library_item else None,
         "request_id": selected_request.id if selected_request else None,
@@ -472,6 +480,7 @@ async def build_media_detail(
             except Exception as exc:
                 logger.debug("Plex direct tracks fetch error: %s", exc)
 
+    availability_request = selected_request or (related_requests[0] if related_requests else None)
     operational = (
         request_payloads[0] if request_payloads else (plex_library_projection(library_item) if library_item else {})
     )
@@ -479,9 +488,10 @@ async def build_media_detail(
         "media": _media_payload(
             media_obj,
             library_item,
-            selected_request or (related_requests[0] if related_requests else None),
+            availability_request,
             operational,
             arr_url=arr_url,
+            season_rows=seasons.get(availability_request.id) if availability_request else None,
             backdrop_url=backdrop_url,
             release_dates=release_dates,
             first_air_date=first_air_date,

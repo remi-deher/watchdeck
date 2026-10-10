@@ -1,3 +1,4 @@
+import type { MediaAvailability } from '@/types/media';
 import type { VfUpgradeStatus } from '@/types/vfUpgrades';
 
 /* Formes des donnees de la page « Ameliorations VF & Flux ».
@@ -13,6 +14,7 @@ export type SubtitleStatus = 'ok' | 'not_default' | 'forced_default' | 'forced_n
 export type ForcedStatus = 'ok' | 'not_default' | null | undefined;
 
 export interface AuditItem {
+  availability?: MediaAvailability;
   id: number;
   title?: string;
   media_type: 'movie' | 'show' | string;

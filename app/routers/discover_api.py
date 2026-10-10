@@ -323,7 +323,7 @@ async def _personalized_sections(
     await _annotate(db, all_items)
     if hide_available:
         for items in (recommended, preferred, popular):
-            items[:] = [item for item in items if not item.get("available") and not item.get("in_library")]
+            items[:] = [item for item in items if item.get("availability", {}).get("plex") != "present"]
     return {
         "available": True,
         "seeds": seeds,

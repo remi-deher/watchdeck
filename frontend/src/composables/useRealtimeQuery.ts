@@ -105,6 +105,7 @@ export function useRealtimeQuery<TData>(
     if (current === undefined) return false;
     const source = getList(current) || [];
     const change = mapper(detail);
+    if (source.some((item) => item.availability)) return false;
     const { list, patched } = patchAll ? patchedAll(source, change, keyFields) : patchedList(source, change, { keyFields });
     if (patched) queryClient.setQueryData<TData>(key, setList(current, list));
     return patched;

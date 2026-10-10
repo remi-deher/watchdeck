@@ -100,7 +100,7 @@
 
     <!-- 3. Aucune demande : le média est arrivé sans passer par un demandeur. -->
     <template v-if="!requests?.length">
-      <section v-if="detail?.in_library" class="journey-card plex-origin-card" aria-labelledby="journey-title-direct">
+      <section v-if="detail && isInPlex(detail)" class="journey-card plex-origin-card" aria-labelledby="journey-title-direct">
         <div class="journey-head">
           <div class="journey-heading">
             <span class="journey-eyebrow">Parcours</span>
@@ -140,6 +140,7 @@
 </template>
 
 <script setup lang="ts">
+import { isInPlex } from "@/utils/mediaAvailability";
 import { computed, useId } from 'vue';
 import { Ban, Check, CheckCheck, Mail, MailCheck, RotateCcw, Search, Trash2, UserPlus, Users, XCircle } from '@lucide/vue';
 import UiBadge from '@/components/ui/UiBadge.vue';

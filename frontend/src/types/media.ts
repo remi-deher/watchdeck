@@ -1,3 +1,5 @@
+import type { MediaAvailability } from "./generated/mediaAvailability";
+export type { MediaAvailability } from "./generated/mediaAvailability";
 export type MediaType = 'movie' | 'show';
 export type SubFrStatus = 'absent' | 'default' | 'not_default' | 'forced_default' | 'forced_not_default';
 export type ForcedFrStatus = 'none' | 'ok' | 'not_default' | 'absent';
@@ -54,6 +56,7 @@ export interface SeasonInfo {
 }
 
 export interface LibraryItem {
+  availability?: MediaAvailability;
   id: number;
   rating_key?: string;
   title: string;
@@ -84,6 +87,7 @@ export interface LibraryItem {
  * image disponible : la page n'a rien a recopier, donc rien a oublier.
  */
 export interface MediaRef {
+  availability?: MediaAvailability;
   id: number;
   title: string;
   year?: number | null;

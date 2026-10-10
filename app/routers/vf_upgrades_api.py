@@ -99,7 +99,10 @@ def _media_payload(media, source_type: str) -> dict:
         "library_item": "library",
         "request": "request",
     }.get(source_type)
+    from ..services.media_availability import media_availability
+
     return {
+        "availability": media_availability(media, library=media if source_type == "library_item" else None),
         "id": media.id,
         "source_type": source_type,
         "title": media.title,

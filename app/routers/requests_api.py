@@ -29,6 +29,7 @@ from ..models import (
 from ..pagination import PaginationParams, paginated_response, pagination_params
 from ..scheduler import check_arr_statuses, poll_watchlists
 from ..services import arr_orphans, deleted_media, email_service, radarr, request_tracking, sonarr
+from ..services.media_availability import AvailabilityPage, media_availability
 from ..services.notification_orchestrator import _get_recipients, _notify, _resolve_requester_users, notify_single_user
 from ..services.notification_policy import is_pseudo_requester
 from ..services.request_lifecycle import transition_request
@@ -309,7 +310,7 @@ async def list_requests(query: Optional[str] = None, request: Request = None, db
     return (await db.execute(q.order_by(MediaRequest.requested_at.desc()).limit(5000))).scalars().all()
 
 
-@router.get("/requests-list")
+@router.get("/requests-list", response_model=AvailabilityPage)
 async def list_requests_compact(
     request: Request,
     query: Optional[str] = None,
@@ -322,6 +323,7 @@ async def list_requests_compact(
     requesters: Optional[str] = None,
     vf: Optional[str] = None,
     strict_partial: bool = False,
+    in_plex: Optional[bool] = None,
     pagination: PaginationParams = Depends(pagination_params(max_limit=500, default_limit=200)),
     db: AsyncSession = Depends(get_db_async),
 ):
@@ -348,6 +350,8 @@ async def list_requests_compact(
             | (MediaRequest.extra_requesters.like(f'%"plex_user_id": "{uid}"%'))
             | (MediaRequest.extra_requesters.like(f'%"plex_user_id":"{uid}"%'))
         )
+    if in_plex is not None:
+        filters.append(MediaRequest.library_item_id.is_not(None) if in_plex else MediaRequest.library_item_id.is_(None))
     if query:
         filters.append(MediaRequest.title.ilike(f"%{query.strip()}%"))
 
@@ -411,6 +415,7 @@ async def list_requests_compact(
     rows = (
         await db.execute(
             select(
+                LibraryItem,
                 MediaRequest.id,
                 MediaRequest.title,
                 MediaRequest.year,
@@ -441,6 +446,7 @@ async def list_requests_compact(
                 MediaRequest.vf_tracking_disabled,
             )
             .outerjoin(PlexUser, PlexUser.plex_user_id == MediaRequest.plex_user_id)
+            .outerjoin(LibraryItem, LibraryItem.id == MediaRequest.library_item_id)
             .filter(*filters)
             .order_by(MediaRequest.requested_at.desc(), MediaRequest.id.desc())
             .offset(pagination.offset)
@@ -490,6 +496,7 @@ async def list_requests_compact(
     return paginated_response(
         items=[
             {
+                "availability": media_availability(row, library=row.LibraryItem),
                 "tracking": request_tracking.tracking_state(row, now, queue_index.get(row.id)),
                 "lifecycle": request_tracking.lifecycle(row),
                 "vf_missing": request_tracking.vf_missing(row),

@@ -52,10 +52,9 @@ function fixedItem(item: AuditItem, patch: StreamsFixPatch): AuditItem {
 /**
  * Audit des pistes Plex (onglet « Alignement des pistes »).
  *
- * Une correction ne recharge pas l'audit : le media corrige est mis a jour sur place
- * (`applyStreamsFixInPlace`), qu'elle vienne d'une action de la page ou d'un evenement
- * temps reel emis par une autre session. L'audit vit dans le cache TanStack Query
- * (`VF_AUDIT_KEY`), ou chaque correction depose une nouvelle liste.
+ * Une projection de disponibilité est relue après correction, pour garder son état
+ * cohérent avec le serveur. Les anciennes réponses restent corrigées par copie.
+ * L'audit vit dans le cache partagé TanStack Query (`VF_AUDIT_KEY`).
  */
 export function useVfAudit(notify: Notify) {
   const queryClient = useQueryClient();
@@ -81,6 +80,11 @@ export function useVfAudit(notify: Notify) {
   /** Corrige des medias dans le cache et recalcule les compteurs. */
   function applyFixes(ids: readonly number[], patch: StreamsFixPatch = {}): void {
     const wanted = new Set(ids);
+    const current = queryClient.getQueryData<AuditResponse>(VF_AUDIT_KEY);
+    if (current?.items?.some(item => wanted.has(item.id) && item.availability)) {
+      void queryClient.invalidateQueries({ queryKey: VF_AUDIT_KEY });
+      return;
+    }
     queryClient.setQueryData<AuditResponse>(VF_AUDIT_KEY, (data) => {
       if (!data?.items?.some((item) => wanted.has(item.id))) return data;
       const next = data.items.map((item) => (wanted.has(item.id) ? fixedItem(item, patch) : item));

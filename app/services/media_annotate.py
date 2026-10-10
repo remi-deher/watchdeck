@@ -11,6 +11,7 @@ from sqlalchemy.future import select
 from ..models import LibraryItem, MediaRequest
 from ..serializers import request_status_value
 from ..utils import wrap_rail_poster
+from .media_availability import media_availability
 from .operational_projection import plex_library_projection, request_operational_projection
 
 
@@ -75,6 +76,7 @@ async def annotate_media_items(db: AsyncSession, items: list[dict]) -> list[dict
         k = (it.get("media_type"), str(it.get("tmdb_id")))
         li = lib.get(k)
         req = reqs.get(k)
+        it["availability"] = media_availability(req or it, library=li, plex_present=li is not None)
         it["in_library"] = li is not None
         it["library_id"] = li.id if li else None
         it["request_id"] = req.id if req else None
