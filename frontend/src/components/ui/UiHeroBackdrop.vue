@@ -1,7 +1,7 @@
 <template>
   <div
     class="ui-hero-backdrop theme-dark-scope"
-    :class="[`is-${variant}`, { 'is-zoomable': zoomOnHover }]"
+    :class="[`is-${variant}`, { 'is-zoomable': zoomOnHover, 'is-fade': fade }]"
     :style="rootStyle"
   >
     <div class="ui-hero-backdrop__image" :style="imageStyle" />
@@ -25,6 +25,8 @@ const props = withDefaults(
     minHeight?: string;
     variant?: 'card' | 'sheet';
     zoomOnHover?: boolean;
+    /** Le bas de l'image s'efface en douceur dans le fond de la page (pas de bord, pas de flou). */
+    fade?: boolean;
   }>(),
   {
     imageUrl: null,
@@ -32,6 +34,7 @@ const props = withDefaults(
     minHeight: undefined,
     variant: 'card',
     zoomOnHover: false,
+    fade: false,
   }
 );
 
@@ -53,6 +56,22 @@ const imageStyle = computed(() => ({
   min-height: clamp(300px, 42vw, 460px);
   overflow: hidden;
   background: var(--surface);
+}
+
+/* Fondu : un masque a paliers rapproches (courbe douce) plutot qu'un degrade lineaire, dont
+   le depart et l'arrivee se voient comme une bande. Le fond de la banniere devient
+   transparent : c'est le fond de la page qui apparait. */
+.ui-hero-backdrop.is-fade {
+  --hero-fade-mask: linear-gradient(
+    to bottom,
+    #000 0%, #000 38%,
+    rgba(0, 0, 0, 0.94) 46%, rgba(0, 0, 0, 0.82) 54%, rgba(0, 0, 0, 0.66) 62%,
+    rgba(0, 0, 0, 0.48) 70%, rgba(0, 0, 0, 0.32) 78%, rgba(0, 0, 0, 0.18) 86%,
+    rgba(0, 0, 0, 0.07) 93%, rgba(0, 0, 0, 0.02) 97%, transparent 100%
+  );
+  background: transparent;
+  -webkit-mask-image: var(--hero-fade-mask);
+  mask-image: var(--hero-fade-mask);
 }
 
 /* Pas de trait autour d'une image : le voile en dessine deja le bord, egal partout. */

@@ -12,6 +12,7 @@
     :position="variant === 'sheet' ? 'center 18%' : undefined"
     :variant="variant"
     stack-on-mobile
+    fade
   >
     <template #overlay>
       <button class="mdh-back icon-button" title="Retour" aria-label="Retour" @click="$emit('back')"><ArrowLeft /></button>
@@ -26,17 +27,17 @@
         </div>
     </template>
         <div class="mdh-info">
-          <span class="eyebrow">{{ typeLabel }}</span>
+          <!-- Le type, et juste a cote l'etat de la demande (Demande, En telechargement...).
+               La presence dans Plex et la langue vivent sous l'affiche. -->
+          <div class="mdh-kicker">
+            <span class="eyebrow">{{ typeLabel }}</span>
+            <span v-if="kickerStatus" class="badge mdh-status" :class="kickerStatus.variant">{{ kickerStatus.label }}</span>
+          </div>
           <h1>{{ detail.title }}</h1>
           <!-- Annee, note et genres tiennent en une phrase : trois lignes de pastilles en moins.
                L'origine (demande Seerr, ajout *ARR) vit dans l'onglet Demandes, qui la detaille. -->
           <p v-if="factsLine" class="mdh-facts">{{ factsLine }}</p>
-          <div v-if="(availabilityStatus || statusLabel) && !isMusic || movieLanguage" class="mdh-badges">
-            <span v-if="(availabilityStatus || statusLabel) && !isMusic" class="badge" :class="availabilityStatus?.variant || statusClass">{{ availabilityStatus?.label || statusLabel }}</span>
-            <MediaLanguageBadge class="badge" v-if="movieLanguage" :state="detail" />
-          </div>
-          <!-- Une serie detaille sa langue par saison ; un film la porte dans la rangee de
-               badges ci-dessus, au meme endroit. -->
+          <!-- Une serie detaille sa langue par saison ; un film la porte sous l'affiche. -->
           <div v-if="isShow && showLanguageSummary && !preview" class="mdh-language-summary">
             <span v-if="seasonSummary.vf.length" class="badge available">VF : {{ formatSeasonLabel(seasonSummary.vf) }}</span>
             <span v-if="seasonSummary.vfSecondary.length" class="badge language-tag vf-secondary">VF secondaire : {{ formatSeasonLabel(seasonSummary.vfSecondary) }}</span>
@@ -44,53 +45,14 @@
             <span v-if="seasonSummary.vo.length" class="badge">VO : {{ formatSeasonLabel(seasonSummary.vo) }}</span>
           </div>
           <p v-if="waitingReason && !isMusic" class="mdh-waiting">{{ waitingReason }}</p>
-          <dl v-if="releaseDates.length && !isMusic" class="mdh-dates">
-            <div v-for="entry in releaseDates" :key="entry.label">
-              <dt>{{ entry.label }}</dt>
-              <dd>{{ entry.value }}</dd>
-            </div>
-          </dl>
           <div v-if="preview && !detail.overview" class="mdh-overview-wrapper" aria-hidden="true">
             <span class="skeleton-line" /><span class="skeleton-line" /><span class="skeleton-line is-short" />
           </div>
           <div v-else class="mdh-overview-wrapper">
             <SheetSummary class="mdh-overview" :text="overviewText" :lines="4" />
           </div>
-          <div v-if="preview" class="mdh-links" aria-hidden="true">
-            <span class="skeleton-pill" /><span class="skeleton-pill" />
-          </div>
-          <div v-else class="mdh-links">
-            <button
-              v-if="canRequest && !isMusic"
-              type="button"
-              class="primary-button mdh-listen-btn mdh-request-btn"
-              :disabled="busy"
-              @click="$emit('request')"
-            >
-              <PlusCircle :size="16" /> {{ isShow ? 'Demander la série' : 'Demander ce film' }}
-            </button>
-            <button v-if="plexWebUrl" type="button" class="primary-button mdh-listen-btn" @click="openPlexLink(detail?.plex_guid)">
-              <Headphones v-if="isMusic" :size="16" /><Film v-else :size="16" /> {{ isMusic ? 'Écouter sur Plex' : 'Regarder sur Plex' }}
-            </button>
-            <!-- Le reste des actions tient dans un menu : une seule action principale par fiche. -->
-            <UiMenu v-if="!isMusic" align="end" label="Actions">
-              <template #trigger>
-                <UiButton icon-only class="mdh-more" title="Plus d’actions" aria-label="Plus d’actions"><Ellipsis /></UiButton>
-              </template>
-              <UiMenuItem v-if="canSearchReleases" @select="searchReleases">
-                <Search :size="15" /> Rechercher une version<small v-if="releaseCount" class="mdh-menu-count">{{ releaseCount }}</small>
-              </UiMenuItem>
-              <UiMenuItem :disabled="busy || !available" @select="$emit('scan')"><RefreshCw :size="15" /> Analyser</UiMenuItem>
-              <UiMenuSeparator v-if="externalLinks.length" />
-              <UiMenuItem v-for="link in externalLinks" :key="link.label" @select="openExternal(link.href)">
-                <ExternalLink :size="15" /> {{ link.label }}
-              </UiMenuItem>
-              <UiMenuSeparator />
-              <UiMenuItem variant="danger" @select="$emit('report-issue')"><Flag :size="15" /> Signaler un problème</UiMenuItem>
-            </UiMenu>
-          </div>
           <!-- La recherche de release d'un film est une fenetre portee par ce composant ; son
-               entree de menu l'ouvre, il n'a donc pas de declencheur a lui. -->
+               bouton l'ouvre, il n'a donc pas de declencheur a lui. -->
           <VfUpgradeButton
             v-if="canSearchReleases && !isShow && !preview"
             ref="releaseSearch"
@@ -101,6 +63,71 @@
             :media-title="detail.title"
           />
         </div>
+    <!-- Sous l'affiche : presence Plex et langue sur une seule ligne, les dates si le resume
+         les laisse la, puis les actions. -->
+    <template #below>
+      <div v-if="posterBadges" class="mdh-poster-badges">
+        <span v-if="plexStatus" class="badge mdh-status" :class="plexStatus.variant">{{ plexStatus.label }}</span>
+        <MediaLanguageBadge v-if="movieLanguage" class="badge" :state="detail" />
+      </div>
+      <dl v-if="releaseDates.length && !isMusic && !datesBeside" class="mdh-dates">
+        <div v-for="entry in releaseDates" :key="entry.label">
+          <dt>{{ entry.label }}</dt>
+          <dd>{{ entry.value }}</dd>
+        </div>
+      </dl>
+      <div v-if="preview" class="mdh-links" aria-hidden="true">
+        <span class="skeleton-pill" /><span class="skeleton-pill" />
+      </div>
+      <div v-else class="mdh-links">
+        <button
+          v-if="canRequest && !isMusic"
+          type="button"
+          class="primary-button mdh-listen-btn mdh-request-btn"
+          :disabled="busy"
+          @click="$emit('request')"
+        >
+          <PlusCircle :size="16" /> {{ isShow ? 'Demander la série' : 'Demander ce film' }}
+        </button>
+        <button v-if="plexWebUrl" type="button" class="primary-button mdh-listen-btn" @click="openPlexLink(detail?.plex_guid)">
+          <Headphones v-if="isMusic" :size="16" /><Film v-else :size="16" /> {{ isMusic ? 'Écouter sur Plex' : 'Regarder sur Plex' }}
+        </button>
+        <!-- Le bouton suit le type : Radarr pour un film, Sonarr (recherche par saison) pour une
+             serie. Absent tant que l'*arr correspondant n'est pas configure. -->
+        <button
+          v-if="canDownload"
+          type="button"
+          class="mdh-download-btn"
+          :title="isShow ? 'Recherche par saison dans Sonarr' : 'Recherche de versions dans Radarr'"
+          @click="searchReleases"
+        >
+          <Download :size="16" /> {{ isShow ? 'Télécharger la série' : 'Télécharger le film' }}<small v-if="releaseCount" class="mdh-menu-count">{{ releaseCount }}</small>
+        </button>
+        <!-- Le reste des actions tient dans un menu : une seule action principale par fiche. -->
+        <UiMenu v-if="!isMusic" class="mdh-more-menu" align="end" label="Actions">
+          <template #trigger>
+            <UiButton icon-only class="mdh-more" title="Plus d’actions" aria-label="Plus d’actions"><Ellipsis /></UiButton>
+          </template>
+          <UiMenuItem :disabled="busy || !available" @select="$emit('scan')"><RefreshCw :size="15" /> Analyser</UiMenuItem>
+          <UiMenuSeparator v-if="externalLinks.length" />
+          <UiMenuItem v-for="link in externalLinks" :key="link.label" @select="openExternal(link.href)">
+            <ExternalLink :size="15" /> {{ link.label }}
+          </UiMenuItem>
+          <UiMenuSeparator />
+          <UiMenuItem variant="danger" @select="$emit('report-issue')"><Flag :size="15" /> Signaler un problème</UiMenuItem>
+        </UiMenu>
+      </div>
+    </template>
+    <!-- Resume court : les dates passent a droite, au niveau de ce qui est sous l'affiche, pour
+         equilibrer le haut de la feuille sans casser la separation. -->
+    <template v-if="releaseDates.length && !isMusic && datesBeside" #extra>
+      <dl class="mdh-dates is-beside">
+        <div v-for="entry in releaseDates" :key="entry.label">
+          <dt>{{ entry.label }}</dt>
+          <dd>{{ entry.value }}</dd>
+        </div>
+      </dl>
+    </template>
   </SheetHero>
 </template>
 
@@ -109,10 +136,11 @@ import { isInPlex, mediaAvailabilityBadge } from "@/utils/mediaAvailability";
 import { proxyUrl, srcSetFor } from '@/utils/mediaImage';
 import { mediaTypeLabel, isMusicType } from '@/utils/labels';
 import MediaLanguageBadge from './MediaLanguageBadge.vue';
-import { computed, ref, watch } from 'vue';
-import { ArrowLeft, Ellipsis, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, RefreshCw, Search } from '@lucide/vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import { ArrowLeft, Download, Ellipsis, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, RefreshCw, Search } from '@lucide/vue';
 import { formatPlexWebUrl, openPlexLink } from '@/mediaUrl';
 import { formatDateLong } from '@/utils/format';
+import { useDownloadSources } from '@/composables/useDownloadSources';
 import VfUpgradeButton from '@/components/media/VfUpgradeButton.vue';
 import SheetHero from '@/components/ui/SheetHero.vue';
 import SheetSummary from '@/components/ui/SheetSummary.vue';
@@ -188,6 +216,16 @@ const releaseSourceId = computed<number | null>(() => {
   return null;
 });
 
+/* Radarr pour un film, Sonarr pour une serie : le bouton « Telecharger » n'existe que si
+   l'*arr du type est configure et actif. La liste n'est lue que pour un administrateur. */
+const { arrInstances, load: loadArrInstances } = useDownloadSources();
+onMounted(() => { if (props.admin) void loadArrInstances(); });
+const hasArr = computed(() => {
+  const kind = isShow.value ? 'sonarr' : 'radarr';
+  return arrInstances.value.some((instance: any) => instance.arr_type === kind && instance.enabled !== false);
+});
+const canDownload = computed(() => canSearchReleases.value && hasArr.value && !props.preview);
+
 const canSearchReleases = computed(() => {
   if (!props.admin || isMusic.value) return false;
   return Boolean(releaseSourceType.value && releaseSourceId.value);
@@ -204,7 +242,13 @@ const factsLine = computed(() => {
     .filter(Boolean)
     .join(' · ');
 });
-/* Un film porte sa langue dans la rangee de badges ; une serie, le detail par saison. */
+/* L'etat de la demande se lit a cote du type ; la presence dans Plex se lit sous l'affiche,
+   avec la langue. */
+const status = computed(() => (!isMusic.value && (availabilityStatus.value || (props.statusLabel ? { label: props.statusLabel, variant: props.statusClass } : null))) || null);
+const plexStatus = computed(() => (status.value?.variant === 'in-plex' ? status.value : null));
+const kickerStatus = computed(() => (status.value && !plexStatus.value ? status.value : null));
+const posterBadges = computed(() => Boolean(plexStatus.value || movieLanguage.value));
+/* Un film porte sa langue sous l'affiche ; une serie, le detail par saison. */
 const movieLanguage = computed(() => !isShow.value && !props.preview && showLanguageSummary.value);
 
 const releaseSearch = ref<InstanceType<typeof VfUpgradeButton> | null>(null);
@@ -266,6 +310,10 @@ function formatSeasonLabel(seasonNumbers: number[]): string {
 }
 
 const overviewText = computed(() => props.detail.overview || (isMusic.value ? 'Aucune biographie disponible pour cet artiste.' : 'Aucun résumé disponible.'));
+/* Resume court : le haut de la feuille serait dechire entre une colonne chargee (sous l'affiche)
+   et une colonne vide. Les dates passent alors a droite. */
+const SHORT_OVERVIEW = 200;
+const datesBeside = computed(() => !props.preview && overviewText.value.length < SHORT_OVERVIEW);
 
 const typeLabel = computed(() => mediaTypeLabel(props.detail.media_type));
 
@@ -303,24 +351,8 @@ const releaseDates = computed(() => {
 .mdh.is-sheet {
   margin-bottom: var(--space-5);
 }
-/* Le bas de la banniere se fond dans la teinte de la feuille (voir MediaDetailView), avec un
-   flou progressif : pas de bord franc entre l'image et le fond de la page. */
-.mdh :deep(.ui-hero-backdrop)::before,
-.mdh :deep(.ui-hero-backdrop)::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 0;
-  height: 45%;
-  z-index: 1;
-  pointer-events: none;
-}
-.mdh :deep(.ui-hero-backdrop)::before {
-  background: linear-gradient(to bottom, transparent, var(--poster-wash, var(--bg)));
-}
-.mdh :deep(.ui-hero-backdrop)::after {
-  backdrop-filter: blur(14px);
-  mask-image: linear-gradient(to bottom, transparent, black);
-}
+/* Le fondu de la banniere (UiHeroBackdrop `fade`) laisse apparaitre la teinte de la feuille
+   (voir MediaDetailView) : l'image s'y retire sans bord ni flou. */
 .mdh :deep(.mdh-content) {
   padding: 0 var(--space-5) var(--space-2);
   max-width: 1280px;
@@ -390,39 +422,56 @@ const releaseDates = computed(() => {
   color: var(--muted);
   font-size: var(--fs-md);
 }
-.mdh-badges {
+.mdh-kicker {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
-  margin-bottom: 12px;
 }
-/* Le badge de langue garde son habillage plein (vues partagees) : pas le gabarit des autres. */
-.mdh-badges > .badge:not(.language-tag) {
-  min-height: 28px;
-  padding: 3px 10px;
+/* Etat de la demande a cote du type, presence Plex sous l'affiche : meme habillage. */
+.mdh-status.badge {
+  min-height: 24px;
+  padding: 2px 10px;
   border-color: color-mix(in srgb, var(--text) 22%, transparent);
   background: var(--surface-2);
   color: var(--text);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-xs);
   font-weight: 800;
   line-height: 1.25;
 }
-.mdh-badges > .badge.available,
-.mdh-badges > .badge.in-plex {
-  border-color: var(--green);
-  background: var(--green);
-  color: var(--text);
+.mdh-status.badge.available,
+.mdh-status.badge.in-plex {
+  border-color: var(--green-solid);
+  background: var(--green-solid);
+  color: var(--on-green-solid);
 }
+/* Presence Plex et langue : une seule ligne, sous l'affiche. */
+.mdh-poster-badges {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.mdh-poster-badges > .badge { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .mdh-overview-wrapper {
   max-width: 800px;
   margin-bottom: 12px;
 }
 .mdh-dates {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-5);
-  max-width: 760px;
-  margin: 0 0 10px;
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+}
+/* Resume court : les dates forment un bloc a droite, au niveau de ce qui est sous l'affiche. */
+.mdh-dates.is-beside {
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-3) var(--space-5);
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
 }
 .mdh-dates > div {
   display: grid;
@@ -451,12 +500,15 @@ const releaseDates = computed(() => {
   font-size: var(--fs-sm);
 }
 .mdh-links {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-2);
-  margin-top: 14px;
+  margin-top: var(--space-3);
 }
+.mdh-links > .mdh-listen-btn,
+.mdh-links > .mdh-download-btn { grid-column: 1; justify-content: center; min-width: 0; }
+.mdh-links > .mdh-more-menu { grid-column: 2; grid-row: 1; }
+.mdh-links > :only-child { grid-column: 1 / -1; justify-self: start; }
 .mdh-language-summary {
   display: flex;
   flex-wrap: wrap;
@@ -468,6 +520,22 @@ const releaseDates = computed(() => {
   margin-left: auto;
   color: var(--accent);
   font-weight: 700;
+}
+.mdh-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mdh-download-btn:hover { background: var(--surface-3); }
 }
 .mdh-listen-btn {
   display: inline-flex;
@@ -492,12 +560,6 @@ const releaseDates = computed(() => {
 }
 
 @include bp.until(tablet) {
-  /* L'image va jusqu'au bas de l'affiche : celle-ci tient entierement sur la banniere (140 px
-     de large, 2:3 ; 180 px carre pour la musique), avec de quoi loger le bouton retour. */
-  .mdh.is-stacked { --sheet-hero-overlap: 210px; }
-  .mdh.is-stacked.is-music-hero { --sheet-hero-overlap: 180px; }
-  .mdh.is-stacked :deep(.sheet-hero__banner) { min-height: 274px; }
-  .mdh.is-stacked.is-music-hero :deep(.sheet-hero__banner) { min-height: 244px; }
   .mdh :deep(.mdh-content) {
     padding: 0 var(--space-4) 20px;
   }
@@ -509,27 +571,24 @@ const releaseDates = computed(() => {
   .mdh-poster {
     flex-basis: auto;
     width: 140px;
-    margin-bottom: 12px;
   }
   .mdh-poster.is-music {
     width: 180px;
     height: 180px;
   }
-  .mdh-facts { text-align: center; }
-  .mdh-badges,
-  .mdh-links,
-  .mdh-language-summary,
-  .mdh-dates {
+  .mdh-kicker,
+  .mdh-poster-badges,
+  .mdh-language-summary {
     justify-content: center;
   }
+  .mdh-facts { text-align: center; }
   .mdh-overview {
     text-align: left;
   }
-  .mdh-links { order: 1; width: 100%; }
-  .mdh-overview-wrapper { order: 2; }
-  .mdh-links { flex-wrap: nowrap; }
+  .mdh-dates { grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); text-align: left; }
   .mdh-links > .mdh-request-btn,
-  .mdh-links > .mdh-listen-btn { flex: 1 1 0; min-width: 0; justify-content: center; min-height: 44px; }
+  .mdh-links > .mdh-listen-btn,
+  .mdh-links > .mdh-download-btn { min-height: 44px; }
 }
 
 </style>
