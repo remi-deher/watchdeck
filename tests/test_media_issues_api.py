@@ -68,7 +68,7 @@ def test_list_exposes_the_available_types_for_filtering(client, async_db):
 
 def test_list_resolves_the_poster_from_the_linked_media(client, async_db):
     """La carte a besoin d'une affiche ; le signalement ne la porte pas lui-même."""
-    item = LibraryItem(title="Le Voyage de Chihiro", media_type="movie", poster_url="/poster.jpg")
+    item = LibraryItem(title="Le Voyage de Chihiro", media_type="movie", poster_url="/poster.jpg", art_url="/fanart.jpg")
     async_db.add(item)
     async_db.commit()
     _issue(async_db, library_item_id=item.id)
@@ -76,6 +76,15 @@ def test_list_resolves_the_poster_from_the_linked_media(client, async_db):
     payload = client.get("/api/media/issues").json()
 
     assert payload["items"][0]["poster_url"].startswith("/api/image-proxy?url=")
+    media = payload["items"][0]["media"]
+    assert media["id"] == item.id
+    assert "fanart.jpg" in media["backdrop_url"]
+    assert "poster.jpg" in media["poster_url"]
+    assert payload["items"][0]["problem"]["key"].startswith("report:")
+    issue_id = payload["items"][0]["id"]
+    updated = client.patch(f"/api/media/issues/{issue_id}", json={"status": "closed"}).json()
+    assert updated["media"] == media
+    assert [action["key"] for action in updated["problem"]["actions"]] == ["open"]
 
 
 def test_a_note_can_be_written_and_read_back(client, async_db):
@@ -115,3 +124,33 @@ def test_the_status_vocabulary_has_a_single_terminal_state(client, async_db):
     assert client.patch(f"/api/media/issues/{issue.id}", json={"status": "resolved"}).status_code == 400
     for status in ("investigating", "closed", "open"):
         assert client.patch(f"/api/media/issues/{issue.id}", json={"status": status}).status_code == 200
+
+
+def test_audit_endpoint_serves_the_whole_problem_contract(client, async_db):
+    from app.services.handling_problem import HandlingProblem
+    item = LibraryItem(title="Pistes", media_type="movie", has_vf=True, fr_is_default=False, art_url="/fanart.jpg")
+    async_db.add(item)
+    async_db.commit()
+    response = client.get("/api/vf-upgrades/audit")
+    assert response.status_code == 200
+    row = next(row for row in response.json()["items"] if row["id"] == item.id)
+    assert "fanart.jpg" in row["backdrop_url"]
+    assert row["problems"][0]["kind"] == "audio_secondary"
+    assert row["problems"][0]["fixable"]
+    HandlingProblem.model_validate(row["problems"][0])
+
+
+def test_request_poster_is_preserved_when_library_has_only_fanart(client, async_db):
+    from app.models import MediaRequest
+    library = LibraryItem(title="Deux images", media_type="movie", art_url="/fanart.jpg")
+    request = MediaRequest(title="Deux images", media_type="movie", poster_url="/request-poster.jpg", plex_user_id="alice")
+    async_db.add(library)
+    async_db.add(request)
+    async_db.commit()
+    issue = _issue(async_db, library_item_id=library.id, request_id=request.id)
+    row = client.get("/api/media/issues").json()["items"][0]
+    assert row["media"]["id"] == library.id
+    assert "request-poster.jpg" in row["media"]["poster_url"]
+    assert "fanart.jpg" in row["media"]["backdrop_url"]
+    updated = client.patch(f"/api/media/issues/{issue.id}", json={"admin_note": "Vérifié"}).json()
+    assert updated["media"] == row["media"]

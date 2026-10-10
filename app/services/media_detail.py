@@ -24,6 +24,7 @@ from ..models import (
 from ..serializers import format_datetime, serialize_media_request
 from ..utils import async_get_or_404, plex_image_proxy_url, wrap_backdrop_proxy, wrap_image_proxy
 from . import tmdb
+from .handling_problem import issue_media_refs
 from .media_annotate import annotate_rail_items
 from .operational_projection import build_media_history, plex_library_projection, request_operational_projection
 
@@ -50,10 +51,8 @@ def _media_payload(
         plex_present=library_item is not None,
         season_rows=season_rows,
     )
-    journey = (
-        request_operational_projection(selected_request, availability=availability)["journey"]
-        if selected_request
-        else None
+    current_projection = (
+        request_operational_projection(selected_request, availability=availability) if selected_request else {}
     )
     return {
         **media_ref(media_obj),
@@ -88,7 +87,8 @@ def _media_payload(
         "operational_status_label": operational.get("operational_status_label"),
         "waiting_reason": operational.get("waiting_reason"),
         "workflow_timeline": operational.get("workflow_timeline", []),
-        "journey": journey,
+        "journey": current_projection.get("journey"),
+        "problems": current_projection.get("problems", []),
         "release_dates": release_dates,
         "first_air_date": first_air_date,
         "current_season_air_date": current_season_air_date,
@@ -103,7 +103,7 @@ async def build_media_detail(
     request_id: Optional[int],
     identity_filter: Callable[[AsyncSession, object], Awaitable[list[MediaRequest]]],
     schedule_payload: Callable[[AsyncSession, object], Awaitable[dict]],
-    issue_serializer: Callable[[MediaIssue], dict],
+    issue_serializer: Callable[..., dict],
     core_only: bool = False,
 ) -> dict:
     """Fusionne DB, calendrier *arr et enrichissement TMDB pour l'endpoint de détail."""
@@ -258,6 +258,7 @@ async def build_media_detail(
     else:
         issue_query = issue_query.filter(MediaIssue.request_id == selected_request.id)
     issues = (await db.execute(issue_query.order_by(MediaIssue.created_at.desc()))).scalars().all()
+    issue_media = await issue_media_refs(db, list(issues))
 
     # Historique post-disponibilite ("Parcours du media") : upgrades VF, fichiers remplaces
     # par *ARR, signalements -- toutes lignes deja existantes (VfUpgradeSuggestion,
@@ -516,7 +517,15 @@ async def build_media_detail(
             next_episode_to_air=next_episode_to_air,
         ),
         "requests": request_payloads,
-        "issues": [issue_serializer(issue) for issue in issues],
+        "issues": [
+            issue_serializer(
+                issue,
+                issue_media[issue.id][0],
+                retry_obj=issue_media[issue.id][1],
+                fallback_media=issue_media[issue.id][2],
+            )
+            for issue in issues
+        ],
         "media_history": media_history,
         "timeline": schedule["timeline"],
         "calendar": schedule["events"],

@@ -105,8 +105,9 @@ export function forcedRowClass(item: Pick<AuditItem, 'forced_fr_status'>): strin
 }
 
 /** Un media peut etre realigne sur Plex s'il a une VF ou une piste mal activee. */
-export function canFixStreams(item?: Pick<AuditItem, 'has_vf' | 'issues'> | null): boolean {
+export function canFixStreams(item?: Pick<AuditItem, 'has_vf' | 'issues' | 'problems'> | null): boolean {
   if (!item) return false;
+  if (item.problems) return item.problems.some(problem => problem.fixable);
   return Boolean(
     item.has_vf ||
     item.issues?.includes('audio_secondary') ||

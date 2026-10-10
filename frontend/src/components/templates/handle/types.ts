@@ -1,3 +1,4 @@
+import type { HandlingProblem } from '@/types/generated/mediaAvailability';
 import type { MediaRef } from '@/types';
 
 /* Gabarit « Traiter » : les donnees qu'une page lui confie. Elle repond a la question
@@ -12,7 +13,7 @@ export interface HandleAction {
   /** `primary` : la correction proposee ; `danger` : supprimer, refuser. */
   tone?: 'primary' | 'danger' | 'default';
   disabled?: boolean;
-  title?: string;
+  title?: string | null;
 }
 
 /** Un type de probleme : indicateur qui sert de filtre, et son action groupee. */
@@ -30,15 +31,18 @@ export interface HandleIssue {
 export interface HandleItem {
   key: string;
   /** Cle du type de probleme (`HandleIssue.key`). */
-  issue: string;
-  urgency: HandleUrgency;
+  issue?: string;
+  urgency?: HandleUrgency;
   title: string;
   /** Le probleme, en clair. */
-  problem: string;
+  problem?: string;
+  handling?: HandlingProblem;
+  note?: { label: string; value: string; placeholder?: string };
   /** La correction proposee, s'il y en a une. */
   proposal?: string;
   /** Affiche selon le contexte : un media en a une, un service ou un reglage non. */
   poster?: string | null;
+  backdrop?: string | null;
   media?: MediaRef;
   subtitle?: string;
   to?: string | Record<string, any> | null;

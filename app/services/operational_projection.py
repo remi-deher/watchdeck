@@ -32,6 +32,7 @@ def request_origin(source: str | None) -> dict[str, str]:
 def request_operational_projection(
     req: Any, *, availability: dict | None = None, queue_entry: dict | None = None
 ) -> dict[str, Any]:
+    from .handling_problem import request_problems
     from .request_journey import request_journey
 
     origin = request_origin(getattr(req, "source", None))
@@ -72,6 +73,7 @@ def request_operational_projection(
         "workflow_timeline": request_workflow_timeline(req, origin=origin, fulfillment=fulfillment),
     }
     projection["journey"] = request_journey(req, projection, availability=availability, queue_entry=queue_entry)
+    projection["problems"] = request_problems(req, projection["journey"])
     return projection
 
 

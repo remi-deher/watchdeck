@@ -1,5 +1,89 @@
 // Généré par python -m scripts.generate_availability_types ; ne pas modifier.
 
+export interface ProblemAction {
+  key: string;
+  label: string;
+  tone?: "primary" | "danger" | "default";
+  disabled?: boolean;
+  title?: string | null;
+}
+
+export interface HandlingProblem {
+  key: string;
+  source: "report" | "request" | "vf_audit";
+  kind: string;
+  label: string;
+  state: "open" | "investigating" | "closed";
+  urgency: "high" | "medium" | "low";
+  consequence: string;
+  proposal: string | null;
+  fixable: boolean;
+  actions: ProblemAction[];
+}
+
+export interface ProblemMedia {
+  id: number;
+  title: string;
+  year: number | null;
+  media_type: string;
+  poster_url: string | null;
+  backdrop_url: string | null;
+}
+
+export interface IssueResponse {
+  id: number;
+  title: string | null;
+  media_type: string | null;
+  issue_type: string;
+  status: string;
+  message: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  reporter_name: string | null;
+  admin_note: string | null;
+  library_item_id: number | null;
+  request_id: number | null;
+  poster_url: string | null;
+  problem: HandlingProblem;
+  media: ProblemMedia | null;
+  [key: string]: unknown;
+}
+
+export interface IssuesResponse {
+  items: IssueResponse[];
+  types: string[];
+  type_labels: Record<string, string>;
+}
+
+export interface AuditProblemRecord {
+  id: number;
+  title: string;
+  media_type: string;
+  year: number | null;
+  poster_url: string | null;
+  backdrop_url: string | null;
+  has_vf: boolean | null;
+  fr_is_default: boolean | null;
+  sub_fr_status: string | null;
+  forced_fr_status: string | null;
+  issues: string[];
+  problems: HandlingProblem[];
+  [key: string]: unknown;
+}
+
+export interface AuditProblemCounts {
+  total: number;
+  audio_secondary: number;
+  sub_fr_not_default: number;
+  forced_sub_not_default: number;
+  partial_vf: number;
+}
+
+export interface AuditProblemsResponse {
+  items: AuditProblemRecord[];
+  counts: AuditProblemCounts;
+}
+
 export interface EpisodeCoverage {
   source: "arr";
   state: "unknown" | "absent" | "partial" | "up_to_date";
@@ -76,18 +160,21 @@ export interface RequestJourney {
 export interface RequestJourneyRecord {
   availability: MediaAvailability;
   journey: RequestJourney;
+  problems: HandlingProblem[];
   [key: string]: unknown;
 }
 
 export interface AvailabilityRecord {
   availability: MediaAvailability;
   journey?: RequestJourney | null;
+  problems?: HandlingProblem[];
   [key: string]: unknown;
 }
 
 export interface MediaDetailResponse {
   media: AvailabilityRecord;
   requests?: RequestJourneyRecord[];
+  issues?: IssueResponse[];
   [key: string]: unknown;
 }
 

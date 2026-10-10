@@ -1,3 +1,4 @@
+import type { AuditProblemsResponse } from '@/types/generated/mediaAvailability';
 import { computed, ref, watch } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
@@ -17,6 +18,7 @@ const emptyCounts = (): AuditCounts => ({
 const FIXED_BY_ALIGNMENT = ['audio_secondary', 'forced_sub_not_default', 'sub_fr_not_default'];
 
 interface AuditResponse { items?: AuditItem[]; counts?: AuditCounts }
+
 
 export const VF_AUDIT_KEY = ['vf-upgrades', 'audit'] as const;
 
@@ -60,11 +62,11 @@ export function useVfAudit(notify: Notify) {
   const queryClient = useQueryClient();
   const auditQuery = useQuery({
     queryKey: VF_AUDIT_KEY,
-    queryFn: ({ signal }) => api<AuditResponse>('/api/vf-upgrades/audit', { signal }),
+    queryFn: ({ signal }) => api<AuditProblemsResponse>('/api/vf-upgrades/audit', { signal }),
   });
   watch(auditQuery.error, (e) => { if (e) notify(humanizeError(e), 'error'); });
   const items = computed<AuditItem[]>(() => auditQuery.data.value?.items || []);
-  const counts = computed<AuditCounts>(() => auditQuery.data.value?.counts || emptyCounts());
+  const counts = computed<AuditCounts>(() => ({ ...emptyCounts(), ...auditQuery.data.value?.counts }));
   /** Premier chargement seulement : une relecture laisse l'audit affiche. */
   const loading = computed(() => auditQuery.isPending.value && auditQuery.isFetching.value);
   const fixingAll = ref(false);
@@ -81,7 +83,7 @@ export function useVfAudit(notify: Notify) {
   function applyFixes(ids: readonly number[], patch: StreamsFixPatch = {}): void {
     const wanted = new Set(ids);
     const current = queryClient.getQueryData<AuditResponse>(VF_AUDIT_KEY);
-    if (current?.items?.some(item => wanted.has(item.id) && item.availability)) {
+    if (current?.items?.some(item => wanted.has(item.id) && (item.availability || item.problems))) {
       void queryClient.invalidateQueries({ queryKey: VF_AUDIT_KEY });
       return;
     }

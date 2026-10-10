@@ -17,6 +17,7 @@
       class="audit-card"
       :class="{ 'is-expanded': isAuditShowExpanded(item.id) }"
     >
+      <div v-if="item.backdrop_url" class="audit-card__backdrop" :style="{ backgroundImage: `url(${item.backdrop_url})` }" aria-hidden="true" />
       <div class="audit-card-top">
         <!-- Zone 1 : Affiche & Titre -->
         <div class="card-media-col">
@@ -73,8 +74,11 @@
             <span class="diag-label">ST Forcés :</span>
             <MediaLanguageBadge class="diag-status" :state="item" kind="forced" />
           </div>
+          <p v-for="problem in item.problems || []" :key="problem.key">
+            <strong>{{ problem.label }}</strong> · {{ problem.consequence }}
+            <span v-if="problem.proposal"> Proposé : {{ problem.proposal }}</span>
+          </p>
         </div>
-
         <!-- Zone 3 : Actions principales contextuelles -->
         <div class="card-action-col">
           <UiButton v-if="item.media_type === 'show'" class="compact" :title="isAuditShowExpanded(item.id) ? 'Masquer les saisons' : 'Voir les saisons et épisodes'" @click="toggleAuditShow(item)">
@@ -283,6 +287,9 @@ async function searchSubtitles(item: AuditItem): Promise<void> {
 
 /* Cartes Audit épurées à 3 zones */
 .audit-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -293,6 +300,8 @@ async function searchSubtitles(item: AuditItem): Promise<void> {
   box-shadow: 0 2px 8px rgb(var(--shadow-color) / calc(0.12 * var(--shadow-scale)));
   transition: border-color var(--motion-duration-instant) var(--motion-ease-standard);
 }
+
+.audit-card__backdrop { position: absolute; inset: 0; z-index: -1; opacity: .08; background-size: cover; background-position: center; pointer-events: none; }
 
 .audit-card:hover {
   border-color: var(--border-hover, var(--border));

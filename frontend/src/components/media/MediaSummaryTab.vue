@@ -28,7 +28,7 @@
     />
 
     <article v-for="issue in (isMusic ? [] : (detail.issues || []))" :key="issue.id" class="detail-row" style="margin-top: 1rem;">
-      <div><strong>{{ issue.issue_type }}</strong><span>{{ issue.message || 'Sans commentaire' }}</span></div>
+      <div><strong>{{ issue.problem?.label || issue.issue_type }}</strong><span>{{ issue.message || 'Sans commentaire' }}</span><span v-if="issue.problem?.consequence">{{ issue.problem.consequence }}</span></div>
       <span class="badge">{{ issue.status }}</span>
     </article>
   </section>

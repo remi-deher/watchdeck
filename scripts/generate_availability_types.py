@@ -6,9 +6,19 @@ from pathlib import Path
 from fastapi.openapi.utils import get_openapi
 from app.routers.library_api import router
 from app.routers.requests_api import router as requests_router
+from app.routers.issues_api import router as issues_router
+from app.routers.vf_upgrades_api import router as audit_router
 
 TARGET = Path("frontend/src/types/generated/mediaAvailability.ts")
 NAMES = (
+    "ProblemAction",
+    "HandlingProblem",
+    "ProblemMedia",
+    "IssueResponse",
+    "IssuesResponse",
+    "AuditProblemRecord",
+    "AuditProblemCounts",
+    "AuditProblemsResponse",
     "EpisodeCoverage",
     "MediaLanguages",
     "MediaQuality",
@@ -27,6 +37,8 @@ NAMES = (
 
 
 def ts_type(schema):
+    if schema.get("type") == "object":
+        return "Record<string, " + ts_type(schema["additionalProperties"]) + ">"
     if schema.get("type") == "array":
         return ts_type(schema["items"]) + "[]"
     if "$ref" in schema:
@@ -41,7 +53,7 @@ def ts_type(schema):
 
 
 def generate():
-    schemas = get_openapi(title="Watchdeck", version="1.0.0", routes=[*router.routes, *requests_router.routes])[
+    schemas = get_openapi(title="Watchdeck", version="1.0.0", routes=[*router.routes, *requests_router.routes, *issues_router.routes, *audit_router.routes])[
         "components"
     ]["schemas"]
     output = ["// Généré par python -m scripts.generate_availability_types ; ne pas modifier.\n"]

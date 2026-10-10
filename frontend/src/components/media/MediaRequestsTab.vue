@@ -14,9 +14,13 @@
             <span class="journey-origin">{{ originLabel(row) }}</span>
           </div>
         </div>
+        <p v-for="problem in row.problems || []" :key="problem.key" class="journey-subtitle">
+          <strong>{{ problem.label }}</strong> · {{ problem.consequence }}
+          <span v-if="problem.proposal"> Proposé : {{ problem.proposal }}</span>
+        </p>
         <RequestStatusStepper :row="row" />
-        <p v-if="row.journey?.blocker" class="journey-subtitle">{{ row.journey.blocker.label }}</p>
-        <p v-if="row.journey?.next_step" class="journey-subtitle">Prochaine étape : {{ row.journey.next_step.label }}</p>
+        <p v-if="!row.problems?.length && row.journey?.blocker" class="journey-subtitle">{{ row.journey.blocker.label }}</p>
+        <p v-if="!row.problems?.length && row.journey?.next_step" class="journey-subtitle">Prochaine étape : {{ row.journey.next_step.label }}</p>
         <div v-if="row.media_type === 'show' && row.seasons?.length" class="journey-seasons">
           <span class="journey-seasons-title">Par saison · {{ seasonsSummary(row.seasons) }}</span>
           <ul class="journey-season-list">
