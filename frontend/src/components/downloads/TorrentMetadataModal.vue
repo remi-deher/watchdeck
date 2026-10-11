@@ -21,7 +21,7 @@
     >
       <template #cell-kind="{ row }"><UiBadge>{{ row.kind === 'category' ? 'Catégorie' : 'Tag' }}</UiBadge></template>
     </ControlTable>
-    <CreateTemplate :open="Boolean(editing)" :definition="editing || idle" :mode="editing?.editTitle ? 'edit' : 'create'" @close="editing = null" />
+    <CreateTemplate :open="Boolean(editing)" :definition="editing || idleCreation" :mode="editing?.editTitle ? 'edit' : 'create'" @close="editing = null" />
   </ModalShell>
 </template>
 
@@ -36,6 +36,7 @@ import UiFeedback from '@/components/ui/UiFeedback.vue';
 import UiField from '@/components/ui/UiField.vue';
 import UiSelect from '@/components/ui/UiSelect.vue';
 import type { UiColumn } from '@/components/ui/UiDataTable.vue';
+import { idleCreation } from '@/creations/idle';
 import { metadataAdd, metadataRename, type MetadataKind } from '@/creations/torrentMetadata';
 import type { CreateDefinition } from '@/components/templates/create/types';
 import { useToast } from '@/composables/useToast';
@@ -80,7 +81,6 @@ const rowActions = (): ControlAction<MetadataRow>[] => [
   }) },
 ];
 
-const idle: CreateDefinition = { noun: '', another: '', initial: () => ({}), steps: [], submit: async () => ({ message: '' }) };
 const editing = ref<CreateDefinition | null>(null);
 
 /* Une écriture rend la parole par un toast, pas par un écran de plus. */

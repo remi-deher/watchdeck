@@ -24,7 +24,7 @@
       :labels="{ items: 'téléchargements', empty: 'Rien ne télécharge', emptyDetail: 'Aucun téléchargement en cours, en attente ni à traiter.', history: 'Voir l’historique' }"
       @action="onAction"
     />
-    <ManualImportModal v-if="manualRow" :row="manualRow" @close="manualRow = null" @submitted="onImported" />
+    <CreateTemplate :open="Boolean(manualRow)" :definition="manualDefinition" mode="edit" @close="manualRow = null" @created="onImported" />
     <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
   </PageTemplate>
 </template>
@@ -41,7 +41,10 @@ import ConfirmModal from '@/components/ConfirmModal.vue';
 import PageTemplate from '@/components/templates/PageTemplate.vue';
 import TrackTemplate, { type TrackItem, type TrackRecent } from '@/components/templates/TrackTemplate.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
-import ManualImportModal from '@/components/downloads/ManualImportModal.vue';
+import CreateTemplate, { type CreateResult } from '@/components/templates/CreateTemplate.vue';
+import { idleCreation } from '@/creations/idle';
+import { manualImportCreation } from '@/creations/manualImport';
+import { useToast } from '@/composables/useToast';
 
 const query = ref('');
 const { rows, pending, error, updatedAt, reload, acting, run, hide, confirmDialog, resolveConfirm } = useDownloadQueue();
@@ -68,15 +71,19 @@ const recent = computed<TrackRecent[]>(() => history.value.slice(0, 5).map((row)
 const updated = computed(() => (updatedAt.value ? `Mis à jour ${formatRelativeDate(new Date(updatedAt.value)).replace(/^\p{Lu}/u, (c) => c.toLowerCase())}` : ''));
 
 const manualRow = ref<any>(null);
+const manualDefinition = computed(() => (manualRow.value ? manualImportCreation(manualRow.value) : idleCreation));
+const { addToast } = useToast();
 function onAction(item: TrackItem, key: string): void {
   const row = byKey.value.get(item.key);
   if (!row) return;
   if (key === 'manual') manualRow.value = row;
   else void run(key, row);
 }
-async function onImported(): Promise<void> {
+/* L'association faite, la ligne quitte la file sans attendre la relecture. */
+async function onImported(result: CreateResult): Promise<void> {
   if (manualRow.value) hide(manualRow.value);
   manualRow.value = null;
+  addToast({ type: 'success', message: result.message });
   await reload();
 }
 </script>

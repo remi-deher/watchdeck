@@ -36,6 +36,8 @@ async function mockApi(page) {
       "/api/arr/queue": QUEUE,
       "/api/downloads/direct": [],
       "/api/arr/wanted": WANTED,
+      "/api/media/lookup": [{ title: "Film bloqué", year: 2024, arr_id: 41, poster: null }, { title: "Film absent", year: 2025, arr_id: null }],
+      "/api/downloads/radarr-manual-import": { candidates: [{ path: "/d/film.mkv", folderName: "film", size: 1073741824, quality: { quality: { name: "WEB 1080p" } } }] },
       "/api/downloads/history": { items: [{ id: 90, title: "Film importé", media_type: "movie", source: "radarr", processing_mode: "automatic", completed_at: "2026-09-20T10:00:00Z" }], errors: [] },
       "/api/downloads/clients": TORRENTS,
       "/api/downloads/clients/7/metadata": { categories: [{ name: "Films" }], tags: ["vff"], mutable: true },
@@ -176,4 +178,38 @@ test("les catégories et tags d'un client se gèrent dans un tableau, avec confi
   await expect(page.getByRole("alertdialog")).toContainText("Supprimer le tag « vff » ?");
   await page.getByRole("alertdialog").getByRole("button", { name: "Annuler" }).click();
   expect(calls).toHaveLength(0);
+});
+
+test("associer un téléchargement bloqué : chercher le média, vérifier le fichier, puis importer", async ({ page }) => {
+  const posts = [];
+  await mockApi(page);
+  await page.route("**/api/downloads/manual-import", async (route) => {
+    posts.push(route.request().postDataJSON());
+    await route.fulfill({ json: { ok: true } });
+  });
+  await page.route("**/api/downloads/radarr-manual-import*", async (route) => {
+    if (route.request().method() === "POST") { posts.push(route.request().postDataJSON()); return route.fulfill({ json: { ok: true } }); }
+    return route.fulfill({ json: { candidates: [{ path: "/d/film.mkv", folderName: "film", size: 1073741824, quality: { quality: { name: "WEB 1080p" } } }] } });
+  });
+  await page.goto("/downloads?view=queue");
+  await page.locator("section.is-blocked").getByRole("button", { name: "Associer" }).click();
+  const dialog = page.getByRole("dialog", { name: "Associer / importer" });
+  await expect(dialog).toContainText("À quel film appartient ce téléchargement ?");
+
+  // Rien n'est retenu : on ne continue pas sans choisir. Une fiche absente de Radarr n'est pas retenable.
+  await dialog.getByRole("button", { name: "Continuer" }).click();
+  await expect(dialog).toContainText("Ce champ est requis.");
+  await dialog.getByRole("button", { name: "Chercher" }).click();
+  await expect(dialog.getByRole("button", { name: /Film absent/ })).toBeDisabled();
+  await dialog.getByRole("button", { name: /Film bloqué/ }).click();
+  await dialog.getByRole("button", { name: "Continuer" }).click();
+
+  await expect(dialog).toContainText("Que faut-il importer ?");
+  await expect(dialog).toContainText("film.mkv");
+  await dialog.getByRole("button", { name: "Continuer" }).click();
+  await expect(dialog).toContainText("Tout est prêt ?");
+  await dialog.getByRole("button", { name: "Associer et importer" }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(posts[0]).toMatchObject({ instance_id: 1, media_type: "movie", arr_id: 41 });
+  expect(posts[1]).toMatchObject({ movie_id: 41, path: "/d/film.mkv" });
 });

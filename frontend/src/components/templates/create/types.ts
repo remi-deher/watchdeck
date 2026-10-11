@@ -2,10 +2,14 @@
    validation, test, recapitulatif, resultat) ; une definition ne decrit que des donnees.
    Les definitions vivent dans `src/creations/`, une par chose creable. */
 
+import type { LookupItem } from '@/components/ui/UiLookupField.vue';
+
+export type { LookupItem };
 export type CreateValues = Record<string, any>;
 
 /* `suggest` : texte libre avec propositions ; `file` : un fichier, par glisser-deposer ou parcours. */
-export type CreateFieldType = 'text' | 'textarea' | 'url' | 'email' | 'secret' | 'number' | 'select' | 'cards' | 'toggle' | 'file' | 'suggest';
+/* `lookup` : cherche puis retient un element (UiLookupField) ; `note` : un texte pour lire, sans saisie. */
+export type CreateFieldType = 'text' | 'textarea' | 'url' | 'email' | 'secret' | 'number' | 'select' | 'cards' | 'toggle' | 'file' | 'suggest' | 'lookup' | 'note';
 
 export interface CreateOption {
   value: string;
@@ -27,6 +31,14 @@ export interface CreateField {
   suggestions?: string[] | ((values: CreateValues) => string[]);
   /** Types acceptes par un champ `file` (« .torrent »). */
   accept?: string;
+  /** Recherche d'un champ `lookup`. */
+  search?: (query: string) => Promise<LookupItem[]>;
+  /** Texte d'une `note` ; une fonction quand il depend des reponses. */
+  text?: string | ((values: CreateValues) => string);
+  /** Ton d'une `note` : `warning` pour ce qui change l'issue. */
+  tone?: 'info' | 'warning';
+  /** Appele quand la reponse change : peut corriger d'autres reponses (champ lie). */
+  onChange?: (value: any, values: CreateValues) => void;
   /** Lignes d'un champ `textarea`. */
   rows?: number;
   /** Regle propre : renvoie le message d'erreur, ou rien. */
@@ -47,6 +59,8 @@ export interface CreateStep {
   fields: CreateField[];
   /** Etape presente seulement si… (ex. pas de reglages pour Prowlarr). */
   when?: (values: CreateValues) => boolean;
+  /** Appele en arrivant sur l'etape, avant d'en montrer les champs (lire ce que la reponse precedente rend possible). */
+  onEnter?: (values: CreateValues) => Promise<void>;
 }
 
 export interface CreateTestResult {
@@ -69,7 +83,9 @@ export interface CreateDefinition {
   /** « une autre instance » : le bouton qui recommence apres creation. */
   another: string;
   /** Libelle du bouton de la derniere etape, a defaut « Creer » (ou « Enregistrer »). */
-  submitLabel?: string;
+  submitLabel?: string | ((values: CreateValues) => string);
+  /** Sous le titre de la fenetre : sur quoi on agit (« Bravo.S01E02 »). */
+  subtitle?: string;
   /** Pas d'ecran de resultat : la fenetre se ferme des que c'est fait (petites modifications). */
   quick?: boolean;
   initial: () => CreateValues;

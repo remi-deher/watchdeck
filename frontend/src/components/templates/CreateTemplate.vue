@@ -11,7 +11,7 @@
          4. le recapitulatif, chaque ligne modifiable, avant « Creer » ;
          5. le resultat et ses suites, ou « Creer un autre ».
        Pas de brouillon : fermer en cours de saisie demande confirmation. -->
-  <ModalShell :open="open" :title="mode === 'edit' ? (definition.editTitle || `Modifier ${definition.noun}`) : `Ajouter ${definition.noun}`" :error="error" :busy="busy" panel-class="create-modal" @close="requestClose">
+  <ModalShell :open="open" :title="mode === 'edit' ? (definition.editTitle || `Modifier ${definition.noun}`) : `Ajouter ${definition.noun}`" :subtitle="definition.subtitle" :error="error" :busy="busy" panel-class="create-modal" @close="requestClose">
     <ol v-if="showStepper" class="create__steps" aria-label="Étapes">
       <li v-for="(entry, index) in allSteps" :key="entry.key" :class="{ 'is-current': index === stepIndex && !result, 'is-done': index < furthest || result }">
         <button type="button" :disabled="index >= furthest || Boolean(result)" :aria-current="index === stepIndex ? 'step' : undefined" @click="goTo(index)">
@@ -41,8 +41,13 @@
       <h3>{{ titleOf(current) }}</h3>
       <p v-if="current.description" class="create__description">{{ current.description }}</p>
 
-      <template v-for="field in visibleFields(current)" :key="field.key">
-        <UiRadioCards v-if="field.type === 'cards'" v-model="values[field.key]" :label="field.label" :options="optionsOf(field)" />
+      <p v-if="entering" class="create__entering" role="status">Chargement…</p>
+      <template v-for="field in (entering ? [] : visibleFields(current))" :key="field.key">
+        <p v-if="field.type === 'note'" class="create__note" :class="`is-${field.tone || 'info'}`" role="note">{{ noteOf(field) }}</p>
+        <UiField v-else-if="field.type === 'lookup'" v-slot="{ id }" :label="field.label" :hint="field.help" :error="errors[field.key]" :required="field.required">
+          <UiLookupField v-model="values[field.key]" :id="id" :search="field.search!" :placeholder="field.placeholder" />
+        </UiField>
+        <UiRadioCards v-else-if="field.type === 'cards'" v-model="values[field.key]" :label="field.label" :options="optionsOf(field)" />
         <ToggleSwitch v-else-if="field.type === 'toggle'" v-model="values[field.key]" :label="field.label" />
         <SecretField v-else-if="field.type === 'secret'" v-model="values[field.key]" :label="field.label" :hint="field.help" />
         <UiField v-else v-slot="{ id }" :label="field.label" :hint="field.help" :error="errors[field.key]" :required="field.required">
@@ -75,7 +80,7 @@
       </template>
       <template v-else>
         <UiButton :disabled="stepIndex === 0 || busy" @click="goTo(stepIndex - 1)">Retour</UiButton>
-        <UiButton variant="primary" :loading="busy" @click="next">{{ isLast ? (definition.submitLabel || (mode === 'edit' ? 'Enregistrer' : 'Créer')) : 'Continuer' }}</UiButton>
+        <UiButton variant="primary" :loading="busy" @click="next">{{ isLast ? (submitLabel || (mode === 'edit' ? 'Enregistrer' : 'Créer')) : 'Continuer' }}</UiButton>
       </template>
     </template>
   </ModalShell>
@@ -92,6 +97,7 @@ import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiField from '@/components/ui/UiField.vue';
 import UiFileDrop from '@/components/ui/UiFileDrop.vue';
+import UiLookupField from '@/components/ui/UiLookupField.vue';
 import UiRadioCards from '@/components/ui/UiRadioCards.vue';
 import UiSelect from '@/components/ui/UiSelect.vue';
 import { useConfirm } from '@/composables/useConfirm';
@@ -114,6 +120,7 @@ const furthest = ref(0);
 const busy = ref(false);
 const error = ref('');
 const result = ref<CreateResult | null>(null);
+const entering = ref(false);
 const testing = ref(false);
 const testResult = ref<CreateTestResult | null>(null);
 
@@ -126,6 +133,8 @@ function restart(): void {
   error.value = '';
   result.value = null;
   testResult.value = null;
+  /* Apres la mise en place des etapes (le premier appel part avant leur definition). */
+  queueMicrotask(() => { void enter(steps.value[0]); });
 }
 watch(() => [props.open, props.definition], ([open]) => { if (open) restart(); }, { immediate: true });
 
@@ -139,18 +148,24 @@ const allSteps = computed(() => [
 const showStepper = computed(() => allSteps.value.length > 1);
 const isSummary = computed(() => hasSummary.value && stepIndex.value === steps.value.length);
 const current = computed<CreateStep | null>(() => steps.value[stepIndex.value] || null);
+const submitLabel = computed(() => (typeof props.definition.submitLabel === 'function' ? props.definition.submitLabel(values) : props.definition.submitLabel));
 const isLast = computed(() => stepIndex.value === allSteps.value.length - 1);
 
 function titleOf(entry: CreateStep): string {
   return typeof entry.title === 'function' ? entry.title(values) : entry.title;
 }
 const visibleFields = (entry: CreateStep) => entry.fields.filter((field) => !field.when || field.when(values));
+const noteOf = (field: CreateField) => (typeof field.text === 'function' ? field.text(values) : field.text || '');
 const suggestionsOf = (field: CreateField) => (typeof field.suggestions === 'function' ? field.suggestions(values) : field.suggestions || []);
 const optionsOf = (field: CreateField) => (typeof field.options === 'function' ? field.options(values) : field.options || []);
 
 /* Une erreur disparait des que son champ change. */
 watch(() => ({ ...values }), (now, before) => {
-  for (const key of Object.keys(now)) if (now[key] !== before?.[key]) delete errors[key];
+  for (const key of Object.keys(now)) {
+    if (now[key] === before?.[key]) continue;
+    delete errors[key];
+    for (const step of props.definition.steps) step.fields.find((field) => field.key === key)?.onChange?.(now[key], values);
+  }
 });
 
 /* Test caduc des qu'un champ qui le concerne change. */
@@ -188,10 +203,25 @@ async function runTest(): Promise<void> {
   }
 }
 
+/* En arrivant sur une etape : ce qu'elle doit lire avant de montrer ses champs. */
+async function enter(entry: CreateStep | null | undefined): Promise<void> {
+  if (!entry?.onEnter) return;
+  entering.value = true;
+  error.value = '';
+  try {
+    await entry.onEnter(values);
+  } catch (cause) {
+    error.value = humanizeError(cause);
+  } finally {
+    entering.value = false;
+  }
+}
+
 function goTo(index: number): void {
   if (index < 0 || index > furthest.value) return;
   for (const key of Object.keys(errors)) delete errors[key];
   stepIndex.value = index;
+  void enter(steps.value[index]);
 }
 
 async function next(): Promise<void> {
@@ -199,6 +229,7 @@ async function next(): Promise<void> {
   if (!isLast.value) {
     stepIndex.value += 1;
     furthest.value = Math.max(furthest.value, stepIndex.value);
+    await enter(steps.value[stepIndex.value]);
     return;
   }
   busy.value = true;
@@ -217,10 +248,10 @@ async function next(): Promise<void> {
 
 /* Recapitulatif : chaque champ rempli, avec l'etape ou le modifier. */
 const summaryRows = computed(() => steps.value.flatMap((entry, index) => visibleFields(entry)
-  .filter((field) => field.summary !== 'hide')
+  .filter((field) => field.summary !== 'hide' && field.type !== 'note')
   .map((field) => {
     const raw = values[field.key];
-    let value = raw === true ? 'Oui' : raw === false ? 'Non' : raw instanceof File ? raw.name : String(raw ?? '—');
+    let value = raw === true ? 'Oui' : raw === false ? 'Non' : raw instanceof File ? raw.name : raw && typeof raw === 'object' && 'title' in raw ? String(raw.title) : String(raw ?? '—');
     const option = optionsOf(field).find((entry) => entry.value === raw);
     if (option) value = option.label;
     if (field.type === 'secret' || field.summary === 'mask') value = raw ? `••••${String(raw).slice(-4)}` : '—';
@@ -254,6 +285,10 @@ function close(): void {
 .create__step, .create__summary { display: grid; gap: var(--space-3); }
 .create__step h3, .create__summary h3 { margin: 0; font-size: var(--fs-md); }
 .create__description { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.create__entering { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.create__note { margin: 0; padding: var(--space-3); border: 1px solid transparent; border-radius: var(--radius-sm); font-size: var(--fs-sm); line-height: 1.5; overflow-wrap: anywhere; }
+.create__note.is-info { background: var(--surface-2); color: var(--muted); }
+.create__note.is-warning { border-color: color-mix(in srgb, var(--accent) 32%, transparent); background: color-mix(in srgb, var(--accent) 9%, transparent); color: var(--text); }
 .create__error { margin: 0; color: var(--red-text); font-size: var(--fs-xs); }
 .create__test { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
 .create__test-result { display: flex; align-items: center; gap: 6px; margin: 0; font-size: var(--fs-sm); }
