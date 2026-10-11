@@ -5,6 +5,15 @@ import UiSearchField from './UiSearchField.vue';
 
 const mountField = (props = {}) => mount(UiSearchField, { props });
 
+describe('UiSearchField · niveaux', () => {
+  it('se marque « elevated » quand la page défile, et pas autrement', async () => {
+    const wrapper = mountField();
+    expect(wrapper.classes()).not.toContain('is-elevated');
+    await wrapper.setProps({ elevated: true });
+    expect(wrapper.classes()).toContain('is-elevated');
+  });
+});
+
 describe('UiSearchField', () => {
   it('garde la même icône pour une recherche et un filtre', () => {
     // Le liseré et l'entonnoir distinguaient les deux gestes ; la capsule est désormais

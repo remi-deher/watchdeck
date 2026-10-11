@@ -110,12 +110,16 @@ describe('DashboardLiveStrip', () => {
 
   it('adapte la disposition au nombre de lectures', () => {
     const make = (count) => Array.from({ length: count }, (_, i) => ({ session_id: i + 1, title: `Film ${i + 1}`, state: 'playing' }));
-    const list = (count) => mount(DashboardLiveStrip, { props: { sessions: make(count) }, global }).find('.live-strip-list');
+    const strip = (count) => mount(DashboardLiveStrip, { props: { sessions: make(count) }, global });
+    const list = (count) => strip(count).find('.live-strip-list');
     expect(list(1).classes()).toContain('is-banner');
     expect(list(3).classes()).toContain('is-fanart');
     expect(list(3).attributes('style')).toContain('--live-count: 3');
+    // Jusqu'a huit : des tuiles qui passent a la ligne ; au-dela, une liste compacte.
     expect(list(5).classes()).toContain('is-fanart');
-    expect(list(6).classes()).toContain('is-posters');
+    expect(list(8).classes()).toContain('is-fanart');
+    expect(strip(9).find('.live-strip-list').exists()).toBe(false);
+    expect(strip(9).find('.live-compact').exists()).toBe(true);
   });
 
   it('montre le fond et le logo de l oeuvre en disposition large, le titre sinon', async () => {

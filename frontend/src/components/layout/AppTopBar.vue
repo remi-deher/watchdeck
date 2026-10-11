@@ -13,6 +13,7 @@
         :match-count="pageSearch?.showSearch ? pageSearch.matchCount : null"
         :total-count="pageSearch?.showSearch ? pageSearch.totalCount : null"
         :more-results="currentQuery.trim().length > 1"
+        :elevated="scrolled"
         @update:query="updateQuery"
         @search="pageSearch?.showSearch && pageSearch.onSearch($event)"
         @toggle-filters="toggleFilters"
@@ -102,7 +103,7 @@ const historyRevision = ref(0);
 /* L'etat de masquage est partage avec la rangee de sections : les deux surfaces
    flottent l'une sous l'autre et doivent donc s'effacer et revenir ensemble. Voir
    `useChromeAutoHide`. */
-const { hidden: toolbarHidden, setHold, reveal } = useChromeAutoHide();
+const { hidden: toolbarHidden, scrolled, setHold, reveal } = useChromeAutoHide();
 
 /* Tant que la recherche a le focus, la barre reste a l'ecran : elle disparaitrait sous
    les doigts de l'utilisateur en train de s'en servir.
@@ -214,7 +215,7 @@ const resolvedTitle = computed(() => providedTitle.value || props.pageTitle);
 }
 .app-topbar.is-hidden:not(:focus-within) { opacity: 0; transform: translateY(calc(-100% - 14px)); pointer-events: none; }
 .app-topbar__field { position: relative; width: 100%; }
-.app-topbar__field :deep(.ui-search-field) { width: 100%; max-width: none; height: 54px; box-shadow: 0 10px 32px rgb(var(--shadow-color) / calc(.28 * var(--shadow-scale))); }
+.app-topbar__field :deep(.ui-search-field) { width: 100%; max-width: none; height: 54px; }
 .app-topbar__recent {
   position: absolute;
   top: calc(100% + 6px);

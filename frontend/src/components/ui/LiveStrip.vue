@@ -1,11 +1,16 @@
 <template>
   <!-- Bandeau « en direct » commun : ce qui se passe maintenant (lectures Plex, fichiers en
        cours d'encodage, telechargements, transferts). La disposition suit le nombre
-       d'elements pour occuper toute la largeur : un seul en banniere (fond de l'oeuvre,
-       affiche en incrustation), deux a cinq en tuiles fanart, au-dela en mur d'affiches.
-       L'image porte un badge (mode, etape, client), qui ou ou, le titre ou le logo, l'etat
-       et la progression ; dessous, une ligne qui dit qui et sur quoi, puis les faits, chacun
-       avec son icone, quatre au plus (le reste en « +N »). Au repos, il tient sur une ligne.
+       d'elements, sans jamais comprimer une carte au point de couper son texte :
+         1. un seul : banniere (fond de l'oeuvre, affiche en incrustation) ;
+         2. de deux a huit : tuiles fanart d'une largeur minimale, qui passent a la ligne
+            (jusqu'a deux lignes) plutot que de se serrer ;
+         3. au-dela : liste compacte (titre, etape, progression, actions), repliee apres
+            quelques lignes ; le lien de l'en-tete mene a la page qui les liste toutes ;
+         4. etroit (telephone) : rail horizontal.
+       L'image porte un badge (mode, etape, client), puis le titre ou le logo, l'etat et la
+       progression ; dessous, une ligne qui dit qui et sur quoi, puis les faits, chacun avec
+       son icone, quatre au plus (le reste en « +N »). Au repos, il tient sur une ligne.
        La page traduit ses objets en cartes (`items`, voir liveStrip.ts). -->
   <section class="panel live-strip" :class="{ 'is-idle': !items.length }" :aria-labelledby="titleId">
     <template v-if="items.length">
@@ -15,7 +20,32 @@
         <p v-if="summary" class="live-strip-summary">{{ summary }}</p>
         <RouterLink v-if="link" :to="link.to" class="panel-link">{{ link.label }}</RouterLink>
       </header>
-      <div class="live-strip-list" :class="[`is-${layout}`, { 'is-plain': plain }]" :style="{ '--live-count': items.length }">
+      <ul v-if="layout === 'list'" class="live-compact" :aria-label="title">
+        <li v-for="item in rows" :key="item.key" class="live-row" :class="{ paused: item.paused }">
+          <button type="button" class="live-row-main" :aria-label="[item.title, item.who].filter(Boolean).join(', ')" @click="emit('select', item)">
+            <span class="live-row-thumb" aria-hidden="true">
+              <MediaArtwork v-if="item.poster" :src="item.poster" alt="" :type="type" size="poster" />
+              <component :is="item.icon" v-else-if="item.icon" />
+            </span>
+            <span class="live-row-text">
+              <strong :title="item.title">{{ item.title }}</strong>
+              <small v-if="item.who">{{ item.who }}</small>
+            </span>
+          </button>
+          <span v-if="item.badge" class="live-badge live-row-badge" :class="`is-${item.badge.tone || 'neutral'}`" :title="item.badge.label">{{ item.badge.label }}</span>
+          <span class="live-row-state">
+            <small v-if="item.status">{{ item.status }}</small>
+            <span v-if="item.progress != null" class="live-card-track"><i :class="{ paused: item.paused }" :style="{ width: `${Math.min(100, Math.max(0, item.progress))}%` }"></i></span>
+          </span>
+          <span v-if="item.actions?.length" class="live-actions">
+            <UiButton v-for="action in item.actions" :key="action.key" size="sm" :disabled="action.disabled" :title="action.title" :variant="action.tone === 'danger' ? 'danger' : action.tone === 'primary' ? 'primary' : 'secondary'" @click="emit('action', item, action.key)">{{ action.label }}</UiButton>
+          </span>
+        </li>
+        <li v-if="cards.length > ROWS_SHOWN" class="live-compact-more">
+          <UiButton size="sm" variant="ghost" :aria-expanded="expanded" @click="expanded = !expanded">{{ expanded ? 'Réduire' : `Afficher les ${cards.length - ROWS_SHOWN} autres` }}</UiButton>
+        </li>
+      </ul>
+      <div v-else class="live-strip-list" :class="[`is-${layout}`, { 'is-plain': plain }]" :style="{ '--live-count': items.length, '--live-cols': columns }">
         <div v-for="(item, index) in cards" :key="item.key" class="live-entry">
         <button
           type="button"
@@ -37,7 +67,7 @@
             <span v-if="item.paused" class="live-poster-pause" aria-hidden="true"><Pause /></span>
             <span class="live-poster-top">
               <slot name="badge" :item="item">
-                <span v-if="item.badge" class="live-badge" :class="`is-${item.badge.tone || 'neutral'}`">{{ item.badge.label }}</span>
+                <span v-if="item.badge" class="live-badge" :class="`is-${item.badge.tone || 'neutral'}`" :title="item.badge.label">{{ item.badge.label }}</span>
               </slot>
               <span v-if="item.corner?.label" class="live-corner"><component :is="item.corner.icon" v-if="item.corner.icon" aria-hidden="true" />{{ item.corner.label }}</span>
               <UiAvatar v-else-if="item.corner" :person="item.corner.person || item.person" :src="item.corner.avatar" :name="item.corner.name" size="sm" tone="accent" />
@@ -91,7 +121,7 @@
 
 <script setup lang="ts">
 import { resolveLiveItem } from '@/composables/workPresentation';
-import { computed, reactive, useId } from 'vue';
+import { computed, reactive, ref, useId } from 'vue';
 import { Activity, Pause } from '@lucide/vue';
 import MediaArtwork from '@/components/activity/MediaArtwork.vue';
 import { personName } from '@/utils/userLabels';
@@ -125,13 +155,20 @@ const emit = defineEmits<{ select: [item: LiveItem]; action: [item: LiveItem, ke
 const FACTS_SHOWN = 4;
 const titleId = `live-strip-${useId()}`;
 
-/* Disposition selon le nombre : chaque element prend toute la largeur du bandeau. */
-const layout = computed<'banner' | 'fanart' | 'posters'>(() => {
+/* Disposition selon le nombre : chaque element prend toute la largeur du bandeau, et une
+   tuile ne descend pas sous sa largeur minimale (elle passe a la ligne). */
+const GRID_MAX = 8;
+const ROWS_SHOWN = 6;
+const layout = computed<'banner' | 'fanart' | 'list'>(() => {
   const total = props.items.length;
   if (total <= 1) return 'banner';
-  return total <= 5 ? 'fanart' : 'posters';
+  return total <= GRID_MAX ? 'fanart' : 'list';
 });
-const wide = computed(() => layout.value !== 'posters');
+const wide = computed(() => layout.value !== 'list');
+/* Colonnes visees : tout sur une ligne jusqu'a cinq, puis deux lignes equilibrees (six : 3 + 3,
+   huit : 4 + 4) plutot qu'une ligne pleine et une orpheline. */
+const columns = computed(() => (props.items.length <= 5 ? props.items.length : Math.ceil(props.items.length / 2)));
+const expanded = ref(false);
 /* Sans aucune image (un fichier sans fiche media), une grande banniere ne montrerait
    qu'un fond vide : elle se reduit a une bande. */
 /* Les images d'un media viennent du media lui-meme : une carte qui en a un montre
@@ -142,6 +179,7 @@ const cards = computed<LiveItem[]>(() => props.items.map(resolveLiveItem).map((i
   poster: item.poster || item.media?.poster_url || null,
   backdrop: item.backdrop || item.media?.backdrop_url || null,
 })));
+const rows = computed(() => (expanded.value ? cards.value : cards.value.slice(0, ROWS_SHOWN)));
 const plain = computed(() => cards.value.every((item) => !item.backdrop && !item.poster));
 /* Un logo introuvable rend la main au titre ecrit. */
 const brokenLogos = reactive(new Set<string>());
@@ -156,13 +194,32 @@ const brokenLogos = reactive(new Set<string>());
 .live-strip-badge { display: inline-flex; align-items: center; gap: var(--space-2); padding: 3px 10px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--green) 12%, transparent); color: var(--green-text); font-size: var(--fs-xs); font-weight: 700; }
 .live-strip-badge i { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
 
-/* Mur d'affiches (six et plus) : une colonne par element, etiree pour remplir la ligne ;
-   au-dela, le mur defile horizontalement. La marge interne garde la place du contour de
-   focus, que le defilement rognerait. */
-.live-strip-list { display: grid; grid-template-columns: repeat(var(--live-count), minmax(130px, 1fr)); gap: var(--space-4); min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scrollbar-width: thin; padding: 7px; margin: -7px; }
-.live-strip-list.is-fanart { grid-template-columns: repeat(var(--live-count), minmax(0, 1fr)); }
+/* Tuiles : `--live-cols` colonnes de parts egales quand la largeur le permet, sans jamais
+   descendre sous `--live-min` : elles passent alors a la ligne au lieu de se serrer. La marge
+   interne garde la place du contour de focus, que le defilement rognerait. */
+.live-strip-list { --live-min: 240px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, max(var(--live-min), calc((100% - (var(--live-cols, 1) - 1) * var(--space-4)) / var(--live-cols, 1)))), 1fr)); gap: var(--space-4); min-width: 0; overscroll-behavior-x: contain; padding: 7px; margin: -7px; }
 .live-strip-list.is-banner { grid-template-columns: minmax(0, 1fr); }
-.live-strip-list.is-fanart, .live-strip-list.is-banner { overflow-x: visible; }
+
+/* Liste compacte (neuf elements et plus) : une ligne par element, sans image au-dela d'une
+   vignette ; la progression reste lisible. */
+.live-compact { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.live-row { display: grid; grid-template-columns: minmax(0, 2fr) auto minmax(120px, 1fr) auto; align-items: center; gap: var(--space-3); padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.live-row-main { display: flex; align-items: center; gap: var(--space-3); min-width: 0; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.live-row-main:hover strong, .live-row-main:focus-visible strong { color: var(--accent); }
+.live-row-thumb { position: relative; display: grid; flex: none; place-items: center; width: 28px; aspect-ratio: 2 / 3; overflow: hidden; border-radius: var(--radius-xs, 4px); background: var(--media-placeholder); color: var(--muted); }
+.live-row-thumb :deep(.media-artwork) { position: absolute; inset: 0; }
+.live-row-thumb svg { width: 14px; height: 14px; }
+.live-row-text { display: grid; min-width: 0; }
+.live-row-text strong { overflow: hidden; font-size: var(--fs-sm); text-overflow: ellipsis; white-space: nowrap; }
+.live-row-text small, .live-row-state small { overflow: hidden; color: var(--muted); font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
+.live-row .live-badge { max-width: 14rem; background: var(--surface-2); color: var(--text); backdrop-filter: none; }
+.live-row .live-badge.is-accent { color: var(--blue-text); }
+.live-row .live-badge.is-warn { color: var(--amber-text); }
+.live-row .live-badge.is-ok { color: var(--green-text); }
+.live-row-state { display: grid; gap: 4px; min-width: 0; }
+.live-row .live-card-track { background: var(--surface-3); }
+.live-row.paused { opacity: .75; }
+.live-compact-more { display: flex; justify-content: center; }
 .live-entry { min-width: 0; display: grid; align-content: start; gap: var(--space-2); }
 .live-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .live-card { display: grid; gap: var(--space-2); align-content: start; min-width: 0; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; scroll-snap-align: start; }
@@ -179,11 +236,13 @@ const brokenLogos = reactive(new Set<string>());
 .live-poster-pause { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(var(--scrim) / 30%); }
 .live-poster-pause svg { width: 40px; height: 40px; padding: 10px; border-radius: 50%; background: rgb(var(--scrim) / 60%); fill: currentColor; }
 .live-poster-top { position: absolute; top: 8px; right: 8px; left: 8px; display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.live-poster-top > .live-badge { flex: 0 1 auto; }
+.live-poster-top > .live-corner { flex: none; max-width: 45%; }
 .live-poster-top :deep(.playback-badge), .live-badge, .live-corner { background: rgb(var(--scrim) / 62%); backdrop-filter: blur(6px); color: rgb(var(--on-poster) / 88%); }
 .live-poster-top :deep(.playback-badge.direct_play), .live-badge.is-ok { color: color-mix(in srgb, var(--green) 45%, white); }
 .live-poster-top :deep(.playback-badge.direct_stream), .live-badge.is-accent { color: color-mix(in srgb, var(--blue) 45%, white); }
 .live-poster-top :deep(.playback-badge.transcode), .live-badge.is-warn { color: color-mix(in srgb, var(--amber) 45%, white); }
-.live-badge, .live-corner { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: var(--radius-pill); font-size: var(--fs-xs); font-weight: 700; white-space: nowrap; }
+.live-badge, .live-corner { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; padding: 2px 8px; border-radius: var(--radius-pill); font-size: var(--fs-xs); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .live-corner { margin-left: auto; }
 .live-corner svg { width: 13px; height: 13px; }
 .live-poster-top :deep(.ui-avatar) { box-shadow: 0 0 0 2px rgb(var(--scrim) / 55%); }
@@ -249,9 +308,10 @@ const brokenLogos = reactive(new Set<string>());
   .live-strip-head .panel-link { order: 2; }
   .live-strip-head h2 { order: 3; }
   .live-strip-summary { order: 4; }
-  .live-strip-list.is-fanart, .live-strip-list.is-posters { grid-template-columns: none; grid-auto-flow: column; overflow-x: auto; scroll-snap-type: x mandatory; gap: var(--space-3); }
-  .live-strip-list.is-fanart { grid-auto-columns: 86%; }
-  .live-strip-list.is-posters { grid-auto-columns: minmax(150px, 46%); }
+  .live-strip-list.is-fanart { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 86%; overflow-x: auto; scroll-snap-type: x mandatory; gap: var(--space-3); }
+  .live-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .live-row-state { grid-column: 1 / -1; }
+  .live-row .live-actions { grid-column: 1 / -1; }
   .is-banner .live-poster { height: auto; aspect-ratio: 4 / 3; }
 }
 </style>
