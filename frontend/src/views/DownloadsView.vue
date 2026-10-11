@@ -1,11 +1,11 @@
 <template>
-  <!-- Acquisition : quatre sections, chacune son gabarit. Clients (Gérer et Surveiller), la
-       file d'attente (Suivre) et l'historique (Comprendre) sont migrées ; la vue d'ensemble
-       suit. L'adresse porte la section. -->
+  <!-- Acquisition : quatre sections, chacune son gabarit. La vue d'ensemble (Surveiller), la
+       file d'attente (Suivre), l'historique (Comprendre) et les clients (Gérer et Surveiller).
+       L'adresse porte la section. -->
   <DownloadsClientsView v-if="section === 'clients'" />
   <DownloadsQueueView v-else-if="section === 'queue'" />
   <DownloadsHistoryView v-else-if="section === 'history'" />
-  <DownloadsLegacyView v-else />
+  <DownloadsOverviewView v-else />
 </template>
 
 <script setup lang="ts">
@@ -13,7 +13,7 @@ import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import DownloadsClientsView from './downloads/DownloadsClientsView.vue';
 import DownloadsHistoryView from './downloads/DownloadsHistoryView.vue';
-import DownloadsLegacyView from './downloads/DownloadsLegacyView.vue';
+import DownloadsOverviewView from './downloads/DownloadsOverviewView.vue';
 import DownloadsQueueView from './downloads/DownloadsQueueView.vue';
 
 const route = useRoute();

@@ -124,3 +124,13 @@ test("« Terminés » mène à l'historique, qui n'est plus dans la file", async
   await expect(page.locator(".torrent-table")).toBeVisible();
   await expect(page.getByText("Film importé")).toHaveCount(0);
 });
+
+test("la vue d'ensemble signale ce qui demande une intervention et mène à la file", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/downloads");
+  await expect(page.getByText("demande une intervention")).toBeVisible({ timeout: 30_000 });
+  // Pas de listes : derniers imports et torrents ont leurs pages.
+  await expect(page.getByText("Derniers imports")).toHaveCount(0);
+  await page.getByRole("link", { name: "Ouvrir la file" }).click();
+  await expect(page).toHaveURL(/view=queue/);
+});

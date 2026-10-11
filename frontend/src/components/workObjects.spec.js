@@ -3,7 +3,7 @@ import { createMemoryHistory, createRouter } from 'vue-router';
 import { describe, expect, it } from 'vitest';
 import TrackTemplate from './templates/TrackTemplate.vue';
 import StorageCurrentMedia from './storage/StorageCurrentMedia.vue';
-import DownloadQueueGroups from './downloads/DownloadQueueGroups.vue';
+import { queueRowToTrack } from '@/downloads/queueTrack';
 
 const media = {id: 1, title: 'Dune', media_type: 'movie', poster_url: '/poster.jpg', backdrop_url: '/backdrop.jpg'};
 const work = {key: 'encoding:1', source: 'encoding', state: 'running', label: 'En cours', stage: 'Vidéo', progress: {percent: 0, scope: 'step', label: 'Progression de l’étape'}, reason: null, stale: false};
@@ -35,10 +35,10 @@ describe('Travaux en cours dans les blocs communs', () => {
   });
   it('la file de téléchargement transmet le travail entier et les commandes', async () => {
     const row = {title: 'Dune', library_id: 1, instance_id: 2, queue_id: 3, media, work: {...work, source: 'download'}};
-    const wrapper = render(DownloadQueueGroups, {groups: [{key: 'active', title: 'En téléchargement', description: '', items: [row]}], history: [], showRecent: false, loading: false, actingKeys: new Set()});
+    const wrapper = render(TrackTemplate, {items: [queueRowToTrack(row)]});
     expect(wrapper.findAll('.art')).toHaveLength(2);
     const buttons = wrapper.findAll('.live-actions button');
     await buttons[1].trigger('click');
-    expect(wrapper.emitted('action')[0]).toEqual([row, false, false]);
+    expect(wrapper.emitted('action')[0]).toMatchObject([{work: row.work}, 'remove']);
   });
 });
