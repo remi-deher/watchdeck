@@ -41,7 +41,8 @@ describe('systeme commun des affiches', () => {
     expect(browse).toContain('<MediaPosterCollection');
     expect(library).toContain('<ExploreTemplate');
     expect(library).toContain('<BrowseTemplate');
-    expect(discover).toContain('<MediaPosterCollection');
+    expect(discover).toContain('<ExploreTemplate');
+    expect(discover).toContain('<BrowseTemplate');
     expect(statusBadge).toContain('var(--poster-badge-font-size)');
   });
 });

@@ -263,9 +263,9 @@ describe('DiscoverView', () => {
 
     expect(apiMock.mock.calls.some(([path]) => path.includes('/source/provider/8/home'))).toBe(true);
     expect(wrapper.text()).toContain('Netflix');
-    // Mode provider affiche des rails (discover-home-rails) et pas de discover-heading
-    expect(wrapper.find('.discover-home-rails').exists()).toBe(true);
-    expect(wrapper.find('.discover-heading').exists()).toBe(false);
+    // La page d'une plateforme se parcourt (rangees), elle n'est pas une grille a explorer.
+    expect(wrapper.find('.browse').exists()).toBe(true);
+    expect(wrapper.find('.explore').exists()).toBe(false);
   });
 
   it('affiche les recommandations personnalisées sans bloquer les autres rangées', async () => {

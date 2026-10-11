@@ -13,16 +13,7 @@ import { api } from '@/api';
 import { readCache, writeCache } from '@/cache';
 import { useRealtime } from '@/events';
 import { useLibraryHubs, type LibraryHub } from '@/composables/useLibraryHubs';
-import { useFiltersDrawer } from '@/composables/useFiltersDrawer';
-
-export interface LibraryFilterGroup {
-  key: string;
-  label: string;
-  options: Array<{ value: string; label: string }>;
-  value: string;
-  fallback: string;
-  set: (value: string) => void;
-}
+import { chipsFromGroups, useFiltersDrawer, type FilterGroupDefinition } from '@/composables/useFiltersDrawer';
 
 /**
  * Donnees et etat de la Bibliotheque (gabarits Parcourir et Explorer) : filtres portes par
@@ -648,12 +639,12 @@ const libraryItemKey = (item: any): string => `${item._kind}-${item.id}`;
 /* Filtres : des definitions (donnees), rendues par le meme composant que les autres pages.
    La forme « musique » n'a pas les memes criteres que films et series. */
 const ALL = { value: '', label: 'Tous' };
-function group(key: string, label: string, options: Array<{ value: string; label: string }>, value: string, set: (v: string) => void, fallback = ''): LibraryFilterGroup {
+function group(key: string, label: string, options: Array<{ value: string; label: string }>, value: string, set: (v: string) => void, fallback = ''): FilterGroupDefinition {
   return { key, label, options, value, set, fallback };
 }
 const fromPairs = (pairs: string[][]) => pairs.map(([value, label]) => ({ value, label }));
-const filterGroups = computed<LibraryFilterGroup[]>(() => {
-  const groups: LibraryFilterGroup[] = isMusicShape.value
+const filterGroups = computed<FilterGroupDefinition[]>(() => {
+  const groups: FilterGroupDefinition[] = isMusicShape.value
     ? [
       group('sort', 'Tri', [{ value: '', label: 'Ajouts récents' }, { value: 'title_asc', label: 'Titre (A-Z)' }, { value: 'title_desc', label: 'Titre (Z-A)' }, { value: 'year_desc', label: 'Année (récent → ancien)' }], sort.value, (v) => { sort.value = v; }),
       group('genre', 'Genre', [ALL, ...['Rock', 'Pop', 'Jazz', 'Electronic', 'Hip-Hop', 'Metal', 'Classical', 'Blues', 'Folk', 'Indie'].map((g) => ({ value: g, label: g }))], genre.value, (v) => { genre.value = v; }),
@@ -675,13 +666,7 @@ const filterGroups = computed<LibraryFilterGroup[]>(() => {
   return groups;
 });
 /* Filtres actifs, en pastilles retirables au-dessus des resultats. */
-const chips = computed(() => filterGroups.value
-  .filter((g) => g.value !== g.fallback)
-  .map((g) => ({
-    key: g.key,
-    label: g.options.find((option) => option.value === g.value)?.label || g.value,
-    onRemove: () => g.set(g.fallback),
-  })));
+const chips = computed(() => chipsFromGroups(filterGroups.value));
 
 /* Pages d'atterrissage (gabarit Parcourir) : banniere et rangees de chaque hub. */
 const hubRows = computed<any[]>(() => {

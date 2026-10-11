@@ -11,7 +11,7 @@
          - `collapsible` : section repliee, chargee a l'ouverture (`open-row`) -- les genres,
            pour ne pas couter un appel par rail a chaque affichage. -->
   <div class="browse">
-    <MediaHeroBanner v-if="hero.length || heroLoading" :items="hero" :loading="heroLoading" :discover-context="heroDiscover" :show-status="heroStatus" @open="emit('open', $event)" />
+    <MediaHeroBanner v-if="hero.length || heroLoading" :items="hero" :loading="heroLoading" :discover-context="heroDiscover" :show-status="heroStatus" :eyebrow="heroEyebrow || undefined" @open="emit('open', $event)" />
 
     <template v-for="row in rows" :key="row.key">
       <MediaPosterCollection
@@ -79,9 +79,11 @@ withDefaults(
     heroDiscover?: boolean;
     /** Badge de statut sur la banniere (utile pour une demande, pas pour la bibliotheque). */
     heroStatus?: boolean;
+    /** Surtitre de la banniere (« À la une sur… »), sinon celui par defaut. */
+    heroEyebrow?: string;
     itemKey?: (item: any, index: number) => string | number;
   }>(),
-  { hero: () => [], heroLoading: false, heroDiscover: true, heroStatus: true, itemKey: (item: any, index: number) => item?.id ?? index },
+  { hero: () => [], heroLoading: false, heroDiscover: true, heroStatus: true, heroEyebrow: '', itemKey: (item: any, index: number) => item?.id ?? index },
 );
 const emit = defineEmits<{
   open: [item: any];
