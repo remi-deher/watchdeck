@@ -30,6 +30,7 @@
 </template>
 
 <script setup lang="ts">
+import {readCache, writeCache} from '@/cache';
 import AppSubnav from '@/components/ui/AppSubnav.vue';
 import {newAssociationMapping, rootMapping as mappingFromPair, suggestedPlex} from '@/components/storage/storageAssociations';
 import {useStorageTelemetry} from '@/components/storage/useStorageTelemetry';
@@ -133,7 +134,10 @@ const newMapping=()=>newAssociationMapping(instances.value[0]?.id||0);
 const locationForm=ref({name:'',mount_path:'',reserve_gb:0,reserve_percent:null as number|null,enabled:true,mappings:[newMapping()]});
 const {gb}=useStorageTelemetry(locations,jobs,tab,plan,selected);
 useStorageLiveTelemetry(jobs,loading);
-async function load(silent=false){if(loading.value)return;loading.value=true;try{const [nextLocations,nextJobs,nextAccesses,nextConnections,nextInstances]=await Promise.all([api<any[]>('/api/storage/locations'),api<any[]>('/api/storage/transfers'),api<any[]>('/api/storage/accesses'),api<any[]>('/api/storage/connections'),api<any[]>('/api/storage/instances')]);if(JSON.stringify(connections.value)!==JSON.stringify(nextConnections))connections.value=nextConnections;if(JSON.stringify(accesses.value)!==JSON.stringify(nextAccesses))accesses.value=nextAccesses;if(JSON.stringify(instances.value)!==JSON.stringify(nextInstances))instances.value=nextInstances;if(JSON.stringify(locations.value)!==JSON.stringify(nextLocations))locations.value=nextLocations;if(JSON.stringify(jobs.value)!==JSON.stringify(nextJobs))jobs.value=nextJobs;}catch(e:any){if(!silent)error.value=e.message;}finally{loading.value=false;}}
+/* Dernier etat connu : la page s'affiche aussitot, le serveur la met a jour derriere. */
+const STORAGE_CACHE_KEY='storage-overview';
+{const cached=readCache<any>(STORAGE_CACHE_KEY,{maxAgeMs:30*60_000});if(cached){locations.value=cached.locations||[];jobs.value=cached.jobs||[];accesses.value=cached.accesses||[];connections.value=cached.connections||[];instances.value=cached.instances||[];}}
+async function load(silent=false){if(loading.value)return;loading.value=true;try{const [nextLocations,nextJobs,nextAccesses,nextConnections,nextInstances]=await Promise.all([api<any[]>('/api/storage/locations'),api<any[]>('/api/storage/transfers'),api<any[]>('/api/storage/accesses'),api<any[]>('/api/storage/connections'),api<any[]>('/api/storage/instances')]);if(JSON.stringify(connections.value)!==JSON.stringify(nextConnections))connections.value=nextConnections;if(JSON.stringify(accesses.value)!==JSON.stringify(nextAccesses))accesses.value=nextAccesses;if(JSON.stringify(instances.value)!==JSON.stringify(nextInstances))instances.value=nextInstances;if(JSON.stringify(locations.value)!==JSON.stringify(nextLocations))locations.value=nextLocations;if(JSON.stringify(jobs.value)!==JSON.stringify(nextJobs))jobs.value=nextJobs;writeCache(STORAGE_CACHE_KEY,{locations:nextLocations,jobs:nextJobs,accesses:nextAccesses,connections:nextConnections,instances:nextInstances});}catch(e:any){if(!silent)error.value=e.message;}finally{loading.value=false;}}
 async function act(fn:()=>Promise<void>){busy.value=true;error.value='';try{await fn();}catch(e:any){error.value=e.message;}finally{busy.value=false;previewProgress.value="";}}
 const previewProgress=ref('');
 const previewOpening=ref(false);
@@ -179,7 +183,7 @@ const saveLocation=()=>act(async()=>{const mappings=[...locationForm.value.mappi
 let timer:ReturnType<typeof setInterval>|undefined;
 function backgroundRefresh(){if(document.hidden)return;void load(true);if(tab.value==='settings' && settingsTab.value==='roots' && Date.now()-rootsCheckedAt>=60000)void refreshRoots(true);}
 watch([tab,settingsTab],([current,sub])=>{if(current==='settings' && sub==='roots' && Date.now()-rootsCheckedAt>=60000)void refreshRoots(true);});
-onMounted(async()=>{await load();void loadProtections().catch((e:any)=>error.value=e.message);if(tab.value==='settings' && settingsTab.value==='roots')await refreshRoots();timer=setInterval(backgroundRefresh,5000);document.addEventListener('visibilitychange',backgroundRefresh);});
+onMounted(async()=>{void loadProtections().catch((e:any)=>error.value=e.message);await load();if(tab.value==='settings' && settingsTab.value==='roots')await refreshRoots();timer=setInterval(backgroundRefresh,5000);document.addEventListener('visibilitychange',backgroundRefresh);});
 onUnmounted(()=>{if(timer)clearInterval(timer);document.removeEventListener('visibilitychange',backgroundRefresh);});
 useRealtime(['storage.updated'],()=>void load(true),{debounceMs:600});
 </script>

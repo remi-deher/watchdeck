@@ -88,6 +88,14 @@ Une page Explorer s'écrit `PageTemplate` (types en `tabs`, `search`, filtres, e
 `ExploreDisplay` pour le tri et l'affichage dans la feuille) > `ExploreTemplate` : elle
 fournit les pastilles actives (`chips`) et la carte commune de chaque élément
 (emplacement `item`).
+Une même adresse peut porter les deux besoins : la Bibliothèque se parcourt (hubs : bannière et
+rangées, `BrowseTemplate`) tant qu'aucun filtre ni recherche n'affine la vue, puis s'explore
+(grille, `ExploreTemplate`) dès qu'il y en a un ou qu'un titre de rangée y mène ; la page ne
+change pas, seul le gabarit affiché bascule. Les filtres sont des définitions (données),
+rendues par les composants communs, dont se déduisent aussi les pastilles actives ; la logique
+de données vit dans un composable (`useLibraryExplorer`). `ExploreTemplate` virtualise la
+grille au-delà de 300 éléments. Ni action de carte ni sélection groupée dans une grille
+Explorer : c'est la fiche qui agit.
 Une page Comprendre s'écrit `PageTemplate` > `UnderstandTemplate` : elle fournit
 `events`, charge le `detail` de l'événement ouvert (`open`), et éventuellement `summary`.
 Aucune action dans la liste ; au plus une dans le détail.
@@ -116,6 +124,25 @@ média (`manualImport.ts` : recherche `lookup`, étape qui lit ce qu'il faut en 
 saisie avec propositions, sélection, cartes, interrupteur, secret, recherche, note. Une
 fenêtre qui gère une liste (catégories et tags d'un client) est un `ControlTable` dans un
 `ModalShell`, dont les saisies repassent par le gabarit Créer.
+
+Fenêtres : un seul socle, `ModalShell` (focus, Échap, clic extérieur, geste de fermeture,
+feuille ancrée en bas sur téléphone, titre, erreur, actions). On n'écrit jamais une fenêtre
+à côté, et on ne crée pas un composant par type de contenu : chaque fenêtre relève d'un
+rôle, qui décide de ce qu'elle contient et de sa forme.
+
+| Rôle | Question | Composant | Forme |
+|---|---|---|---|
+| **Confirmer** | « Je valide cette action ? » | `ConfirmModal` | petite carte, deux boutons ; ni clic extérieur ni Échap pendant l'action |
+| **Saisir** | « Je renseigne quelque chose » | gabarit Créer (une définition) | étapes, validation, récapitulatif |
+| **Gérer une liste** | « Je modifie un ensemble » | `ControlTable` dans `ModalShell` | `lg` ; les saisies repassent par Créer |
+| **Consulter** | « Je lis, je regarde » | `ModalShell`, sans champ | `xl` pour un journal ou un aperçu ; aucune action de saisie |
+| **Choisir** | « Je prends un élément parmi plusieurs » | `ModalShell` | `sm` ou `md` ; un choix, retour immédiat |
+
+La largeur se règle par `size` (`sm` 480 px, `md` 680 px par défaut, `lg` 880 px, `xl`
+1100 px), jamais par une classe `panel-class` propre à la fenêtre ; sur téléphone, toutes
+sont la même feuille pleine largeur. `panel-class` ne sert qu'à une variante de surface
+commune (`filter-sheet`, `settings-drawer`). Une taille qui manque s'ajoute à `ModalShell`,
+pour toutes les fenêtres.
 
 Un média de la bibliothèque se transmet toujours entier : côté serveur par
 `services/media_ref.py` (`media_ref`, toutes ses images), côté interface en `MediaRef`

@@ -57,7 +57,7 @@ test("la modale de demande ouverte depuis la fiche passe devant elle", async ({ 
   await page.waitForTimeout(400); // fin de l'animation d'ouverture
   const sheetLayer = await layer(page.locator(".media-overlay"));
   expect(await layer(dialog)).toBeGreaterThan(sheetLayer);
-  expect(await layer(page.locator(".drawer-backdrop--request-options-modal"))).toBeGreaterThan(sheetLayer);
+  expect(await layer(page.locator(".drawer-backdrop").last())).toBeGreaterThan(sheetLayer);
   // Et la modale repond : cocher une saison fonctionne.
   await dialog.getByLabel("Saison 2").click();
   await expect(dialog.getByLabel("Saison 2")).not.toBeChecked();

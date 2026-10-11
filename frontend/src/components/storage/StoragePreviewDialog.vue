@@ -1,5 +1,5 @@
 <template>
- <ModalShell :open="true" title="3 · Aperçu des déplacements" :busy="busy" :error="error" panel-class="storage-preview-modal" @close="$emit('close')">
+ <ModalShell :open="true" title="3 · Aperçu des déplacements" :busy="busy" :error="error" size="xl" panel-class="storage-preview-modal" @close="$emit('close')">
   <StorageObjectiveSummary :plan="plan" :selected="selected" :gb="gb" @alternative="applyAlternative" />
   <p>Les séries sont déplacées entièrement. L’espace prévu ne sera libéré qu’après suppression sûre des originaux.</p>
   <section v-for="group in plan.groups" :key="group.body.arr_instance_id"><h3>{{ group.name }} · {{ group.body.source_roots?.join(', ') || group.body.source_root }} → {{ group.body.destination_root }}</h3>
@@ -28,4 +28,4 @@ function includeItem(group:any,item:any){const candidate=group.catalogue.find((i
 function applyAlternative(keys:string[]){for(const group of props.plan.groups){for(const item of group.catalogue||[]){if(keys.includes(item.key) && !group.items.some((i:any)=>i.key===item.key))group.items.push(item);}}selected.value=[...keys];}
 defineEmits<{close:[],launch:[],save:[],protect:[item:any]}>();
 </script>
-<style>.storage-preview-modal{width:min(1100px,calc(100vw - 32px));color:var(--text)}.storage-preview-modal .actions{display:flex;gap:12px;flex-wrap:wrap}.storage-preview-modal .check{min-height:44px;display:flex;align-items:center;gap:10px}.storage-preview-modal code{overflow-wrap:anywhere;white-space:normal}.preview-note{color:var(--muted);font-size:var(--fs-sm)}</style>
+<style>.storage-preview-modal{color:var(--text)}.storage-preview-modal .actions{display:flex;gap:12px;flex-wrap:wrap}.storage-preview-modal .check{min-height:44px;display:flex;align-items:center;gap:10px}.storage-preview-modal code{overflow-wrap:anywhere;white-space:normal}.preview-note{color:var(--muted);font-size:var(--fs-sm)}</style>

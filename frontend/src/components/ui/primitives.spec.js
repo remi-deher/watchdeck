@@ -87,6 +87,15 @@ describe('UiCheckboxField', () => {
 });
 
 describe('UiSegmentedControl', () => {
+  it('disparait quand il n’y a rien à choisir', () => {
+    const options = [{ value: 'all', label: 'Tous', count: 0 }, { value: 'done', label: 'Terminés', count: 0 }];
+    expect(mount(UiSegmentedControl, { props: { modelValue: 'all', options, ariaLabel: 'Filtre' }, attrs: { class: 'task-filter' } }).find('.ui-segmented-list').exists()).toBe(false);
+    expect(mount(UiSegmentedControl, { props: { modelValue: 'all', options: [], ariaLabel: 'Filtre' } }).find('.ui-segmented-list').exists()).toBe(false);
+    const garde = mount(UiSegmentedControl, { props: { modelValue: 'all', options: [{ ...options[0], count: 2 }, options[1]], ariaLabel: 'Filtre' }, attrs: { class: 'task-filter' } });
+    expect(garde.find('.ui-segmented-list.task-filter').exists()).toBe(true);
+    expect(mount(UiSegmentedControl, { props: { modelValue: 7, options: [{ value: 7, label: '7 jours' }, { value: 30, label: '30 jours' }], ariaLabel: 'Période' } }).find('.ui-segmented-list').exists()).toBe(true);
+  });
+
   it('expose un choix exclusif (groupe de boutons bascules), pas des onglets', async () => {
     const wrapper = mount(UiSegmentedControl, { props: {
       modelValue: 'week', ariaLabel: 'Période',

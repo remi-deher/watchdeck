@@ -1,11 +1,6 @@
 <template>
-  <!-- Un choix exclusif entre quelques valeurs (periode, vue, mode, theme), sur le
-       ToggleGroup de Reka UI. Ce n'etait pas des onglets : les `Tabs` utilises jusque-la
-       annoncaient « onglet 2 sur 4 » et promettaient un panneau qui n'existe pas. Un
-       groupe de boutons bascules annonce le bouton et son etat (enfonce ou non), garde un
-       seul arret de tabulation et se parcourt aux fleches. Pour des sections de page,
-       voir AppSubnav. -->
   <ToggleGroupRoot
+    v-if="visible"
     class="ui-segmented-list"
     type="single"
     :model-value="String(modelValue)"
@@ -26,10 +21,20 @@
   </ToggleGroupRoot>
 </template>
 <script setup lang="ts" generic="T extends string | number">
+import { computed } from 'vue';
+/* Un choix exclusif entre quelques valeurs (periode, vue, mode, theme), sur le
+   ToggleGroup de Reka UI. Ce n'etait pas des onglets : les `Tabs` utilises jusque-la
+   annoncaient « onglet 2 sur 4 » et promettaient un panneau qui n'existe pas. Un
+   groupe de boutons bascules annonce le bouton et son etat (enfonce ou non), garde un
+   seul arret de tabulation et se parcourt aux fleches. Pour des sections de page,
+   voir AppSubnav. */
 import { ToggleGroupItem, ToggleGroupRoot } from 'reka-ui';
 export interface UiSegmentedOption<T extends string | number> { value: T; label: string; count?: number; disabled?: boolean; ariaLabel?: string }
 const props = defineProps<{ modelValue: T; options: UiSegmentedOption<T>[]; ariaLabel: string }>();
 const emit = defineEmits<{ 'update:modelValue': [value: T] }>();
+/* Rien a choisir, rien a montrer : sans option, ou quand toutes annoncent un compte de zero
+   (un filtre de liste vide), le groupe disparait au lieu d'afficher des boutons inertes. */
+const visible = computed(() => props.options.length > 0 && !props.options.every((o) => o.count === 0));
 /* Les valeurs passent en chaine (Reka compare des chaines) et reprennent ici leur type.
    Rappuyer sur la valeur choisie la deselectionnerait (Reka renvoie une valeur vide) :
    un choix exclusif en a toujours une, on l'ignore. */

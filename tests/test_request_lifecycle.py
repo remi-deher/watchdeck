@@ -1,6 +1,11 @@
-import pytest
+import asyncio
+from unittest.mock import AsyncMock
 
-from app.models import FulfillmentStatus, MediaRequest, PlexUser, RequestStatus, Settings
+import pytest
+from sqlalchemy import func, select
+
+from app.models import DiagnosticEvent, FulfillmentStatus, MediaRequest, PlexUser, RequestStatus, Settings
+from app.services.diagnostics import request_context, update_request_context
 from app.services.notification_policy import (
     dispatch_transition_notification,
     has_transition_notification_intent,
@@ -18,6 +23,76 @@ def _request(**kwargs):
     }
     values.update(kwargs)
     return MediaRequest(**values)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "event", ["queued", "download_started", "import_started", "download_finished", "arr_imported", "plex_pending"]
+)
+async def test_stale_poll_cannot_overwrite_concurrent_availability(committed_async_database, monkeypatch, event):
+    monkeypatch.setattr("app.realtime.publish_request_event", AsyncMock())
+    sessions = committed_async_database.session_factory
+    async with sessions() as seed:
+        req = _request(status=RequestStatus.sent_to_arr, diagnostic_context='{"request_origin": "watchlist"}')
+        seed.add(req)
+        await seed.commit()
+        request_id = req.id
+
+    async with sessions() as poll, sessions() as webhook:
+        stale = await poll.get(MediaRequest, request_id)
+        current = await webhook.get(MediaRequest, request_id)
+        stale.has_vf = True  # Les observations independantes du poll sont conservees.
+        update_request_context(stale, arr_event="availability_detected")
+        await transition_request(webhook, current, "available", source="plex")
+        await webhook.commit()
+        available_at = current.available_at
+
+        assert await transition_request(poll, stale, event, source="arr") is False
+        await poll.commit()
+
+    async with sessions() as verify:
+        result = await verify.get(MediaRequest, request_id)
+        assert result.status == RequestStatus.available
+        assert result.fulfillment_status == FulfillmentStatus.completed
+        assert result.available_at == available_at
+        assert result.has_vf is True
+        context = request_context(result)
+        assert context["lifecycle_event"] == "available"
+        assert context["fulfillment_source"] == "plex"
+        assert context["arr_event"] == "availability_detected"
+
+
+@pytest.mark.asyncio
+async def test_concurrent_availability_is_recorded_once(committed_async_database, monkeypatch):
+    monkeypatch.setattr("app.realtime.publish_request_event", AsyncMock())
+    sessions = committed_async_database.session_factory
+    async with sessions() as seed:
+        req = _request(status=RequestStatus.sent_to_arr)
+        seed.add(req)
+        await seed.commit()
+        request_id = req.id
+
+    async with sessions() as first, sessions() as second:
+        first_request = await first.get(MediaRequest, request_id)
+        second_request = await second.get(MediaRequest, request_id)
+
+        async def confirm(db, item):
+            changed = await transition_request(db, item, "available", source="plex")
+            await db.commit()
+            return changed
+
+        results = await asyncio.wait_for(
+            asyncio.gather(confirm(first, first_request), confirm(second, second_request)), timeout=5
+        )
+        assert sorted(results) == [False, True]
+
+    async with sessions() as verify:
+        count = await verify.scalar(
+            select(func.count())
+            .select_from(DiagnosticEvent)
+            .where(DiagnosticEvent.request_id == request_id, DiagnosticEvent.action == "available")
+        )
+        assert count == 1
 
 
 @pytest.mark.asyncio
