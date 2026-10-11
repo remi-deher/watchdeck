@@ -36,8 +36,11 @@ async function mockApi(page) {
       "/api/arr/queue": QUEUE,
       "/api/downloads/direct": [],
       "/api/arr/wanted": WANTED,
+      "/api/media/lookup": [{ title: "Film bloqué", year: 2024, arr_id: 41, poster: null }, { title: "Film absent", year: 2025, arr_id: null }],
+      "/api/downloads/radarr-manual-import": { candidates: [{ path: "/d/film.mkv", folderName: "film", size: 1073741824, quality: { quality: { name: "WEB 1080p" } } }] },
       "/api/downloads/history": { items: [{ id: 90, title: "Film importé", media_type: "movie", source: "radarr", processing_mode: "automatic", completed_at: "2026-09-20T10:00:00Z" }], errors: [] },
       "/api/downloads/clients": TORRENTS,
+      "/api/downloads/clients/7/metadata": { categories: [{ name: "Films" }], tags: ["vff"], mutable: true },
       "/api/downloads/global-stats": { download_speed: 2048, upload_speed: 0, connected: 1, total: 1, clients: [] },
       "/api/disk-space": [],
     }[url.pathname];
@@ -46,20 +49,20 @@ async function mockApi(page) {
   return calls;
 }
 
-test("la file d'attente regroupe les interventions et confirme avant de retirer", async ({ page }) => {
+test("la file d'attente met l'intervention d'abord, avec sa cause, et confirme avant de retirer", async ({ page }) => {
   const calls = await mockApi(page);
   await page.goto("/downloads?view=queue");
-  const groups = page.locator(".download-group");
-  await expect(groups.first()).toBeVisible({ timeout: 30_000 });
-  await expect(groups.filter({ hasText: "Intervention requise" })).toContainText("Film bloqué");
-  await expect(groups.filter({ hasText: "En téléchargement" })).toContainText("Film en cours 1080p");
-  await expect(groups.filter({ hasText: "En téléchargement" }).getByText("1080P", { exact: true })).toHaveText("1080P");
+  await expect(page.getByRole("heading", { name: "Demande une intervention" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator("section.is-blocked")).toContainText("Film bloqué");
+  await expect(page.locator("section.is-blocked")).toContainText("Aucun média de la bibliothèque ne réclame");
+  await expect(page.locator("section.is-blocked").getByRole("button", { name: "Associer" })).toBeVisible();
+  await expect(page.getByText("Film en cours 1080p")).toBeVisible();
 
-  // Sur un runner lent, les panneaux Radarr / Sonarr arrivent apres la file et la
-  // decalent : le clic tombait a l'ancienne position du bouton, sur un autre bloc. On
-  // attend que la page ait fini de charger, puis que le bouton ne bouge plus.
+  // Pas de cartes d'instances ni de bandeau « non associes » : la file ne montre que la file.
+  await expect(page.locator(".download-group, .download-card-grid")).toHaveCount(0);
+
   await page.waitForLoadState("networkidle");
-  const retirer = groups.filter({ hasText: "En téléchargement" }).getByRole("button", { name: "Retirer" });
+  const retirer = page.locator("section.is-blocked").getByRole("button", { name: "Retirer" });
   await retirer.scrollIntoViewIfNeeded();
   await retirer.click();
   await expect(page.getByRole("alertdialog")).toContainText("Retirer ce téléchargement ?");
@@ -109,25 +112,104 @@ test("le tableau des torrents filtre, affiche les debits et ouvre l'inspecteur",
   await expect(drawer.getByRole("button", { name: "Reprendre" })).toBeVisible();
 });
 
-test("« Terminés » affiche l'historique, et la section Clients ne l'affiche jamais", async ({ page }) => {
+test("« Terminés » mène à l'historique, qui n'est plus dans la file", async ({ page }) => {
   await mockApi(page);
+  // L'ancienne adresse du filtre « Terminés » ouvre l'historique.
   await page.goto("/downloads?view=queue&sub=completed");
-  const history = page.getByRole("tabpanel", { name: "Historique des téléchargements" });
-  await expect(history).toContainText("Film importé");
-  await expect(page.locator(".download-group")).toHaveCount(0);
+  await expect(page.getByText("Film importé")).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator("section.is-blocked, #track-running")).toHaveCount(0);
+
+  // La file ne montre que les derniers terminés, avec un lien vers l'historique.
+  await page.goto("/downloads?view=queue");
+  await expect(page.getByRole("link", { name: "Voir l’historique" })).toBeVisible({ timeout: 30_000 });
 
   await page.goto("/downloads?view=clients&sub=instances");
   await expect(page.locator(".torrent-table")).toBeVisible();
-  await expect(page.getByRole("tabpanel", { name: "Historique des téléchargements" })).toHaveCount(0);
+  await expect(page.getByText("Film importé")).toHaveCount(0);
 });
 
-test("les cartes de la file forment une grille sur grand ecran", async ({ page }) => {
+test("la vue d'ensemble signale ce qui demande une intervention et mène à la file", async ({ page }) => {
   await mockApi(page);
+  await page.goto("/downloads");
+  await expect(page.getByText("demande une intervention")).toBeVisible({ timeout: 30_000 });
+  // Pas de listes : derniers imports et torrents ont leurs pages.
+  await expect(page.getByText("Derniers imports")).toHaveCount(0);
+  await page.getByRole("link", { name: "Ouvrir la file" }).click();
+  await expect(page).toHaveURL(/view=queue/);
+});
+
+test("l'ajout d'un torrent passe par la fenêtre de création, avec les catégories du client", async ({ page }) => {
+  const posts = [];
+  await mockApi(page);
+  await page.route("**/api/downloads/add", async (route) => {
+    posts.push(route.request().postDataJSON());
+    await route.fulfill({ json: { ok: true } });
+  });
+  await page.goto("/downloads?view=clients&sub=instances");
+  await page.getByRole("button", { name: "Ajouter un torrent" }).first().click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("Que voulez-vous télécharger ?");
+
+  // Rien n'est envoyé tant que le lien manque.
+  await dialog.getByRole("button", { name: "Ajouter le torrent" }).click();
+  await expect(dialog).toContainText("Ce champ est requis.");
+
+  await dialog.getByLabel("Lien Magnet ou URL .torrent").fill("magnet:?xt=urn:btih:abc");
+  await dialog.getByLabel("Catégorie").fill("films");
+  await dialog.getByRole("button", { name: "Ajouter le torrent" }).click();
+  await expect(dialog).toContainText("Torrent ajouté");
+  expect(posts[0]).toMatchObject({ client_id: 7, torrent_url_or_magnet: "magnet:?xt=urn:btih:abc", category: "Films" });
+});
+
+test("les catégories et tags d'un client se gèrent dans un tableau, avec confirmation avant de supprimer", async ({ page }) => {
+  const calls = [];
+  await mockApi(page);
+  await page.route("**/api/downloads/clients/7/metadata", async (route) => {
+    if (route.request().method() === "POST") calls.push(route.request().postDataJSON());
+    await route.fulfill({ json: { categories: [{ name: "Films" }], tags: ["vff"], mutable: true } });
+  });
+  await page.goto("/downloads?view=clients&sub=instances");
+  await page.getByRole("button", { name: "Catégories et tags" }).first().click();
+  const dialog = page.getByRole("dialog", { name: "Catégories et tags" });
+  await expect(dialog).toContainText("Films");
+  await expect(dialog).toContainText("vff");
+
+  await dialog.getByRole("button", { name: "Supprimer vff" }).or(dialog.getByRole("button", { name: /Supprimer/ }).last()).click();
+  await expect(page.getByRole("alertdialog")).toContainText("Supprimer le tag « vff » ?");
+  await page.getByRole("alertdialog").getByRole("button", { name: "Annuler" }).click();
+  expect(calls).toHaveLength(0);
+});
+
+test("associer un téléchargement bloqué : chercher le média, vérifier le fichier, puis importer", async ({ page }) => {
+  const posts = [];
+  await mockApi(page);
+  await page.route("**/api/downloads/manual-import", async (route) => {
+    posts.push(route.request().postDataJSON());
+    await route.fulfill({ json: { ok: true } });
+  });
+  await page.route("**/api/downloads/radarr-manual-import*", async (route) => {
+    if (route.request().method() === "POST") { posts.push(route.request().postDataJSON()); return route.fulfill({ json: { ok: true } }); }
+    return route.fulfill({ json: { candidates: [{ path: "/d/film.mkv", folderName: "film", size: 1073741824, quality: { quality: { name: "WEB 1080p" } } }] } });
+  });
   await page.goto("/downloads?view=queue");
-  const grid = page.locator(".download-card-grid").first();
-  await expect(grid).toBeVisible();
-  const columns = await grid.evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(" ").length);
-  const width = page.viewportSize().width;
-  if (width >= 1200) expect(columns).toBeGreaterThan(1);
-  else if (width < 500) expect(columns).toBe(1);
+  await page.locator("section.is-blocked").getByRole("button", { name: "Associer" }).click();
+  const dialog = page.getByRole("dialog", { name: "Associer / importer" });
+  await expect(dialog).toContainText("À quel film appartient ce téléchargement ?");
+
+  // Rien n'est retenu : on ne continue pas sans choisir. Une fiche absente de Radarr n'est pas retenable.
+  await dialog.getByRole("button", { name: "Continuer" }).click();
+  await expect(dialog).toContainText("Ce champ est requis.");
+  await dialog.getByRole("button", { name: "Chercher" }).click();
+  await expect(dialog.getByRole("button", { name: /Film absent/ })).toBeDisabled();
+  await dialog.getByRole("button", { name: /Film bloqué/ }).click();
+  await dialog.getByRole("button", { name: "Continuer" }).click();
+
+  await expect(dialog).toContainText("Que faut-il importer ?");
+  await expect(dialog).toContainText("film.mkv");
+  await dialog.getByRole("button", { name: "Continuer" }).click();
+  await expect(dialog).toContainText("Tout est prêt ?");
+  await dialog.getByRole("button", { name: "Associer et importer" }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(posts[0]).toMatchObject({ instance_id: 1, media_type: "movie", arr_id: 41 });
+  expect(posts[1]).toMatchObject({ movie_id: 41, path: "/d/film.mkv" });
 });

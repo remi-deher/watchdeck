@@ -19,7 +19,7 @@
     />
   </SheetPage>
 
-  <TorrentMetaModal :targets="metaTargets" :busy="busy" @close="metaTargets = null" @save="saveMetadata" />
+  <CreateTemplate :open="Boolean(metaTargets)" :definition="metaDefinition" mode="edit" :values="metaValues" @close="metaTargets = null" />
 
   <ModalShell :open="removalOpen" title="Supprimer ce torrent" subtitle="Choisis si les données téléchargées doivent être conservées." @close="removalOpen = false">
     <p><strong>{{ torrent?.title }}</strong></p>
@@ -34,7 +34,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import { FileX2, Trash2 } from '@lucide/vue';
@@ -49,7 +49,9 @@ import SheetPage from '@/components/layout/SheetPage.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import TorrentInspector from '@/components/downloads/TorrentInspector.vue';
-import TorrentMetaModal from '@/components/downloads/TorrentMetaModal.vue';
+import CreateTemplate from '@/components/templates/CreateTemplate.vue';
+import { torrentMetaEdit } from '@/creations/torrentMetadata';
+import { useTorrentMetadata } from '@/composables/useTorrentMetadata';
 
 const route = useRoute();
 const router = useRouter();
@@ -88,7 +90,13 @@ const metaTargets = ref<any[] | null>(null);
 async function saveMetadata(category: string, tags: string): Promise<void> {
   await saveTorrentMetadata(metaTargets.value || [], category, tags);
   metaTargets.value = null;
+  addToast({ type: 'success', message: 'Classement enregistré.' });
 }
+/* Même fenêtre que depuis le tableau : préremplie, avec ce que le client connaît. */
+const metadata = useTorrentMetadata();
+watch(metaTargets, (targets) => { if (targets?.length) void metadata.load(targets[0].client_id); });
+const metaValues = computed(() => ({ category: metaTargets.value?.[0]?.category || '', tags: metaTargets.value?.[0]?.tags || '' }));
+const metaDefinition = computed(() => torrentMetaEdit(metadata.of(metaTargets.value?.[0]?.client_id), metaTargets.value?.length || 0, saveMetadata));
 
 const removalOpen = ref(false);
 /* Un torrent retire n'a plus de fiche : on referme, et l'on retrouve le tableau. */

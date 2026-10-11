@@ -108,6 +108,14 @@ Ce qu'on crée se décrit par une définition dans `frontend/src/creations/` (un
 créable : `service.ts`, `user.ts`…) : étapes, champs typés, règles, étapes ou champs
 conditionnels, test, création, résultat. Jamais de formulaire de création écrit dans une
 page ; un type de champ manquant s'ajoute au gabarit, pour tous.
+Toute fenêtre qui fait saisir quelque chose est une définition du gabarit Créer, jamais un
+`ModalShell` rempli de champs écrits à la main : ajouter un torrent (`torrent.ts`), classer une
+sélection (`torrentMetadata.ts`, modification rapide : `quick`), associer un téléchargement à un
+média (`manualImport.ts` : recherche `lookup`, étape qui lit ce qu'il faut en arrivant,
+`onEnter`, champs liés, `onChange`). Les champs disponibles : texte, texte long, fichier,
+saisie avec propositions, sélection, cartes, interrupteur, secret, recherche, note. Une
+fenêtre qui gère une liste (catégories et tags d'un client) est un `ControlTable` dans un
+`ModalShell`, dont les saisies repassent par le gabarit Créer.
 
 Un média de la bibliothèque se transmet toujours entier : côté serveur par
 `services/media_ref.py` (`media_ref`, toutes ses images), côté interface en `MediaRef`

@@ -34,7 +34,8 @@ describe('navigation — destinations', () => {
   it('résout la destination depuis le chemin, y compris ses routes annexes', () => {
     expect(destinationForPath('/activity', true, true)?.key).toBe('activity');
     expect(destinationForPath('/analytics', true, true)?.key).toBe('insights');
-    expect(destinationForPath('/vf-upgrades', true, true)?.key).toBe('library');
+    expect(destinationForPath('/vf-upgrades', true, true)?.key).toBe('vf');
+    expect(destinationForPath('/library', true, true)?.key).toBe('library');
     // Chaque page de reglages releve d'un groupe de l'espace Administration ; les
     // journaux sont rattaches au Systeme depuis la dissolution de l'Exploitation.
     expect(destinationForPath('/logs', true, true)?.key).toBe('admin-system');
@@ -118,9 +119,13 @@ describe('navigation — sections', () => {
     expect(libraryTypeTabFor(route(['movie', 'show']))).toBe('all');
   });
 
-  it('réserve Améliorations VF aux admins dans la Bibliothèque', () => {
-    expect(keys(sectionsFor('library', ctx()))).toContain('vf');
-    expect(keys(sectionsFor('library', ctx({ isAdmin: false })))).not.toContain('vf');
+  it('laisse la Bibliothèque à une seule rangée : Améliorations VF est une destination à part', () => {
+    expect(keys(sectionsFor('library', ctx()))).toEqual(['catalog']);
+    const vf = DESTINATIONS.find((d) => d.key === 'vf');
+    expect(vf).toMatchObject({ group: 'Gestion des médias', access: 'admin' });
+    // Sous l'Encodage, dans le groupe Gestion des médias.
+    const gestion = DESTINATIONS.filter((d) => d.group === 'Gestion des médias').map((d) => d.key);
+    expect(gestion.indexOf('vf')).toBe(gestion.indexOf('encoding') + 1);
   });
 
   it('conserve des sections Acquisition stables indépendamment des instances', () => {
@@ -138,7 +143,7 @@ describe('navigation — sections', () => {
 
     // Films et Series ont fusionne dans la file : c'etaient deux vues filtrees de la
     // meme liste. Le type de media est desormais un filtre, pas une section.
-    expect(keys(sections)).toEqual(['overview', 'queue', 'clients']);
+    expect(keys(sections)).toEqual(['overview', 'queue', 'history', 'clients']);
   });
 
   it('ne transforme pas les instances désactivées en navigation', () => {
@@ -151,7 +156,7 @@ describe('navigation — sections', () => {
     );
     // Films et Series ont fusionne dans la file : c'etaient deux vues filtrees de la
     // meme liste. Le type de media est desormais un filtre, pas une section.
-    expect(keys(sections)).toEqual(['overview', 'queue', 'clients']);
+    expect(keys(sections)).toEqual(['overview', 'queue', 'history', 'clients']);
   });
 
   it('retourne une liste vide pour une destination inconnue', () => {

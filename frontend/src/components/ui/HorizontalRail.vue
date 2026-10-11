@@ -136,7 +136,7 @@ defineExpose({
   gap: 8px;
   width: fit-content;
   margin: 0;
-  color: inherit;
+  color: var(--text);
   font-size: var(--fs-lg);
   font-weight: 750;
   line-height: 1.2;
@@ -168,14 +168,18 @@ button.rail-title:focus-visible {
   border-radius: var(--radius-xs);
 }
 
+/* Un bouton reprend la couleur des autres titres de rail (liens ou texte), pas celle que le
+   navigateur ou la base donne aux boutons. */
 button.rail-title.as-button {
   padding: 0;
   border: 0;
   background: none;
+  color: var(--text);
   font-family: inherit;
   font-weight: inherit;
   cursor: pointer;
 }
+button.rail-title.as-button:hover { color: var(--accent); }
 
 .rail-header-extra {
   display: flex;
