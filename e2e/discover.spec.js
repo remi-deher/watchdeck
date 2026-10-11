@@ -59,7 +59,7 @@ test("charge progressivement le catalogue et conserve des liens accessibles", as
   // est rendu — pas besoin de scroll manuel, et l'attendre serait racy puisqu'il est
   // retire du DOM des que la derniere page est chargee.
   await expect(page.locator(".discover-card")).toHaveCount(4);
-  await expect(page.getByText("4 affichés / 4")).toBeVisible();
+  await expect(page.locator(".explore__count")).toContainText("4 médias");
 });
 
 /** Champ de recherche de la page, deplie d'abord si la largeur l'impose. */

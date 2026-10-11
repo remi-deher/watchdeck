@@ -9,6 +9,7 @@
          4. les faits, en panneau lateral sur grand ecran, sous les onglets sur telephone.
        Les actions vivent dans l'en-tete, jamais dans un onglet. -->
   <article class="detail">
+    <UiButton v-if="back" class="detail__back" size="sm" variant="ghost" @click="emit('back')"><template #icon><ArrowLeft /></template>Retour</UiButton>
     <!-- L'en-tete commun des fiches (SheetHero), celui de la fiche media : banniere qui ne
          porte que l'image, affiche qui en chevauche le bas, texte dessous. -->
     <SheetHero :image-url="backdrop || null" :variant="variant" stack-on-mobile class="detail__hero">
@@ -73,7 +74,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { RouterLink } from 'vue-router';
-import { AlertTriangle, FileQuestion, MoreHorizontal } from '@lucide/vue';
+import { AlertTriangle, ArrowLeft, FileQuestion, MoreHorizontal } from '@lucide/vue';
 import { proxyUrl } from '@/utils/mediaImage';
 import SheetHero from '@/components/ui/SheetHero.vue';
 import SheetSummary from '@/components/ui/SheetSummary.vue';
@@ -107,10 +108,12 @@ const props = withDefaults(
     tabs?: DetailTab[];
     tab?: string;
     facts?: DetailFact[];
+    /** Fiche ouverte en pleine page par son adresse : un « Retour » en tete (en feuille, on la ferme). */
+    back?: boolean;
   }>(),
-  { poster: null, backdrop: null, eyebrow: '', summary: '', variant: 'sheet', icon: null, meta: () => [], badges: () => [], actions: () => [], alert: null, tabs: () => [], tab: '', facts: () => [] },
+  { poster: null, backdrop: null, eyebrow: '', summary: '', variant: 'sheet', icon: null, meta: () => [], badges: () => [], actions: () => [], alert: null, tabs: () => [], tab: '', facts: () => [], back: false },
 );
-const emit = defineEmits<{ action: [key: string]; 'update:tab': [key: string] }>();
+const emit = defineEmits<{ action: [key: string]; 'update:tab': [key: string]; back: [] }>();
 
 const posterFailed = ref(false);
 const shownActions = computed(() => props.actions.slice(0, 3));
@@ -122,6 +125,7 @@ const activeTab = computed(() => props.tab || props.tabs[0]?.key || 'main');
 @use '@/styles/foundations/breakpoints' as bp;
 
 .detail { display: grid; gap: var(--space-4); min-width: 0; }
+.detail__back { justify-self: start; }
 /* Meme affiche que la fiche media (.mdh-poster) : 180px, ombree, chevauchant la banniere. */
 .detail__cover { display: grid; place-items: center; width: 180px; aspect-ratio: 2 / 3; overflow: hidden; border-radius: var(--radius-md); background: var(--surface-2); color: var(--muted); box-shadow: 0 16px 40px rgba(0, 0, 0, .5); }
 .detail__cover img { width: 100%; height: 100%; object-fit: cover; }

@@ -1,45 +1,49 @@
 <template>
-  <div class="person-page">
-    <button class="person-back" type="button" @click="goBack"><ArrowLeft /> Retour</button>
-    <div v-if="loading" class="person-state"><LoaderCircle class="spin" /> Chargement</div>
-    <UiFeedback v-else-if="error" type="error" :message="error" retry @retry="load" />
-    <template v-else-if="person">
-      <header class="person-hero">
-        <img v-if="person.profile_url" :src="proxyUrl(person.profile_url, { width: 780 }) ?? undefined" :srcset="srcSetFor(person.profile_url, { width: 780, kind: 'profile' })" :alt="`Portrait de ${person.name}`" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 110px, 280px">
-        <div v-else class="person-placeholder"><UserRound /></div>
-        <div class="person-copy">
-          <span class="eyebrow">{{ person.known_for_department || 'Interprétation' }}</span>
-          <h1>{{ person.name }}</h1>
-          <p class="person-meta">{{ lifeSummary }}</p>
-          <p v-if="person.biography" class="biography" :class="{ expanded: bioExpanded }">{{ person.biography }}</p>
-          <button v-if="person.biography && person.biography.length > 420" class="bio-toggle" type="button" @click="bioExpanded = !bioExpanded">{{ bioExpanded ? 'Réduire' : 'Lire la suite' }}</button>
-        </div>
-      </header>
-
-      <section class="credits-section">
-        <div class="credits-heading">
-          <div><span class="eyebrow">Filmographie</span><h2>Films et séries</h2></div>
-          <UiSegmentedControl v-model="filter" :options="filters" ariaLabel="Filtrer la filmographie" />
-        </div>
-        <MediaGrid
-          :items="visibleCredits"
-          empty-message="Aucun média trouvé dans cette catégorie."
-        >
-          <MediaPosterCard v-for="item in visibleCredits" :key="`${item.media_type}:${item.tmdb_id}`" :media="item" :to="detailPath(item)" :action-label="item.character || 'Voir la fiche'" />
-        </MediaGrid>
-      </section>
-    </template>
-  </div>
+  <PageTemplate
+    :title="person?.name || 'Personne'"
+    :state="person ? 'ready' : error ? 'error' : loading ? 'loading' : 'ready'"
+    skeleton="detail"
+    :error="error"
+    @retry="load"
+  >
+    <DetailTemplate
+      v-if="person"
+      variant="card"
+      back
+      :title="person.name"
+      :poster="person.profile_url"
+      :icon="UserRound"
+      :eyebrow="person.known_for_department || 'Interprétation'"
+      :meta="lifeMeta"
+      :summary="person.biography"
+      @back="goBack"
+    >
+      <template #tab-main>
+        <section class="credits-section" aria-labelledby="credits-heading">
+          <div class="credits-heading">
+            <div><span class="eyebrow">Filmographie</span><h2 id="credits-heading">Films et séries</h2></div>
+            <UiSegmentedControl v-model="filter" :options="filters" ariaLabel="Filtrer la filmographie" />
+          </div>
+          <MediaGrid :items="visibleCredits" empty-message="Aucun média trouvé dans cette catégorie.">
+            <MediaPosterCard v-for="item in visibleCredits" :key="`${item.media_type}:${item.tmdb_id}`" :media="item" :to="detailPath(item)" :action-label="item.character || 'Voir la fiche'" />
+          </MediaGrid>
+        </section>
+      </template>
+    </DetailTemplate>
+  </PageTemplate>
 </template>
 
 <script setup lang="ts">
+/* Fiche d'une personne (distribution d'un film) : identite et biographie en en-tete, la
+   filmographie en contenu. Ouverte par son adresse, elle porte un « Retour ». */
 import { computed, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
-import { proxyUrl, srcSetFor } from '@/utils/mediaImage';
-import { ArrowLeft, LoaderCircle, UserRound } from '@lucide/vue';
+import { UserRound } from '@lucide/vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api } from '@/api';
 import { mediaDetailPath } from '@/mediaUrl';
+import PageTemplate from '@/components/templates/PageTemplate.vue';
+import DetailTemplate from '@/components/templates/DetailTemplate.vue';
 import MediaPosterCard from '@/components/media/MediaPosterCard.vue';
 import MediaGrid from '@/components/ui/MediaGrid.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
@@ -80,40 +84,24 @@ const loading = computed(() => personQuery.isPending.value && personQuery.isFetc
 // Une relecture en echec ne masque pas une fiche deja affichee.
 const error = computed(() => (!person.value && personQuery.error.value ? humanizeError(personQuery.error.value) : ''));
 const filter = ref('all');
-const bioExpanded = ref(false);
 const filters = [{ value: 'all', label: 'Tout' }, { value: 'movie', label: 'Films' }, { value: 'show', label: 'Séries' }];
 const visibleCredits = computed(() => (person.value?.credits || []).filter((item) => filter.value === 'all' || item.media_type === filter.value));
-const lifeSummary = computed(() => [person.value?.birthday && `Né(e) le ${formatDate(person.value.birthday)}`, person.value?.deathday && `décédé(e) le ${formatDate(person.value.deathday)}`, person.value?.place_of_birth].filter(Boolean).join(' · '));
+const lifeMeta = computed(() => [
+  person.value?.birthday && `Né(e) le ${formatDateLong(person.value.birthday)}`,
+  person.value?.deathday && `décédé(e) le ${formatDateLong(person.value.deathday)}`,
+  person.value?.place_of_birth,
+].filter(Boolean) as string[]);
 
-function formatDate(value: string): string { return formatDateLong(value); }
 function detailPath(item: Credit): string { return mediaDetailPath(item, item.library_id ? 'library' : item.request_id ? 'request' : 'discover', { discover: true }); }
 function goBack(): void { if (window.history.state?.back) router.back(); else router.push('/discover'); }
 function load(): void { void personQuery.refetch(); }
-watch(personId, () => { filter.value = 'all'; bioExpanded.value = false; });
+watch(personId, () => { filter.value = 'all'; });
 </script>
 
 <style scoped lang="scss">
-@use '@/styles/foundations/breakpoints' as bp;
-.person-page { display: grid; gap: var(--space-5); max-width: 1440px; margin: 0 auto; padding: 24px clamp(16px, 3vw, 42px) 48px; }
-.person-back { display: inline-flex; align-items: center; gap: var(--space-2); justify-self: start; border: 0; background: transparent; color: var(--muted); }
-.person-back svg { width: 18px; }
-.person-state { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 45vh; color: var(--muted); }
-.person-hero { display: grid; grid-template-columns: minmax(180px, 280px) minmax(0, 760px); gap: clamp(24px, 4vw, 56px); align-items: start; }
-.person-hero > img, .person-placeholder { width: 100%; aspect-ratio: 2 / 3; border-radius: var(--radius-lg); background: var(--surface-2); object-fit: cover; box-shadow: 0 20px 50px rgb(var(--shadow-color) / calc(.35 * var(--shadow-scale))); }
-.person-placeholder { display: grid; place-items: center; color: var(--muted); }
-.person-placeholder svg { width: 34%; height: 34%; }
-.person-copy { display: grid; gap: var(--space-3); padding-top: 12px; }
-.eyebrow { color: var(--accent); font-size: var(--fs-xs); font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
-.person-copy h1, .credits-heading h2 { margin: 0; }
-.person-copy h1 { font-size: clamp(2.2rem, 5vw, 4.5rem); line-height: .98; }
-.person-meta { margin: 0; color: var(--muted); }
-.biography { display: -webkit-box; overflow: hidden; max-width: 72ch; margin: var(--space-2) 0 0; line-height: 1.7; -webkit-box-orient: vertical; -webkit-line-clamp: 7; }
-.biography.expanded { display: block; }
-.bio-toggle { justify-self: start; padding: 0; border: 0; background: transparent; color: var(--accent); font-weight: 750; }
 .credits-section { display: grid; gap: var(--space-4); }
-.credits-heading { display: flex; align-items: end; justify-content: space-between; gap: var(--space-3); }
+.credits-heading { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: var(--space-3); }
 .credits-heading > div:first-child { display: grid; gap: var(--space-1); }
-.credits-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-4); }
-.empty-state { padding: 40px; color: var(--muted); text-align: center; }
-@include bp.until(tablet) { .person-page { padding-top: 16px; } .person-hero { grid-template-columns: 110px minmax(0, 1fr); gap: 18px; } .person-copy { padding: 0; } .person-copy h1 { font-size: clamp(1.65rem, 8vw, 2rem); } .person-meta { font-size: var(--fs-xs); } .biography, .bio-toggle { grid-column: 1 / -1; } .credits-heading { align-items: stretch; flex-direction: column; } .credits-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); } }
+.credits-heading h2 { margin: 0; }
+.eyebrow { color: var(--accent); font-size: var(--fs-xs); font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 </style>
