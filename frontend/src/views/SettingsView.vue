@@ -10,7 +10,9 @@
     <template v-if="formPanels.has(tab)" #quick-action>
       <UiButton variant="primary" :loading="saving" @click="save"><template #icon><Save /></template>{{ saving ? 'Enregistrement…' : 'Enregistrer' }}</UiButton>
     </template>
-    <ConfigureTemplate :dirty="dirty" :saving="saving" @save="save" @cancel="discardChanges">
+    <!-- Un panneau declare ses sections et porte lui-meme le gabarit (enregistrement global,
+         garde de sortie) ; les autres, pas encore ecrits ainsi, sont enveloppes ici. -->
+    <component :is="selfConfiguring.has(tab) ? 'div' : ConfigureTemplate" v-bind="selfConfiguring.has(tab) ? {} : { dirty, saving, onSave: save, onCancel: discardChanges }">
     <!-- La colonne de navigation a disparu : ses groupes sont devenus des destinations
          du rail et ses entrees leurs sections. Un seul panneau reste ici, sur toute la
          largeur -- c'est ce qui rend enfin possibles les grilles a deux ou trois
@@ -64,7 +66,7 @@
       </div>
     </div>
 
-    </ConfigureTemplate>
+    </component>
   </PageTemplate>
 </template>
 <script setup lang="ts">
@@ -81,6 +83,7 @@ import { load, save, saving, error, message, isDirty, discardChanges } from '@/s
 import { panelForPath, pathForLegacyTab, type SettingsPanel } from '@/settingsRoutes';
 import { SETTINGS_SEARCH_INDEX } from '@/settingsSearchIndex';
 import { matchesQuery, normalizeSearchText, provideSettingsSearch } from '@/composables/useSettingsSearch';
+import { provideSettingsPage } from '@/composables/useSettingsPage';
 
 const ConnectionsTab = defineAsyncComponent(() => import('@/components/settings/ConnectionsTab.vue'));
 const ServicesTab = defineAsyncComponent(() => import('@/components/settings/ServicesTab.vue'));
@@ -151,6 +154,10 @@ const dirty = computed(() => isDirty.value && !standaloneTabs.has(tab.value));
 const toast = useToast();
 watch(error, (value) => { if (value) toast.error('Enregistrement impossible', value); });
 watch(message, (value) => { if (value) toast.success(value); });
+
+provideSettingsPage({ query, dirty, saving, save, cancel: discardChanges });
+/* Panneaux ecrits en sections declarees (ils portent leur ConfigureTemplate). */
+const selfConfiguring = new Set<SettingsPanel>(['privacy', 'requests', 'network', 'api']);
 
 watch(tab, (value) => ensureSettingsLoaded(value).catch(() => {}));
 onMounted(() => ensureSettingsLoaded().catch(() => {}));
