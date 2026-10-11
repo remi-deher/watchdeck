@@ -3,7 +3,7 @@
        les reglages generaux et s'ouvre dans le volet, puis les serveurs supplementaires
        (4K, famille...), chacun dans sa feuille. Un media present sur plusieurs serveurs
        reste une seule fiche. -->
-  <SettingsItemList title="Serveurs Plex" :subtitle="subtitle" :count="serverList.length || null">
+  <SettingsItemList :subtitle="subtitle" :count="serverList.length || null">
     <template #actions>
       <UiButton @click="openSheet()"><Plus />Ajouter un serveur</UiButton>
     </template>

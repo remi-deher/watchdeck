@@ -44,11 +44,11 @@
         <ServicesTab v-else-if="tab==='services'"/>
         <MediaConnectionsTab v-else-if="tab==='media'"/>
         <WebhooksTab v-else-if="tab==='webhooks'"/>
-        <div v-else-if="tab==='download-clients'" class="settings-rows"><ClientsVerdict/><DownloadClientsList/></div>
+        <DownloadClientsTab v-else-if="tab==='download-clients'"/>
         <DownloadsTab v-else-if="tab==='downloads'"/>
         <!-- L'analyse VF de la bibliothèque vivait dans Connexions → Plex : elle décide de ce
              qui doit être amélioré, sa place est avec les améliorations VF. -->
-        <div v-else-if="tab==='vf-upgrades'" class="settings-rows"><VfScanSection/><VfUpgradesSettingsTab/></div>
+        <VfUpgradesSettingsTab v-else-if="tab==='vf-upgrades'" scan/>
         <SubtitleSearchSection v-else-if="tab==='subtitles'"/>
         <ScheduledTasksTab v-else-if="tab==='scheduled-tasks'"/>
         <NotificationsChannelsTab v-else-if="tab==='notifications-channels'"/>
@@ -91,14 +91,12 @@ const WebhooksTab = defineAsyncComponent(() => import('@/components/settings/Web
 const NotificationsChannelsTab = defineAsyncComponent(() => import('@/components/settings/NotificationsChannelsTab.vue'));
 const NotificationsRulesTab = defineAsyncComponent(() => import('@/components/settings/NotificationsRulesTab.vue'));
 const DownloadsTab = defineAsyncComponent(() => import('@/components/settings/DownloadsTab.vue'));
-const VfScanSection = defineAsyncComponent(() => import('@/components/settings/VfScanSection.vue'));
 const VfUpgradesSettingsTab = defineAsyncComponent(() => import('@/components/settings/VfUpgradesSettingsTab.vue'));
 const SubtitleSearchSection = defineAsyncComponent(() => import('@/components/settings/SubtitleSearchSection.vue'));
-const ClientsVerdict = defineAsyncComponent(() => import('@/components/settings/connections/ClientsVerdict.vue'));
+const DownloadClientsTab = defineAsyncComponent(() => import('@/components/settings/DownloadClientsTab.vue'));
 const MediaConnectionsTab = defineAsyncComponent(() => import('@/components/settings/MediaConnectionsTab.vue'));
 const ScheduledTasksTab = defineAsyncComponent(() => import('@/components/settings/ScheduledTasksTab.vue'));
 const MaintenanceTab = defineAsyncComponent(() => import('@/components/settings/MaintenanceTab.vue'));
-const DownloadClientsList = defineAsyncComponent(() => import('@/components/settings/connections/DownloadClientsList.vue'));
 const RequestsTab = defineAsyncComponent(() => import('@/components/settings/RequestsTab.vue'));
 const NetworkTab = defineAsyncComponent(() => import('@/components/settings/NetworkTab.vue'));
 const EmailTemplatesPanel = defineAsyncComponent(() => import('@/components/EmailTemplatesPanel.vue'));
@@ -157,7 +155,7 @@ watch(message, (value) => { if (value) toast.success(value); });
 
 provideSettingsPage({ query, dirty, saving, save, cancel: discardChanges });
 /* Panneaux ecrits en sections declarees (ils portent leur ConfigureTemplate). */
-const selfConfiguring = new Set<SettingsPanel>(['privacy', 'requests', 'network', 'api', 'downloads', 'subtitles', 'webhooks', 'notifications-channels', 'notifications-rules', 'scheduled-tasks', 'data', 'system-version', 'maintenance', 'reasons']);
+const selfConfiguring = new Set<SettingsPanel>(['privacy', 'requests', 'network', 'api', 'downloads', 'subtitles', 'webhooks', 'notifications-channels', 'notifications-rules', 'scheduled-tasks', 'data', 'system-version', 'maintenance', 'reasons', 'plex', 'services', 'media', 'download-clients', 'vf-upgrades']);
 
 watch(tab, (value) => ensureSettingsLoaded(value).catch(() => {}));
 onMounted(() => ensureSettingsLoaded().catch(() => {}));

@@ -1,10 +1,7 @@
 <template>
 
   <CrudResourceList
-
-    title="Sonarr, Radarr, Prowlarr, Bazarr et FileFlows"
-
-    :icon="ServerCog"
+:icon="ServerCog"
 
     :items="arrInstances"
 

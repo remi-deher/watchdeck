@@ -1,7 +1,5 @@
 <template>
   <CrudResourceList
-    title="Clients de téléchargement direct"
-    subtitle="Reçoivent une release choisie à la main dans la recherche Prowlarr."
     :icon="Download"
     :items="clients"
     :item-subtitle="(item: any) => [clientLabel(item.client_type), item.url].filter(Boolean).join(' · ')"

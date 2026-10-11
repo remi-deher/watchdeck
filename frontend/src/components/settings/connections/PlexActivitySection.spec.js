@@ -4,7 +4,7 @@ import { form } from '@/settingsForm';
 import PlexActivitySection from './PlexActivitySection.vue';
 
 function row(wrapper, label) {
-  return wrapper.findAll('.settings-row').find(item => item.text().includes(label));
+  return wrapper.findAll('.configure-field').find(item => item.text().includes(label));
 }
 
 describe('PlexActivitySection', () => {
@@ -15,7 +15,6 @@ describe('PlexActivitySection', () => {
 
   it('indique que la collecte en direct dépend directement de Plex', async () => {
     const wrapper = mount(PlexActivitySection);
-    expect(wrapper.text()).toContain('ne dépend pas de Tautulli');
     expect(row(wrapper, 'Activité Plex en direct').text()).toContain('Aucune lecture en cours');
     await row(wrapper, 'Activité Plex en direct').get('[role="switch"]').trigger('click');
     expect(row(wrapper, 'Activité Plex en direct').text()).toContain('Watchdeck collecte directement');

@@ -1,58 +1,44 @@
 <template>
-  <div class="settings-rows">
-    <section class="effective-summary" :class="{ inactive: !form.vf_upgrade_enabled }">
-      <div><strong>Comportement effectif</strong><p>{{ effectiveSummary }}</p></div>
-      <span>{{ form.vf_upgrade_enabled ? 'Actif' : 'Désactivé' }}</span>
-    </section>
+  <ConfigureTemplate :sections="sections" v-bind="page.bind.value" @save="page.save" @cancel="page.cancel">
+    <template v-if="scan" #section-scan><VfScanSection /></template>
 
-    <section class="vf-rhythm" aria-labelledby="vf-rhythm-title">
-      <h3 id="vf-rhythm-title" class="vf-advanced-title">Rythme</h3>
+    <template #section-effective>
+      <p class="effective-summary" :class="{ inactive: !form.vf_upgrade_enabled }">{{ effectiveSummary }}</p>
+    </template>
+
+    <template #section-rhythm>
       <VfPresetPicker :disabled="!form.vf_upgrade_enabled" />
-    </section>
+    </template>
 
-    <!-- Un bloc à la fois : la page faisait défiler neuf sections, ouvertes ou repliées. -->
-    <AppSubnav variant="tabs" inner :items="SECTION_ITEMS" :active="section" aria-label="Sections des améliorations VF" @update:active="section = $event" />
-
-    <SettingsSection
-      v-if="section === 'scope'"
-      title="Activation et périmètre"
-      subtitle="Choisit quels médias peuvent recevoir une meilleure release française."
-      :status="form.vf_upgrade_enabled ? 'active' : 'inactive'"
-    >
-      <SettingsRow label="Activer les améliorations VF">
+    <template #section-scope>
+      <ConfigureField label="Activer les améliorations VF">
         <ToggleSwitch v-model="form.vf_upgrade_enabled" title="Activer les améliorations VF" />
-      </SettingsRow>
-      <SettingsRow label="Médias VO" description="Médias dont aucune piste française n'a été détectée." :disabled="!form.vf_upgrade_enabled">
+      </ConfigureField>
+      <ConfigureField label="Médias VO" help="Médias dont aucune piste française n'a été détectée.">
         <UiCheckbox v-model="form.vf_upgrade_include_vo" :disabled="!form.vf_upgrade_enabled" />
-      </SettingsRow>
-      <SettingsRow label="Saisons mixtes" description="Séries dont une partie seulement des épisodes est en VF." :disabled="!form.vf_upgrade_enabled">
+      </ConfigureField>
+      <ConfigureField label="Saisons mixtes" help="Séries dont une partie seulement des épisodes est en VF.">
         <UiCheckbox v-model="form.vf_upgrade_include_mixed" :disabled="!form.vf_upgrade_enabled" />
-      </SettingsRow>
-      <SettingsRow label="Médias déjà en VF" :disabled="!form.vf_upgrade_enabled || form.vf_upgrade_protect_existing_vf">
+      </ConfigureField>
+      <ConfigureField label="Médias déjà en VF">
         <UiCheckbox v-model="form.vf_upgrade_include_vf" :disabled="!form.vf_upgrade_enabled || form.vf_upgrade_protect_existing_vf" />
-      </SettingsRow>
-      <SettingsRow
+      </ConfigureField>
+      <ConfigureField
         label="Stratégie des saisons mixtes"
-        :description="mixedModeHelp"
-        :disabled="!form.vf_upgrade_enabled || !form.vf_upgrade_include_mixed || form.vf_upgrade_protect_existing_vf"
+        :help="mixedModeHelp"
+       
       >
         <UiSelect v-model="form.vf_upgrade_mixed_mode" :disabled="!form.vf_upgrade_enabled || !form.vf_upgrade_include_mixed || form.vf_upgrade_protect_existing_vf" :options="[{ value: 'episodes', label: 'Épisodes VO uniquement' }, { value: 'season', label: 'Pack saison complet' }]" />
-      </SettingsRow>
-      <SettingsRow label="Protéger les fichiers déjà en VF" description="Aucun fichier français existant ne sera remplacé automatiquement.">
+      </ConfigureField>
+      <ConfigureField label="Protéger les fichiers déjà en VF" help="Aucun fichier français existant ne sera remplacé automatiquement.">
         <ToggleSwitch v-model="form.vf_upgrade_protect_existing_vf" title="Protéger les fichiers déjà en VF" />
-      </SettingsRow>
-    </SettingsSection>
+      </ConfigureField>
+    </template>
 
-    <SettingsSection
-      v-if="section === 'arr'"
-      title="Ce que sait déjà faire ton Sonarr / Radarr"
-      subtitle="Sonarr et Radarr peuvent récupérer une VF seuls, via un custom format « French » noté dans le profil : leur RSS sync s'en charge en continu, sans aucun appel indexeur."
-    >
-      <template #actions>
-        <button type="button" class="diag-btn" :disabled="diagLoading" @click="loadDiagnostic">
-          {{ diagLoading ? 'Analyse…' : (diagnostic ? 'Réanalyser' : 'Analyser mes instances') }}
-        </button>
-      </template>
+    <template #section-arr>
+      <div><button type="button" class="diag-btn" :disabled="diagLoading" @click="loadDiagnostic">
+        {{ diagLoading ? 'Analyse…' : (diagnostic ? 'Réanalyser' : 'Analyser mes instances') }}
+      </button></div>
 
       <p v-if="diagError" class="diag-error">{{ diagError }}</p>
       <p v-else-if="!diagnostic" class="diag-hint">
@@ -91,131 +77,131 @@
         </li>
       </ul>
       <p v-else class="diag-hint">Aucune instance Sonarr/Radarr activée.</p>
-    </SettingsSection>
+    </template>
 
-    <SettingsSection v-if="section === 'scope'" title="Langues et confiance" subtitle="Filtre et ordonne les releases candidates.">
-      <SettingsRow label="Marqueurs acceptés" description="Séparés par des virgules.">
+    <template #section-languages>
+      <ConfigureField label="Marqueurs acceptés" help="Séparés par des virgules.">
         <input v-model="form.vf_upgrade_markers" placeholder="truefrench,vff,multi,vfi,vfq">
-      </SettingsRow>
-      <SettingsRow label="Ordre de préférence">
+      </ConfigureField>
+      <ConfigureField label="Ordre de préférence">
         <input v-model="form.vf_upgrade_preference" placeholder="truefrench,vff,vfi,multi,vfq">
-      </SettingsRow>
-      <SettingsRow label="Confiance minimale" :description="confidenceHint">
+      </ConfigureField>
+      <ConfigureField label="Confiance minimale" :help="confidenceHint">
         <UiSlider v-model="form.vf_upgrade_min_confidence" :min="0" :max="100" :step="5" label="Confiance minimale" />
-      </SettingsRow>
-      <SettingsRow label="Accepter un doublage québécois (VFQ)" description="Une VFQ est un vrai doublage français, mais différent de la VF de France.">
+      </ConfigureField>
+      <ConfigureField label="Accepter un doublage québécois (VFQ)" help="Une VFQ est un vrai doublage français, mais différent de la VF de France.">
         <ToggleSwitch v-model="form.vf_upgrade_accept_vfq" title="Accepter un doublage québécois (VFQ)" />
-      </SettingsRow>
-      <SettingsRow label="Accepter une piste française secondaire">
+      </ConfigureField>
+      <ConfigureField label="Accepter une piste française secondaire">
         <ToggleSwitch v-model="form.vf_upgrade_accept_secondary" title="Accepter une piste française secondaire" />
-      </SettingsRow>
-      <SettingsRow label="Exiger que la piste française soit par défaut après import">
+      </ConfigureField>
+      <ConfigureField label="Exiger que la piste française soit par défaut après import">
         <ToggleSwitch v-model="form.vf_upgrade_require_default" title="Exiger que la piste française soit par défaut après import" />
-      </SettingsRow>
-    </SettingsSection>
+      </ConfigureField>
+    </template>
 
-    <SettingsSection v-if="section === 'quality'" title="Qualité et sécurité" :subtitle="summaries.quality">
-      <SettingsRow label="Bloquer les rejets *arr">
+    <template #section-quality>
+      <ConfigureField label="Bloquer les rejets *arr">
         <ToggleSwitch v-model="form.vf_upgrade_block_arr_rejected" title="Bloquer les rejets *arr" />
-      </SettingsRow>
-      <SettingsRow label="Conserver la résolution">
+      </ConfigureField>
+      <ConfigureField label="Conserver la résolution">
         <ToggleSwitch v-model="form.vf_upgrade_protect_resolution" title="Conserver la résolution" />
-      </SettingsRow>
-      <SettingsRow label="Conserver HDR / Dolby Vision">
+      </ConfigureField>
+      <ConfigureField label="Conserver HDR / Dolby Vision">
         <ToggleSwitch v-model="form.vf_upgrade_preserve_hdr" title="Conserver HDR / Dolby Vision" />
-      </SettingsRow>
-      <SettingsRow label="Ne pas baisser le score CF">
+      </ConfigureField>
+      <ConfigureField label="Ne pas baisser le score CF">
         <ToggleSwitch v-model="form.vf_upgrade_protect_custom_format_score" title="Ne pas baisser le score CF" />
-      </SettingsRow>
-      <SettingsRow label="Taille minimale" description="En Go. Vide = aucune limite.">
+      </ConfigureField>
+      <ConfigureField label="Taille minimale" help="En Go. Vide = aucune limite.">
         <UiNumberField v-model="form.vf_upgrade_min_size_gb" :min="0" :step="0.1" placeholder="Aucune" />
-      </SettingsRow>
-      <SettingsRow label="Taille maximale" description="En Go. Vide = aucune limite.">
+      </ConfigureField>
+      <ConfigureField label="Taille maximale" help="En Go. Vide = aucune limite.">
         <UiNumberField v-model="form.vf_upgrade_max_size_gb" :min="0" :step="0.1" placeholder="Aucune" />
-      </SettingsRow>
-      <SettingsRow label="Autoriser une régression technique" description="Uniquement après confirmation manuelle.">
+      </ConfigureField>
+      <ConfigureField label="Autoriser une régression technique" help="Uniquement après confirmation manuelle.">
         <ToggleSwitch v-model="form.vf_upgrade_allow_technical_downgrade" title="Autoriser une régression technique" />
-      </SettingsRow>
-    </SettingsSection>
+      </ConfigureField>
+    </template>
 
-    <SettingsSection v-if="section === 'search'" title="Recherche et rythme" :subtitle="summaries.search">
-      <SettingsRow label="Cooldown" description="En heures, entre deux recherches sur un même média.">
+    <template #section-search>
+      <ConfigureField label="Cooldown" help="En heures, entre deux recherches sur un même média.">
         <UiNumberField v-model="form.vf_upgrade_cooldown_hours" :min="1" :max="720" />
-      </SettingsRow>
-      <SettingsRow label="Relance après échec" description="En heures.">
+      </ConfigureField>
+      <ConfigureField label="Relance après échec" help="En heures.">
         <UiNumberField v-model="form.vf_upgrade_retry_hours" :min="1" :max="168" />
-      </SettingsRow>
-      <SettingsRow label="Recherches par passage">
+      </ConfigureField>
+      <ConfigureField label="Recherches par passage">
         <UiNumberField v-model="form.vf_upgrade_max_searches_per_run" :min="1" :max="500" />
-      </SettingsRow>
-      <SettingsRow label="Concurrence" description="Recherches menées en parallèle.">
+      </ConfigureField>
+      <ConfigureField label="Concurrence" help="Recherches menées en parallèle.">
         <UiNumberField v-model="form.vf_upgrade_search_concurrency" :min="1" :max="25" />
-      </SettingsRow>
-      <SettingsRow label="Cadence de lancement" description="Délai (ms) entre le lancement de deux recherches, indépendant de la concurrence. Permet d'empiler plus de recherches en vol sans rafale brutale vers les indexeurs. 0 = désactivé.">
+      </ConfigureField>
+      <ConfigureField label="Cadence de lancement" help="Délai (ms) entre le lancement de deux recherches, indépendant de la concurrence. Permet d'empiler plus de recherches en vol sans rafale brutale vers les indexeurs. 0 = désactivé.">
         <UiNumberField v-model="form.vf_upgrade_search_stagger_ms" :min="0" :max="60000" :step="100" />
-      </SettingsRow>
-      <SettingsRow label="Priorité des cibles" description="Détermine quelles recherches entrent dans la limite de chaque passage.">
+      </ConfigureField>
+      <ConfigureField label="Priorité des cibles" help="Détermine quelles recherches entrent dans la limite de chaque passage.">
         <UiSelect v-model="form.vf_upgrade_priority" :options="[{ value: 'mixed,vo,vf', label: 'Saisons mixtes, puis VO, puis VF' }, { value: 'mixed,vf,vo', label: 'Saisons mixtes, puis VF, puis VO' }, { value: 'vo,mixed,vf', label: 'VO, puis saisons mixtes, puis VF' }, { value: 'vo,vf,mixed', label: 'VO, puis VF, puis saisons mixtes' }, { value: 'vf,mixed,vo', label: 'VF, puis saisons mixtes, puis VO' }, { value: 'vf,vo,mixed', label: 'VF, puis VO, puis saisons mixtes' }]" />
-      </SettingsRow>
-      <SettingsRow label="Prioriser les séries en cours de diffusion" description="Par défaut, l'efficacité prime (season pack d'une série terminée en tête, une seule recherche couvre toute la saison). Activé, les épisodes récents d'une série en cours passent devant.">
+      </ConfigureField>
+      <ConfigureField label="Prioriser les séries en cours de diffusion" help="Par défaut, l'efficacité prime (season pack d'une série terminée en tête, une seule recherche couvre toute la saison). Activé, les épisodes récents d'une série en cours passent devant.">
         <ToggleSwitch v-model="form.vf_upgrade_prioritize_continuing" title="Prioriser les séries en cours de diffusion" />
-      </SettingsRow>
-      <SettingsRow label="Fallback épisodique" description="Complète le pack saison par des recherches par épisode pour capter les MULTI sans pack indexé. Pour une série terminée, sert de filet de sécurité ; pour une série en cours, cible les épisodes récemment diffusés.">
+      </ConfigureField>
+      <ConfigureField label="Fallback épisodique" help="Complète le pack saison par des recherches par épisode pour capter les MULTI sans pack indexé. Pour une série terminée, sert de filet de sécurité ; pour une série en cours, cible les épisodes récemment diffusés.">
         <ToggleSwitch v-model="form.vf_upgrade_episodic_fallback" title="Fallback épisodique" />
-      </SettingsRow>
-      <SettingsRow label="Épisodes max par saison" description="Plafonne les recherches par épisode générées en fallback, pour qu'une série ne monopolise pas le budget de recherches." :disabled="!form.vf_upgrade_episodic_fallback">
+      </ConfigureField>
+      <ConfigureField label="Épisodes max par saison" help="Plafonne les recherches par épisode générées en fallback, pour qu'une série ne monopolise pas le budget de recherches.">
         <UiNumberField v-model="form.vf_upgrade_episodic_fallback_limit" :disabled="!form.vf_upgrade_episodic_fallback" :min="0" :max="50" />
-      </SettingsRow>
-      <SettingsRow label="Fenêtre de récence" description="En jours. Pour une série en cours de diffusion, seuls les épisodes diffusés dans cette fenêtre entrent dans le fallback." :disabled="!form.vf_upgrade_episodic_fallback">
+      </ConfigureField>
+      <ConfigureField label="Fenêtre de récence" help="En jours. Pour une série en cours de diffusion, seuls les épisodes diffusés dans cette fenêtre entrent dans le fallback.">
         <UiNumberField v-model="form.vf_upgrade_episodic_fallback_days" :disabled="!form.vf_upgrade_episodic_fallback" :min="1" :max="365" />
-      </SettingsRow>
-      <SettingsRow label="Cooldown après échec" description="En heures. Double à chaque recherche restée bredouille sur une même cible, pour ne pas la retenter en boucle.">
+      </ConfigureField>
+      <ConfigureField label="Cooldown après échec" help="En heures. Double à chaque recherche restée bredouille sur une même cible, pour ne pas la retenter en boucle.">
         <UiNumberField v-model="form.vf_upgrade_no_result_backoff_base_hours" :min="1" :max="168" />
-      </SettingsRow>
-      <SettingsRow label="Cooldown maximal après échecs répétés" description="En heures. Plafond du cooldown progressif ci-dessus.">
+      </ConfigureField>
+      <ConfigureField label="Cooldown maximal après échecs répétés" help="En heures. Plafond du cooldown progressif ci-dessus.">
         <UiNumberField v-model="form.vf_upgrade_no_result_backoff_max_hours" :min="1" :max="720" />
-      </SettingsRow>
-    </SettingsSection>
+      </ConfigureField>
+    </template>
 
-    <SettingsSection v-if="section === 'validation'" title="Validation et historique" :subtitle="summaries.validation">
-      <SettingsRow label="Vérifier les pistes après import">
+    <template #section-validation>
+      <ConfigureField label="Vérifier les pistes après import">
         <ToggleSwitch v-model="form.vf_upgrade_verify_after_import" title="Vérifier les pistes après import" />
-      </SettingsRow>
-      <SettingsRow label="Délai de validation" description="En minutes." :disabled="!form.vf_upgrade_verify_after_import">
+      </ConfigureField>
+      <ConfigureField label="Délai de validation" help="En minutes.">
         <UiNumberField v-model="form.vf_upgrade_verification_timeout_minutes" :disabled="!form.vf_upgrade_verify_after_import" :min="15" :max="1440" />
-      </SettingsRow>
-      <SettingsRow label="Tentatives automatiques maximales" description="Une recherche manuelle reste toujours possible." :disabled="!form.vf_upgrade_verify_after_import">
+      </ConfigureField>
+      <ConfigureField label="Tentatives automatiques maximales" help="Une recherche manuelle reste toujours possible.">
         <UiNumberField v-model="form.vf_upgrade_max_retries" :disabled="!form.vf_upgrade_verify_after_import" :min="0" :max="10" />
-      </SettingsRow>
-      <SettingsRow label="Demander une nouvelle analyse Plex" description="À la fin du téléchargement." :disabled="!form.vf_upgrade_verify_after_import">
+      </ConfigureField>
+      <ConfigureField label="Demander une nouvelle analyse Plex" help="À la fin du téléchargement.">
         <UiCheckbox v-model="form.vf_upgrade_trigger_plex_scan" :disabled="!form.vf_upgrade_verify_after_import" />
-      </SettingsRow>
-      <SettingsRow label="Mettre en liste noire une release non validée">
+      </ConfigureField>
+      <ConfigureField label="Mettre en liste noire une release non validée">
         <ToggleSwitch v-model="form.vf_upgrade_blacklist_failed" title="Mettre en liste noire une release non validée" />
-      </SettingsRow>
-      <SettingsRow label="Conservation de l'historique" description="En jours.">
+      </ConfigureField>
+      <ConfigureField label="Conservation de l'historique" help="En jours.">
         <UiNumberField v-model="form.vf_upgrade_history_retention_days" :min="1" :max="3650" />
-      </SettingsRow>
-    </SettingsSection>
+      </ConfigureField>
+    </template>
 
-    <SettingsSection v-if="section === 'notifications'" title="Notifications" :subtitle="summaries.notifications">
-      <SettingsRow label="Release trouvée">
+    <template #section-notifications>
+      <ConfigureField label="Release trouvée">
         <ToggleSwitch v-model="form.vf_upgrade_notify_found" title="Release trouvée" />
-      </SettingsRow>
-      <SettingsRow label="Acceptée par *arr">
+      </ConfigureField>
+      <ConfigureField label="Acceptée par *arr">
         <ToggleSwitch v-model="form.vf_upgrade_notify_accepted" title="Acceptée par *arr" />
-      </SettingsRow>
-      <SettingsRow label="Téléchargement démarré">
+      </ConfigureField>
+      <ConfigureField label="Téléchargement démarré">
         <ToggleSwitch v-model="form.vf_upgrade_notify_downloading" title="Téléchargement démarré" />
-      </SettingsRow>
-      <SettingsRow label="Échec">
+      </ConfigureField>
+      <ConfigureField label="Échec">
         <ToggleSwitch v-model="form.vf_upgrade_notify_failed" title="Échec" />
-      </SettingsRow>
-      <SettingsRow label="VF validée">
+      </ConfigureField>
+      <ConfigureField label="VF validée">
         <ToggleSwitch v-model="form.vf_upgrade_notify_verified" title="VF validée" />
-      </SettingsRow>
-    </SettingsSection>
-  </div>
+      </ConfigureField>
+    </template>
+  </ConfigureTemplate>
 </template>
 
 <script setup lang="ts">
@@ -229,22 +215,16 @@ import { api } from '@/api';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import { form } from '@/settingsForm';
 import VfPresetPicker from './VfPresetPicker.vue';
-import AppSubnav from '@/components/ui/AppSubnav.vue';
-import { useInnerSection } from '@/composables/useInnerSection';
-import { useRoute } from 'vue-router';
+import ConfigureTemplate from '@/components/templates/ConfigureTemplate.vue';
+import { useSettingsPage } from '@/composables/useSettingsPage';
+import VfScanSection from './VfScanSection.vue';
+import { Bell, FileSearch, Gauge, Languages, ScanSearch, ShieldCheck, Sparkles, SlidersHorizontal, Timer, CheckCheck, Waypoints } from '@lucide/vue';
 
-const SECTION_ITEMS = [
-  { key: 'scope', label: 'Quoi améliorer' },
-  { key: 'arr', label: 'Sonarr / Radarr' },
-  { key: 'quality', label: 'Qualité' },
-  { key: 'search', label: 'Recherche' },
-  { key: 'validation', label: 'Validation' },
-  { key: 'notifications', label: 'Notifications' },
-];
-/* Dans les réglages, la section suit l'adresse ; dans la fenêtre de la page VF, elle reste locale. */
-const section = useInnerSection(SECTION_ITEMS.map((item) => item.key), undefined, { inUrl: Boolean(useRoute()?.path.startsWith('/settings')) });
-import SettingsRow from './SettingsRow.vue';
-import SettingsSection from './SettingsSection.vue';
+/* `scan` : l'analyse VF de la bibliotheque, posee ici dans les reglages (elle decide de ce qui doit
+   etre ameliore). La fenetre de la page VF n'en a pas besoin. */
+const props = defineProps<{ scan?: boolean }>();
+const page = useSettingsPage();
+import ConfigureField from '@/components/templates/configure/ConfigureField.vue';
 
 const selectedScopes = computed(() => [
   form.vf_upgrade_include_mixed && 'saisons mixtes',
@@ -277,6 +257,18 @@ const summaries = computed(() => {
     notifications: notified.length ? `Prévenir : ${notified.join(', ')}` : 'Aucune notification',
   };
 });
+const sections = computed(() => [
+  ...(props.scan ? [{ key: 'scan', title: 'Analyse VF', description: 'Détecte automatiquement la présence d\'une piste VF dans les fichiers Plex, et synchronise la bibliothèque musique sans analyse VF.', icon: ScanSearch, keywords: ['plex', 'bibliothèques', 'scan', 'vo', 'vf', 'synchronisation'] }] : []),
+  { key: 'effective', title: 'Comportement effectif', description: form.vf_upgrade_enabled ? 'Actif' : 'Désactivé', icon: Sparkles, keywords: ['résumé'] },
+  { key: 'rhythm', title: 'Rythme', description: 'Un réglage de départ pour la cadence des recherches.', icon: Gauge, keywords: ['préréglage', 'cadence'] },
+  { key: 'scope', title: 'Activation et périmètre', description: 'Choisit quels médias peuvent recevoir une meilleure release française.', icon: SlidersHorizontal, keywords: ['activer', 'vo', 'mixtes', 'protéger'] },
+  { key: 'arr', title: 'Ce que sait déjà faire ton Sonarr / Radarr', description: 'Sonarr et Radarr peuvent récupérer une VF seuls, via un custom format « French » noté dans le profil : leur RSS sync s\'en charge en continu, sans aucun appel indexeur.', icon: Waypoints, keywords: ['custom format', 'sonarr', 'radarr', 'diagnostic'] },
+  { key: 'languages', title: 'Langues et confiance', description: 'Filtre et ordonne les releases candidates.', icon: Languages, keywords: ['marqueurs', 'vfq', 'confiance', 'truefrench'] },
+  { key: 'quality', title: 'Qualité et sécurité', description: summaries.value.quality, icon: ShieldCheck, keywords: ['hdr', 'résolution', 'taille', 'score'] },
+  { key: 'search', title: 'Recherche et rythme', description: summaries.value.search, icon: FileSearch, keywords: ['cooldown', 'concurrence', 'fallback', 'priorité'] },
+  { key: 'validation', title: 'Validation et historique', description: summaries.value.validation, icon: CheckCheck, keywords: ['vérifier', 'tentatives', 'liste noire'] },
+  { key: 'notifications', title: 'Notifications', description: summaries.value.notifications, icon: Bell, keywords: ['release trouvée', 'échec'] },
+]);
 const effectiveSummary = computed(() => {
   if (!form.vf_upgrade_enabled) return 'Aucune recherche automatique ne sera lancée.';
   const scopes = selectedScopes.value.length ? selectedScopes.value.join(', ') : 'aucun média';
@@ -435,40 +427,7 @@ const mixedModeHelp = computed(() => form.vf_upgrade_protect_existing_vf
 .diag-detected,
 .diag-detail { color: var(--text-muted); }
 
-.settings-rows {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.effective-summary {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: 14px 16px;
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
-}
-
-.effective-summary.inactive {
-  border-color: var(--border);
-  background: var(--surface);
-}
-
-.effective-summary p {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: var(--fs-sm);
-}
-
-.effective-summary > span {
-  padding: 4px 8px;
-  border-radius: var(--radius-pill);
-  background: var(--surface);
-  font-size: var(--fs-xs);
-}
+.effective-summary { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 
 input:disabled,
 select:disabled {
@@ -476,11 +435,4 @@ select:disabled {
   cursor: not-allowed;
 }
 
-@include bp.until(phablet) {
-  .effective-summary {
-    flex-direction: column;
-  }
-}
-.vf-advanced-title { margin: var(--space-3) 0 0; color: var(--muted); font-size: var(--fs-xs); font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
-.vf-rhythm { display: grid; gap: var(--space-2); }
 </style>
