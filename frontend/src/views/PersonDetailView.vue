@@ -1,6 +1,6 @@
 <template>
   <PageTemplate
-    :title="person?.name || 'Personne'"
+    title="Personne"
     :state="person ? 'ready' : error ? 'error' : loading ? 'loading' : 'ready'"
     skeleton="detail"
     :error="error"
