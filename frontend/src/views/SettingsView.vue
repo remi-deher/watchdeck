@@ -1,25 +1,19 @@
 <template>
-  <AppPage
+  <PageTemplate
     :title="pageTitle"
     v-model:query="query"
-    search-scope="Réglages"
-    placeholder="Filtrer les réglages…"
-    search-kind="filter"
+    :search="{ placeholder: 'Filtrer les réglages…', scope: 'Réglages', kind: 'filter' }"
     :match-count="settingsSearch.matched.value"
     :total-count="settingsSearch.total.value"
   >
-    <template #actions>
-      <UiButton v-if="formPanels.has(tab)" variant="primary" :loading="saving" @click="save"><template #icon><Save/></template>{{ saving ? 'Enregistrement...' : 'Enregistrer' }}</UiButton>
-    </template>
+    <ConfigureTemplate :dirty="dirty" :saving="saving" @save="save" @cancel="discardChanges">
     <!-- La colonne de navigation a disparu : ses groupes sont devenus des destinations
          du rail et ses entrees leurs sections. Un seul panneau reste ici, sur toute la
          largeur -- c'est ce qui rend enfin possibles les grilles a deux ou trois
          colonnes des taches planifiees et de la maintenance. -->
     <div class="settings-layout">
       <div class="settings-panel">
-        <UiFeedback v-if="error" type="error" title="Enregistrement impossible" :message="error" />
         <SettingsValidationSummary />
-        <UiFeedback v-if="message" type="success" :message="message" />
 
         <!-- La question n'est plus « comment regler ceci » mais « ou vit ce reglage » :
              le champ retranche les cartes de cette page, et cette liste dit ce qui
@@ -66,24 +60,22 @@
       </div>
     </div>
 
-    <FormSaveBar v-if="!standaloneTabs.has(tab)" :dirty="isDirty" :saving="saving" @save="save"/>
-    <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
-  </AppPage>
-</template><script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue';
-import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router';
-import { Save } from '@lucide/vue';
+    </ConfigureTemplate>
+  </PageTemplate>
+</template>
+<script setup lang="ts">
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import SettingsOverview from '@/components/settings/SettingsOverview.vue';
-import ConfirmModal from '@/components/ConfirmModal.vue';
+import PageTemplate from '@/components/templates/PageTemplate.vue';
+import ConfigureTemplate from '@/components/templates/ConfigureTemplate.vue';
 import SettingsValidationSummary from '@/components/settings/SettingsValidationSummary.vue';
-import { useConfirm } from '@/composables/useConfirm';
-import { load, save, saving, error, message, isDirty } from '@/settingsForm';
-import UiButton from '@/components/ui/UiButton.vue';
+import { useToast } from '@/composables/useToast';
+import { load, save, saving, error, message, isDirty, discardChanges } from '@/settingsForm';
 import { panelForPath, pathForLegacyTab, type SettingsPanel } from '@/settingsRoutes';
 import { SETTINGS_SEARCH_INDEX } from '@/settingsSearchIndex';
 import { matchesQuery, normalizeSearchText, provideSettingsSearch } from '@/composables/useSettingsSearch';
 
-const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
 const ConnectionsTab = defineAsyncComponent(() => import('@/components/settings/ConnectionsTab.vue'));
 const ServicesTab = defineAsyncComponent(() => import('@/components/settings/ServicesTab.vue'));
 const WebhooksTab = defineAsyncComponent(() => import('@/components/settings/WebhooksTab.vue'));
@@ -131,11 +123,6 @@ const elsewhere = computed(() => {
 const standaloneTabs = new Set<SettingsPanel>([
   'templates', 'system-version', 'download-clients', 'maintenance', 'data',
 ]);
-// Ceux dont les champs passent par le bouton Enregistrer de l'en-tete.
-const formPanels = new Set<SettingsPanel>([
-  'plex', 'services', 'media', 'webhooks', 'downloads', 'vf-upgrades', 'subtitles', 'scheduled-tasks',
-  'notifications-channels', 'notifications-rules', 'requests', 'network', 'api', 'privacy',
-]);
 let settingsLoadPromise: Promise<void> | undefined;
 function ensureSettingsLoaded(value = tab.value): Promise<void> {
   if (standaloneTabs.has(value)) return Promise.resolve();
@@ -146,11 +133,13 @@ function ensureSettingsLoaded(value = tab.value): Promise<void> {
   return settingsLoadPromise;
 }
 const pageTitle = computed(() => (tab.value === 'overview' ? 'Administration' : String(route.meta?.title || 'Administration')));
-function warnUnsaved(event: BeforeUnloadEvent): void { if (!isDirty.value) return; event.preventDefault(); event.returnValue = ''; }
-onBeforeRouteLeave(() => !isDirty.value || askConfirm({ title: 'Quitter sans enregistrer ?', message: 'Des modifications ne sont pas enregistrées. Quitter cette page ?', confirmLabel: 'Quitter', danger: true }));
-onBeforeRouteUpdate(() => !isDirty.value || askConfirm({ title: 'Changer de section sans enregistrer ?', message: 'Des modifications ne sont pas enregistrées. Changer de section ?', confirmLabel: 'Continuer', danger: true }));
-onMounted(() => window.addEventListener('beforeunload', warnUnsaved));
-onUnmounted(() => window.removeEventListener('beforeunload', warnUnsaved));
+/* Les panneaux qui n'editent aucun champ du formulaire general n'ont rien a enregistrer ; les autres
+   passent par l'enregistrement global du gabarit (barre, confirmation avant de quitter). */
+const dirty = computed(() => isDirty.value && !standaloneTabs.has(tab.value));
+/* Reussites et echecs de l'enregistrement : un message qui passe, pas un bandeau. */
+const toast = useToast();
+watch(error, (value) => { if (value) toast.error('Enregistrement impossible', value); });
+watch(message, (value) => { if (value) toast.success(value); });
 
 watch(tab, (value) => ensureSettingsLoaded(value).catch(() => {}));
 onMounted(() => ensureSettingsLoaded().catch(() => {}));

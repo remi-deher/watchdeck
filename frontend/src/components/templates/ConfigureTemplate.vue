@@ -11,7 +11,7 @@
        La page fournit ses sections (`sections`) et leur contenu (emplacements
        `section-<cle>`), et dit si elle a des modifications (`dirty`). -->
   <div class="configure">
-    <div class="configure__sections">
+    <div v-if="sections.length" class="configure__sections">
       <section v-for="section in shown" :id="`configure-${section.key}`" :key="section.key" class="configure__section" :class="{ 'is-dirty': section.dirty }" :aria-labelledby="`configure-${section.key}-title`">
         <header class="configure__section-head">
           <component :is="section.icon" v-if="section.icon" class="configure__icon" aria-hidden="true" />
@@ -23,8 +23,13 @@
         </header>
         <div class="configure__body"><slot :name="`section-${section.key}`" /></div>
       </section>
-      <UiEmptyState v-if="!shown.length" :icon="SearchX" title="Aucun réglage" :message="`Rien ne correspond à « ${query.trim()} ».`" compact />
+      <UiEmptyState v-if="sections.length && !shown.length" :icon="SearchX" title="Aucun réglage" :message="`Rien ne correspond à « ${query.trim()} ».`" compact />
     </div>
+
+    <!-- Une page dont les panneaux portent deja leurs cartes (les reglages d'administration) les
+         pose ici, sans sections declarees : elle garde l'enregistrement global et la garde de
+         sortie. -->
+    <div v-if="$slots.default" class="configure__content"><slot /></div>
 
     <FormSaveBar :dirty="dirty" :saving="saving" cancelable @save="emit('save')" @cancel="emit('cancel')" />
     <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
@@ -34,7 +39,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue';
 import { SearchX } from '@lucide/vue';
-import { onBeforeRouteLeave } from 'vue-router';
+import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import FormSaveBar from '@/components/ui/FormSaveBar.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
@@ -45,14 +50,14 @@ export type { ConfigureResource, ConfigureSection, ConfigureTestResult, Resource
 
 const props = withDefaults(
   defineProps<{
-    sections: ConfigureSection[];
+    sections?: ConfigureSection[];
     /** Des modifications ne sont pas enregistrees. */
     dirty?: boolean;
     saving?: boolean;
     /** Recherche de la barre du haut : ne garde que les sections qui y repondent. */
     query?: string;
   }>(),
-  { dirty: false, saving: false, query: '' },
+  { sections: () => [], dirty: false, saving: false, query: '' },
 );
 const emit = defineEmits<{ save: []; cancel: [] }>();
 
@@ -67,6 +72,7 @@ const shown = computed(() => {
    navigateur pour un rechargement ou une fermeture d'onglet. */
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
 onBeforeRouteLeave(() => !props.dirty || askConfirm({ title: 'Quitter sans enregistrer ?', message: 'Des modifications ne sont pas enregistrées. Quitter cette page ?', confirmLabel: 'Quitter', danger: true }));
+onBeforeRouteUpdate(() => !props.dirty || askConfirm({ title: 'Changer de section sans enregistrer ?', message: 'Des modifications ne sont pas enregistrées. Changer de section ?', confirmLabel: 'Continuer', danger: true }));
 function warnUnsaved(event: BeforeUnloadEvent): void {
   if (!props.dirty) return;
   event.preventDefault();
@@ -78,7 +84,7 @@ onUnmounted(() => window.removeEventListener('beforeunload', warnUnsaved));
 
 <style scoped lang="scss">
 .configure { display: grid; gap: var(--space-4); min-width: 0; padding-bottom: 80px; }
-.configure__sections { display: grid; gap: var(--space-4); min-width: 0; }
+.configure__sections, .configure__content { display: grid; gap: var(--space-4); min-width: 0; }
 /* Une carte par section : l'en-tete, sur un fond a part, dit ce qu'elle regle ; les
    reglages suivent dessous. Le titre ne se confond plus avec les libelles des champs. */
 .configure__section { display: grid; min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface); scroll-margin-top: var(--space-6); }
