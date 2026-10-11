@@ -1,5 +1,5 @@
 <template>
-  <div class="ui-search-field" :class="`is-${kind}`">
+  <div class="ui-search-field" :class="[`is-${kind}`, { 'is-elevated': elevated }]">
     <div class="ui-search-field__search">
       <!-- Meme capsule partout : recherche et filtre ne se distinguent pas a l'oeil. Le
            compteur « 12 sur 48 » dit seul qu'on regarde un sous-ensemble. -->
@@ -74,6 +74,8 @@ const props = withDefaults(
     matchCount?: number | null;
     totalCount?: number | null;
     moreResults?: boolean;
+    /** La barre flotte au-dessus d'un contenu qui defile : contour et ombre se renforcent. */
+    elevated?: boolean;
   }>(),
   {
     query: '',
@@ -86,6 +88,7 @@ const props = withDefaults(
     matchCount: null,
     totalCount: null,
     moreResults: false,
+    elevated: false,
   }
 );
 
@@ -125,7 +128,14 @@ function onInput(event: Event): void {
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
+/* Trois niveaux, tous a la couleur d'accent du theme :
+   - au repos, un contour d'accent attenue qui dessine la capsule ;
+   - au defilement (`is-elevated`), contour plus marque et ombre qui la decollent du contenu ;
+   - au focus, l'accent plein et son halo : l'etat actif reste le plus fort.
+   Le fond est translucide et flou : on devine le contenu dessous sans qu'il gene le texte. */
 .ui-search-field {
+  --capsule-edge: 40%;
+  --capsule-shadow: 0 4px 14px rgb(var(--shadow-color) / calc(.16 * var(--shadow-scale)));
   display: flex;
   flex: 1;
   align-items: center;
@@ -134,9 +144,21 @@ function onInput(event: Event): void {
   max-width: 480px;
   height: 40px;
   padding: 0;
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--accent) var(--capsule-edge), transparent);
   border-radius: var(--radius-lg);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow: var(--capsule-shadow);
+  transition: border-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
+}
+.ui-search-field.is-elevated {
+  --capsule-edge: 65%;
+  --capsule-shadow: 0 12px 32px rgb(var(--shadow-color) / calc(.4 * var(--shadow-scale))), 0 2px 6px rgb(var(--shadow-color) / calc(.25 * var(--shadow-scale)));
+}
+.ui-search-field:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--capsule-shadow), 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 /* Avec un bouton « Filtres », la capsule cede son coussin de droite : le bouton en
    occupe toute la hauteur et vient au ras du bord, comme un segment de la capsule et
@@ -146,7 +168,8 @@ function onInput(event: Event): void {
 .ui-search-field:has(.ui-search-field__action:not(:empty)) { padding-right: 0; }
 .ui-search-field__search { display: flex; flex: 1 1 auto; align-items: center; gap: var(--space-2); min-width: 0; padding: 0 12px; }
 .ui-search-field__more { flex: none; border: 0; padding: 8px 4px; background: transparent; color: var(--accent); font-size: var(--fs-xs); white-space: nowrap; cursor: pointer; }
-.ui-search-field__icon { flex: none; width: 16px; height: 16px; color: var(--muted); }
+.ui-search-field__icon { flex: none; width: 16px; height: 16px; color: color-mix(in srgb, var(--text) 72%, transparent); }
+.ui-search-field input::placeholder { color: color-mix(in srgb, var(--text) 62%, transparent); }
 .ui-search-field input {
   flex: 1;
   min-width: 0;
@@ -182,22 +205,6 @@ function onInput(event: Event): void {
 .ui-search-field__clear svg { width: 14px; height: 14px; }
 /* La croix native ferait doublon avec la notre, sans en partager l'apparence. */
 .ui-search-field input::-webkit-search-cancel-button { display: none; }
-
-/* Sur telephone, le champ se confondait avec le fond de la barre : meme gris pour le
-   contour, la barre et la page. Le contour prend donc la couleur de l'application, et
-   la loupe avec lui -- c'est le seul repere qui dit ou taper. */
-@include bp.until(tablet) {
-  .ui-search-field {
-    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-    background: color-mix(in srgb, var(--accent) 7%, var(--surface));
-  }
-  .ui-search-field:focus-within {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
-  }
-  .ui-search-field__icon { color: var(--accent); }
-  .ui-search-field input::placeholder { color: color-mix(in srgb, var(--text) 62%, transparent); }
-}
 
 .ui-search-field__filter {
   display: inline-flex;
