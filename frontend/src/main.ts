@@ -5,6 +5,7 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { VueQueryPlugin } from '@tanstack/vue-query';
 import { brancherStockage } from '@/offline/stockage';
 import { installerSortieDePage } from '@/composables/usePageExit';
+import { installerRetourDeNavigation } from '@/composables/useNavigationFeedback';
 import { createQueryClient } from '@/queryClient';
 import { settingsPinia } from '@/settingsForm';
 import { suivreDernierePageApp } from '@/composables/lastAppPath';
@@ -156,6 +157,10 @@ const router = createRouter({
     return { top: 0 };
   },
 });
+
+/* Avant tout : la barre de progression doit partir des le debut de la navigation, avant
+   la session et le chargement de la vue. */
+installerRetourDeNavigation(router);
 
 // Avant les autres gardes : un retour qui ferme une surface ne doit declencher ni
 // chargement de session ni redirection.

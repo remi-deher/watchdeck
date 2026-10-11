@@ -68,7 +68,7 @@
     <!-- Hub "Tout" : atterrissage façon accueil Plex quand aucun type/filtre n'est
          choisi -- hero sur le dernier ajout, puis une rangee par bibliotheque. -->
     <div v-if="isAllHub" class="music-hub">
-      <MediaHeroBanner :items="allHubRecent.slice(0, 5)" :discover-context="false" @open="openDetail" />
+      <MediaHeroBanner :items="allHubRecent.slice(0, 5)" :discover-context="false" :show-status="false" @open="openDetail" />
       <MusicHubRow title="Derniers ajouts" :items="allHubRecent" :loading="allHubLoading" clickable @title-click="showAllByRecent" @open="openDetail" />
       <MusicHubRow title="Dernières demandes" :items="allHubRequests" :loading="allHubLoading" :more-to="allRequestsTarget()" @open="openDetail" />
       <MusicHubRow title="Films" :items="allHubMovies" :loading="allHubLoading" :more-to="musicFilterTarget(['movie'])" @open="openDetail" />
@@ -90,7 +90,7 @@
     <!-- Hub Films/Series : hero + ajouts recents + demandes + rangees par genre (top
          genres reels, alimentes par le sync Plex -- voir /api/library-genres). -->
     <div v-else-if="isMovieShowHub" class="music-hub">
-      <MediaHeroBanner :items="typeHubRecent.slice(0, 5)" :discover-context="false" @open="openDetail" />
+      <MediaHeroBanner :items="typeHubRecent.slice(0, 5)" :discover-context="false" :show-status="false" @open="openDetail" />
       <MusicHubRow title="Derniers ajouts" :items="typeHubRecent" :loading="typeHubLoading" clickable @title-click="showAllByRecent" @open="openDetail" />
       <MusicHubRow title="Dernières demandes" :items="typeHubRequests" :loading="typeHubLoading" :more-to="typeRequestsTarget()" @open="openDetail" />
       <MusicHubRow

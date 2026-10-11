@@ -122,7 +122,12 @@
 .ui-feedback.is-success { color: var(--green-text); border-color: color-mix(in srgb, var(--green) 30%, transparent); background: color-mix(in srgb, var(--green) 7%, transparent); }
 .ui-feedback.is-error { color: var(--red-text); border-color: color-mix(in srgb, var(--red) 35%, transparent); background: color-mix(in srgb, var(--red) 7%, transparent); }
 .ui-feedback.is-warning { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
-.ui-feedback.is-loading > svg { animation: spin 1s linear infinite; }
+.ui-feedback.is-loading > svg { animation: spin 1s linear infinite; color: var(--accent); }
+/* Un chargement bref ne doit pas clignoter : l'etat n'apparait qu'apres un court delai, puis
+   en fondu. Passe ce delai, il rassure -- la page n'est pas figee. */
+.ui-feedback.is-loading { animation: feedback-loading-in var(--motion-duration-base, 200ms) var(--motion-ease-standard, ease) 150ms backwards; }
+@keyframes feedback-loading-in { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .ui-feedback.is-loading { animation: none; } }
 .ui-feedback-close { display: grid; place-items: center; width: 44px; height: 44px; border: 0; background: transparent; color: currentColor; border-radius: var(--radius-sm); cursor: pointer; }
 .ui-feedback-close:hover { background: rgb(var(--ink) / .06); }
 .ui-feedback-close svg { width: 17px; }
