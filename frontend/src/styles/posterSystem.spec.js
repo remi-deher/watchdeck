@@ -28,18 +28,21 @@ describe('systeme commun des affiches', () => {
 
   it('centralise les collections de Bibliotheque et Decouvrir', () => {
     const collection = source('components/media/MediaPosterCollection.vue');
+    const explore = source('components/templates/ExploreTemplate.vue');
+    const browse = source('components/templates/BrowseTemplate.vue');
     const library = source('views/LibraryView.vue');
     const discover = source('views/DiscoverView.vue');
     const statusBadge = source('components/media/MediaStatusBadge.vue');
-    const libraryRail = source('components/library/MusicHubRow.vue');
 
     expect(collection).toContain("mode?: 'grid' | 'rail'");
     expect(collection).toContain("size?: 'standard' | 'compact' | 'music'");
-    expect(library).toContain('<MediaPosterCollection');
+    // La Bibliotheque passe par les gabarits, qui posent la collection commune.
+    expect(explore).toContain('<MediaPosterCollection');
+    expect(browse).toContain('<MediaPosterCollection');
+    expect(library).toContain('<ExploreTemplate');
+    expect(library).toContain('<BrowseTemplate');
     expect(discover).toContain('<MediaPosterCollection');
     expect(statusBadge).toContain('var(--poster-badge-font-size)');
-    expect(libraryRail).toContain(":size=\"size\"");
-    expect(libraryRail).toContain("size: 'standard'");
   });
 });
 

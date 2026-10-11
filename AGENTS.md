@@ -88,6 +88,14 @@ Une page Explorer s'écrit `PageTemplate` (types en `tabs`, `search`, filtres, e
 `ExploreDisplay` pour le tri et l'affichage dans la feuille) > `ExploreTemplate` : elle
 fournit les pastilles actives (`chips`) et la carte commune de chaque élément
 (emplacement `item`).
+Une même adresse peut porter les deux besoins : la Bibliothèque se parcourt (hubs : bannière et
+rangées, `BrowseTemplate`) tant qu'aucun filtre ni recherche n'affine la vue, puis s'explore
+(grille, `ExploreTemplate`) dès qu'il y en a un ou qu'un titre de rangée y mène ; la page ne
+change pas, seul le gabarit affiché bascule. Les filtres sont des définitions (données),
+rendues par les composants communs, dont se déduisent aussi les pastilles actives ; la logique
+de données vit dans un composable (`useLibraryExplorer`). `ExploreTemplate` virtualise la
+grille au-delà de 300 éléments. Ni action de carte ni sélection groupée dans une grille
+Explorer : c'est la fiche qui agit.
 Une page Comprendre s'écrit `PageTemplate` > `UnderstandTemplate` : elle fournit
 `events`, charge le `detail` de l'événement ouvert (`open`), et éventuellement `summary`.
 Aucune action dans la liste ; au plus une dans le détail.
