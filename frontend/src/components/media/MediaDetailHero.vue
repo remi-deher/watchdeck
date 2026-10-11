@@ -13,6 +13,7 @@
     :variant="variant"
     stack-on-mobile
     fade
+    :dock="['badges', 'dates', 'actions']"
   >
     <template #overlay>
       <button class="mdh-back icon-button" title="Retour" aria-label="Retour" @click="$emit('back')"><ArrowLeft /></button>
@@ -63,19 +64,23 @@
             :media-title="detail.title"
           />
         </div>
-    <!-- Sous l'affiche : presence Plex et langue sur une seule ligne, les dates si le resume
-         les laisse la, puis les actions. -->
-    <template #below>
+    <!-- Le dock (voir SheetHero) : chaque element se glisse a droite de l'affiche, sous le texte,
+         tant qu'il tient sans depasser le bas de l'affiche ; sinon il reste dessous, en ligne. -->
+    <template #dock-badges>
       <div v-if="posterBadges" class="mdh-poster-badges">
         <span v-if="plexStatus" class="badge mdh-status" :class="plexStatus.variant">{{ plexStatus.label }}</span>
         <MediaLanguageBadge v-if="movieLanguage" class="badge" :state="detail" />
       </div>
-      <dl v-if="releaseDates.length && !isMusic && !datesBeside" class="mdh-dates">
+    </template>
+    <template #dock-dates>
+      <dl v-if="releaseDates.length && !isMusic" class="mdh-dates">
         <div v-for="entry in releaseDates" :key="entry.label">
           <dt>{{ entry.label }}</dt>
           <dd>{{ entry.value }}</dd>
         </div>
       </dl>
+    </template>
+    <template #dock-actions>
       <div v-if="preview" class="mdh-links" aria-hidden="true">
         <span class="skeleton-pill" /><span class="skeleton-pill" />
       </div>
@@ -117,16 +122,6 @@
           <UiMenuItem variant="danger" @select="$emit('report-issue')"><Flag :size="15" /> Signaler un problème</UiMenuItem>
         </UiMenu>
       </div>
-    </template>
-    <!-- Resume court : les dates passent a droite, au niveau de ce qui est sous l'affiche, pour
-         equilibrer le haut de la feuille sans casser la separation. -->
-    <template v-if="releaseDates.length && !isMusic && datesBeside" #extra>
-      <dl class="mdh-dates is-beside">
-        <div v-for="entry in releaseDates" :key="entry.label">
-          <dt>{{ entry.label }}</dt>
-          <dd>{{ entry.value }}</dd>
-        </div>
-      </dl>
     </template>
   </SheetHero>
 </template>
@@ -310,10 +305,6 @@ function formatSeasonLabel(seasonNumbers: number[]): string {
 }
 
 const overviewText = computed(() => props.detail.overview || (isMusic.value ? 'Aucune biographie disponible pour cet artiste.' : 'Aucun résumé disponible.'));
-/* Resume court : le haut de la feuille serait dechire entre une colonne chargee (sous l'affiche)
-   et une colonne vide. Les dates passent alors a droite. */
-const SHORT_OVERVIEW = 200;
-const datesBeside = computed(() => !props.preview && overviewText.value.length < SHORT_OVERVIEW);
 
 const typeLabel = computed(() => mediaTypeLabel(props.detail.media_type));
 
@@ -459,19 +450,10 @@ const releaseDates = computed(() => {
   margin-bottom: 12px;
 }
 .mdh-dates {
-  display: grid;
-  gap: var(--space-2);
-  margin: var(--space-3) 0 0;
-}
-/* Resume court : les dates forment un bloc a droite, au niveau de ce qui est sous l'affiche. */
-.mdh-dates.is-beside {
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: var(--space-3) var(--space-5);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
   margin: 0;
-  padding: var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--surface) 70%, transparent);
 }
 .mdh-dates > div {
   display: grid;
@@ -500,15 +482,11 @@ const releaseDates = computed(() => {
   font-size: var(--fs-sm);
 }
 .mdh-links {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
-  margin-top: var(--space-3);
 }
-.mdh-links > .mdh-listen-btn,
-.mdh-links > .mdh-download-btn { grid-column: 1; justify-content: center; min-width: 0; }
-.mdh-links > .mdh-more-menu { grid-column: 2; grid-row: 1; }
-.mdh-links > :only-child { grid-column: 1 / -1; justify-self: start; }
 .mdh-language-summary {
   display: flex;
   flex-wrap: wrap;
@@ -585,7 +563,7 @@ const releaseDates = computed(() => {
   .mdh-overview {
     text-align: left;
   }
-  .mdh-dates { grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); text-align: left; }
+  .mdh-dates { justify-content: center; text-align: left; }
   .mdh-links > .mdh-request-btn,
   .mdh-links > .mdh-listen-btn,
   .mdh-links > .mdh-download-btn { min-height: 44px; }

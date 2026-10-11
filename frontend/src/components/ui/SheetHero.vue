@@ -16,24 +16,38 @@
       <template v-if="$slots.overlay" #overlay><slot name="overlay" /></template>
     </UiHeroBackdrop>
     <div class="sheet-hero__content" :class="contentClass">
-      <!-- Grille : l'affiche, ce qui la prolonge dessous (`below`), le texte a droite, et
-           `extra` au niveau de `below` quand le texte laisse de la place. Sans `extra`, le
-           texte occupe toute la hauteur a droite. -->
-      <div class="sheet-hero__row" :class="[rowClass, { 'has-poster': $slots.poster, 'has-extra': $slots.extra }]">
-        <div v-if="$slots.poster" class="sheet-hero__poster"><slot name="poster" /></div>
-        <div class="sheet-hero__info"><slot /></div>
-        <div v-if="$slots.below" class="sheet-hero__below"><slot name="below" /></div>
-        <div v-if="$slots.extra" class="sheet-hero__extra"><slot name="extra" /></div>
+      <!-- Grille : l'affiche, le texte a droite, et dessous le « dock » : les elements annexes
+           (statut, dates, boutons), declares par `dock` et fournis chacun par un emplacement
+           `dock-<cle>`. La limite est le bas de l'affiche : chaque element, dans l'ordre, se
+           glisse a droite sous le texte tant qu'il tient sans la depasser ; le premier qui ne
+           tient pas, et ceux qui le suivent, restent dessous, sur une ligne. Les mesures
+           se refont en direct (largeur, texte replie ou deplie), avec une petite animation. -->
+      <div class="sheet-hero__row" :class="[rowClass, { 'has-poster': $slots.poster }]">
+        <div v-if="$slots.poster" ref="posterEl" class="sheet-hero__poster"><slot name="poster" /></div>
+        <div ref="infoEl" class="sheet-hero__info">
+          <div ref="mainEl" class="sheet-hero__main"><slot /></div>
+          <div v-if="sideKeys.length" class="sheet-hero__aside">
+            <div v-for="key in sideKeys" :key="key" class="sheet-hero__dock-item" :style="transitionName(key)"><slot :name="`dock-${key}`" /></div>
+          </div>
+        </div>
+        <div v-if="belowKeys.length" class="sheet-hero__dock">
+          <div v-for="key in belowKeys" :key="key" class="sheet-hero__dock-item" :style="transitionName(key)"><slot :name="`dock-${key}`" /></div>
+        </div>
+        <!-- Sonde : les memes elements, invisibles, a la largeur de la colonne de droite --
+             on y lit leur hauteur et si l'un d'eux est vide. -->
+        <div v-if="dock.length" ref="probeEl" class="sheet-hero__probe" aria-hidden="true" inert>
+          <div v-for="key in dock" :key="key" class="sheet-hero__dock-item"><slot :name="`dock-${key}`" /></div>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { HTMLAttributes } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, useId, watch, type HTMLAttributes } from 'vue';
 import UiHeroBackdrop from '@/components/ui/UiHeroBackdrop.vue';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     imageUrl?: string | null;
     variant?: 'card' | 'sheet';
@@ -43,6 +57,8 @@ withDefaults(
     stackOnMobile?: boolean;
     /** Deborde des marges de `SheetPage` pour toucher les bords de la feuille. */
     bleed?: boolean;
+    /** Elements annexes, dans l'ordre : chacun est fourni par l'emplacement `dock-<cle>`. */
+    dock?: string[];
     /** Image plus haute qui s'efface vers le bas, derriere l'affiche et le texte. */
     fade?: boolean;
     bannerClass?: HTMLAttributes['class'];
@@ -56,12 +72,85 @@ withDefaults(
     minHeight: undefined,
     stackOnMobile: false,
     bleed: false,
+    dock: () => [],
     fade: false,
     bannerClass: undefined,
     contentClass: undefined,
     rowClass: undefined,
   },
 );
+
+/* ---- Le dock : a droite de l'affiche s'il tient, sinon dessous ---- */
+const GAP_PX = 12;
+const uid = useId();
+const posterEl = ref<HTMLElement | null>(null);
+const infoEl = ref<HTMLElement | null>(null);
+const mainEl = ref<HTMLElement | null>(null);
+const probeEl = ref<HTMLElement | null>(null);
+/* Sans mesure possible (premiere image, tests), tout reste dessous : c'est la disposition sure. */
+const present = ref<string[]>([...props.dock]);
+const placement = reactive<Record<string, 'side' | 'below'>>({});
+const sideKeys = computed(() => present.value.filter((key) => placement[key] === 'side'));
+const belowKeys = computed(() => present.value.filter((key) => placement[key] !== 'side'));
+const transitionName = (key: string) => ({ viewTransitionName: `dock-${uid.replace(/[^a-zA-Z0-9]/g, '')}-${key}` });
+
+function same(next: Record<string, 'side' | 'below'>, keys: string[]): boolean {
+  return keys.length === present.value.length && keys.every((key, index) => key === present.value[index] && next[key] === placement[key]);
+}
+function apply(next: Record<string, 'side' | 'below'>, keys: string[]): void {
+  const commit = () => {
+    present.value = keys;
+    for (const key of Object.keys(placement)) delete placement[key];
+    Object.assign(placement, next);
+  };
+  const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const transition = typeof document !== 'undefined' ? (document as any).startViewTransition?.bind(document) : null;
+  if (!transition || reduced || !Object.keys(placement).length) commit();
+  else transition(async () => { commit(); await nextTick(); });
+}
+
+function measure(): void {
+  const probe = probeEl.value;
+  const main = mainEl.value;
+  if (!probe || !main || !props.dock.length) return;
+  const items = [...probe.children] as HTMLElement[];
+  const keys = props.dock.filter((_, index) => items[index] && (items[index].childElementCount > 0 || (items[index].textContent || '').trim()));
+  const info = infoEl.value;
+  if (info) probe.style.width = `${info.clientWidth}px`;
+  const poster = posterEl.value?.getBoundingClientRect();
+  /* La limite : le bas de l'affiche. Sans affiche mesurable, ou si le texte la depasse deja
+     (empile sur telephone), rien ne se glisse a droite. */
+  let open = Boolean(poster && poster.height > 0);
+  let y = main.getBoundingClientRect().bottom + GAP_PX;
+  const next: Record<string, 'side' | 'below'> = {};
+  for (const key of keys) {
+    const height = items[props.dock.indexOf(key)].offsetHeight;
+    if (open && poster && y + height <= poster.bottom + 0.5) {
+      next[key] = 'side';
+      y += height + GAP_PX;
+    } else {
+      open = false;
+      next[key] = 'below';
+    }
+  }
+  if (!same(next, keys)) apply(next, keys);
+}
+
+let frame = 0;
+function schedule(): void {
+  if (typeof requestAnimationFrame !== 'function') return;
+  cancelAnimationFrame(frame);
+  frame = requestAnimationFrame(measure);
+}
+let observer: ResizeObserver | null = null;
+onMounted(() => {
+  if (typeof ResizeObserver === 'undefined') return;
+  observer = new ResizeObserver(schedule);
+  for (const el of [posterEl.value, infoEl.value, mainEl.value, probeEl.value]) if (el) observer.observe(el);
+  void nextTick(measure);
+});
+onBeforeUnmount(() => { observer?.disconnect(); if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame); });
+watch(() => props.dock.join('|'), () => { present.value = [...props.dock]; void nextTick(measure); });
 </script>
 
 <style scoped lang="scss">
@@ -90,7 +179,6 @@ withDefaults(
 .sheet-hero__row {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto 1fr;
   column-gap: var(--space-5);
   row-gap: var(--space-3);
   align-items: start;
@@ -105,22 +193,25 @@ withDefaults(
 }
 .sheet-hero__info {
   grid-column: 1;
-  grid-row: 1 / span 2;
+  grid-row: 1;
   min-width: 0;
   padding-top: var(--space-4);
 }
 .sheet-hero__row.has-poster .sheet-hero__info { grid-column: 2; }
-.sheet-hero__row.has-extra .sheet-hero__info { grid-row: 1; }
-/* Sous l'affiche : sa largeur est celle de l'affiche, jamais plus (width 0 + min-width). */
-.sheet-hero__below {
-  grid-column: 1;
+/* Le dock : a droite sous le texte (colonne), ou dessous sur toute la largeur (ligne). */
+.sheet-hero__aside { display: grid; gap: var(--space-3); margin-top: var(--space-3); }
+.sheet-hero__dock {
+  grid-column: 1 / -1;
   grid-row: 2;
   position: relative;
   z-index: 2;
-  width: 0;
-  min-width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
 }
-.sheet-hero__extra { grid-column: 2; grid-row: 2; min-width: 0; }
+.sheet-hero__dock-item { min-width: 0; }
+.sheet-hero__probe { position: absolute; left: 0; top: 0; display: grid; gap: var(--space-3); visibility: hidden; pointer-events: none; }
 
 /* Fondu : l'image est plus haute et se retire derriere l'affiche et le texte, qui
    commencent donc sur elle, a la meme hauteur. */
@@ -140,7 +231,7 @@ withDefaults(
   .sheet-hero.is-stacked { --sheet-hero-overlap: 90px; --sheet-hero-fade-depth: 150px; }
   .sheet-hero.is-fade .sheet-hero__banner,
   .sheet-hero.is-fade.is-sheet .sheet-hero__banner { min-height: clamp(320px, 46dvh, 420px); }
-  /* Empile, centre : affiche, ce qui est dessous, texte, puis le complement. */
+  /* Empile, centre : affiche, texte, puis le dock sur toute la largeur. */
   .sheet-hero.is-stacked .sheet-hero__row {
     display: flex;
     flex-direction: column;
@@ -148,12 +239,7 @@ withDefaults(
     text-align: center;
   }
   .sheet-hero.is-stacked .sheet-hero__info { width: 100%; padding-top: 0; }
-  .sheet-hero.is-stacked .sheet-hero__below,
-  .sheet-hero.is-stacked .sheet-hero__extra { width: 100%; min-width: 0; }
-  .sheet-hero.is-stacked .sheet-hero__poster { order: 1; }
-  .sheet-hero.is-stacked .sheet-hero__below { order: 2; }
-  .sheet-hero.is-stacked .sheet-hero__info { order: 3; }
-  .sheet-hero.is-stacked .sheet-hero__extra { order: 4; }
+  .sheet-hero.is-stacked .sheet-hero__dock { width: 100%; justify-content: center; }
 }
 
 @include bp.from(tablet) {
