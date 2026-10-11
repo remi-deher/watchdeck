@@ -166,6 +166,12 @@ des sections de l'entrée du menu. Les vues de la section courante (`tabs` de
 section courante (« Traitements · File ▾ ») ; toucher une autre section mène à sa
 première vue. Sans sections, les vues gardent leur rangée d'onglets.
 
+En-tête de fiche (`SheetHero`) : les éléments annexes (statut, dates, boutons) se déclarent par
+`dock` et des emplacements `dock-<clé>`. La limite est le bas de l'affiche : chaque élément, dans
+l'ordre, se glisse à droite sous le texte tant qu'il tient sans la dépasser, sinon il reste
+dessous, en ligne ; la mesure se refait en direct (largeur, texte replié ou déplié), avec une
+petite animation. Une page ne place jamais ces éléments elle-même.
+
 Blocs communs hors gabarit : `MiniCalendar` (dates d'un élément en liste, par mois,
 couleur et icône par type : cinéma, streaming, physique, épisode), à utiliser dans une
 fiche plutôt qu'un calendrier.

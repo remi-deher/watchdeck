@@ -203,7 +203,7 @@ describe('MediaDetailHero', () => {
     });
     expect(wrapper.find('.mdh-kicker .mdh-status').exists()).toBe(false);
     // Une seule ligne sous l'affiche : presence Plex et langue.
-    expect(wrapper.findAll('.sheet-hero__below .mdh-poster-badges .badge')).toHaveLength(2);
+    expect(wrapper.findAll('.sheet-hero__dock .mdh-poster-badges .badge')).toHaveLength(2);
     expect(wrapper.find('.mdh-language-summary').exists()).toBe(false);
 
     const demande = mount(MediaDetailHero, { props: { detail: { title: 'Dune', media_type: 'movie', requested: true, request_id: 4, availability: { plex: 'absent', episodes: { state: 'unknown' } } } } });
@@ -214,15 +214,14 @@ describe('MediaDetailHero', () => {
     expect(disponible.get('.mdh-kicker').text()).toContain('Disponible');
   });
 
-  it('place les dates sous l’affiche, ou à droite quand le résumé est court', () => {
+  it('range statut, dates et actions dans le dock, élément par élément', () => {
     const dates = { cinema: '2024-03-01', plateforme: '2024-06-01' };
-    const court = mount(MediaDetailHero, { props: { detail: { title: 'Dune', media_type: 'movie', overview: 'Bref.', release_dates: dates } } });
-    expect(court.find('.sheet-hero__below .mdh-dates').exists()).toBe(false);
-    expect(court.find('.sheet-hero__extra .mdh-dates').exists()).toBe(true);
-
-    const long = mount(MediaDetailHero, { props: { detail: { title: 'Dune', media_type: 'movie', overview: 'x'.repeat(260), release_dates: dates } } });
-    expect(long.find('.sheet-hero__below .mdh-dates').exists()).toBe(true);
-    expect(long.find('.sheet-hero__extra').exists()).toBe(false);
+    const wrapper = mount(MediaDetailHero, { props: { detail: { title: 'Dune', media_type: 'movie', overview: 'Bref.', release_dates: dates, plex_guid: 'plex://movie/1' } } });
+    // Sans mesure possible, tout reste dessous : disposition sûre, jamais de trou.
+    const dock = wrapper.get('.sheet-hero__dock');
+    expect(dock.find('.mdh-dates').exists()).toBe(true);
+    expect(dock.find('.mdh-links').exists()).toBe(true);
+    expect(wrapper.find('.sheet-hero__aside').exists()).toBe(false);
   });
 
   it('pose l’image en fondu, plus haute que l’ancienne bannière', () => {
