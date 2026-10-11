@@ -1,6 +1,6 @@
 <template>
   <!-- Journal d'un traitement FileFlows : la fin explique un echec, on y descend d'emblee. -->
-  <ModalShell :open="Boolean(file)" :title="file ? fileBaseName(file.name) : ''" subtitle="Journal du traitement" panel-class="fileflows-log-modal" @close="emit('close')">
+  <ModalShell :open="Boolean(file)" :title="file ? fileBaseName(file.name) : ''" subtitle="Journal du traitement" size="xl" @close="emit('close')">
     <UiFeedback v-if="logQuery.isError.value" type="error" :message="humanizeError(logQuery.error.value)" />
     <p v-else-if="logQuery.isPending.value" class="log-loading">Chargement du journal…</p>
     <template v-else>
@@ -63,7 +63,6 @@ async function copy(): Promise<void> {
 </script>
 
 <style scoped lang="scss">
-:global(.fileflows-log-modal) { width: min(1100px, 100%); }
 .log-tools { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
 .log-tools > :first-child { flex: 1; min-width: 0; }
 .log-loading { margin: 0; color: var(--muted); }

@@ -10,6 +10,17 @@ import ModalShell from './ModalShell.vue';
 const reel = { global: { stubs: { teleport: false } } };
 
 describe('ModalShell', () => {
+  it('porte une largeur standard (`md` par défaut, `size` pour les autres)', async () => {
+    const defaut = mount(ModalShell, { props: { title: 'Par défaut' }, attachTo: document.body, ...reel });
+    await nextTick();
+    expect(document.querySelector('.modal-panel').classList).toContain('modal-size-md');
+    defaut.unmount();
+    const large = mount(ModalShell, { props: { title: 'Journal', size: 'xl' }, attachTo: document.body, ...reel });
+    await nextTick();
+    expect(document.querySelector('.modal-panel').classList).toContain('modal-size-xl');
+    large.unmount();
+  });
+
   it('rend un voile et un dialogue accessibles, nommes par leur titre', async () => {
     const wrapper = mount(ModalShell, {
       props: { title: 'Ajouter une instance', panelClass: 'arr-instance-modal' },

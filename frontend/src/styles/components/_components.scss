@@ -372,6 +372,14 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   }
 }
 
+/* Largeurs standard des fenetres (`size` de ModalShell), sur ordinateur seulement : sur
+   telephone, la feuille ancree en bas prend toute la largeur. `md` est la largeur par defaut. */
+@include bp.from(tablet) {
+  .modal-panel.modal-size-sm { width: min(480px, calc(100% - 24px)); }
+  .modal-panel.modal-size-lg { width: min(880px, calc(100% - 24px)); }
+  .modal-panel.modal-size-xl { width: min(1100px, calc(100% - 24px)); }
+}
+
 /* Volet d'un objet de réglage (SettingsItem). Sur ordinateur il glisse depuis la
    droite et occupe la hauteur de l'écran : la liste reste visible à côté, on garde le
    contexte de ce qu'on configure. Sur téléphone, c'est la feuille ancrée en bas commune

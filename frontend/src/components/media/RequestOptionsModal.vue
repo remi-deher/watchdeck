@@ -4,7 +4,7 @@
     :open="open"
     title="Options de la demande"
     :subtitle="mediaTitle"
-    panel-class="request-options-modal"
+    size="sm"
     :busy="busy"
     @close="$emit('cancel')"
   >
@@ -116,7 +116,6 @@ function toggleSeason(season: number, checked: boolean): void {
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
-:deep(.request-options-modal) { width: min(480px, calc(100% - 24px)); }
 .request-options-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
 .request-options-intro { margin: 0 0 var(--space-4); color: var(--muted); line-height: 1.5; }
 .request-options-grid label { display: grid; gap: var(--space-2); font-size: var(--fs-sm); font-weight: 600; }

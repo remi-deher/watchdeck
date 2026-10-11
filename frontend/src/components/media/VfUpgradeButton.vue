@@ -8,7 +8,7 @@
       <span v-else class="vf-upgrade-count vf-upgrade-badge">{{ publishedReleases.length }}</span>
     </UiButton>
 
-    <ModalShell v-if="open" :title="modalTitle" :subtitle="`Recherche via ${arrName}`" panel-class="vf-upgrade-modal" :error="error" :busy="Boolean(grabbing)" @close="open=false">
+    <ModalShell v-if="open" :title="modalTitle" :subtitle="`Recherche via ${arrName}`" size="lg" :error="error" :busy="Boolean(grabbing)" @close="open=false">
       <UiSegmentedControl :model-value="mode" :options="modeOptions" :ariaLabel="'Mode de recherche'" @update:model-value="handleModeChange" />
       <div class="vf-upgrade-toolbar">
         <UiButton size="sm" :loading="searching" :disabled="Boolean(grabbing)" @click="runSearch"><template #icon><RefreshCw :size="15" /></template>{{ searching ? `Recherche ${arrName} en cours…` : 'Relancer la recherche' }}</UiButton>
@@ -431,7 +431,6 @@ defineExpose({ toggle, count: computed(() => publishedReleases.value.length) });
 .vf-upgrade-trigger.active { color: var(--accent); border-color: var(--accent); }
 .vf-upgrade-count { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--radius-pill); background: var(--accent); color: var(--on-accent); font-size: var(--fs-xs); font-weight: 700; }
 .vf-upgrade-badge { min-width: 20px; height: 20px; font-size: var(--fs-xs); }
-:deep(.vf-upgrade-modal) { width: min(880px, 96vw); max-height: 92vh; }
 .vf-upgrade-toolbar { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 9px 0 12px; border-bottom: 1px solid var(--border); }
 .compact-search-button, .compact-check, .release-head, .vf-upgrade-release-actions, .arr-status { display: flex; align-items: center; gap: 7px; }
 .compact-search-button { min-height: 38px; }
@@ -495,7 +494,6 @@ defineExpose({ toggle, count: computed(() => publishedReleases.value.length) });
 .spin { animation: vf-upgrade-spin 1s linear infinite; }
 @keyframes vf-upgrade-spin { to { transform: rotate(360deg); } }
 @include bp.until(tablet) {
-  :deep(.vf-upgrade-modal) { width: 96vw; }
   .vf-upgrade-toolbar { flex-wrap: wrap; }
   .compact-check { margin-left: 0; }
   .vf-upgrade-list { max-height: 56vh; }

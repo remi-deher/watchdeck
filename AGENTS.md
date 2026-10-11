@@ -117,6 +117,25 @@ saisie avec propositions, sélection, cartes, interrupteur, secret, recherche, n
 fenêtre qui gère une liste (catégories et tags d'un client) est un `ControlTable` dans un
 `ModalShell`, dont les saisies repassent par le gabarit Créer.
 
+Fenêtres : un seul socle, `ModalShell` (focus, Échap, clic extérieur, geste de fermeture,
+feuille ancrée en bas sur téléphone, titre, erreur, actions). On n'écrit jamais une fenêtre
+à côté, et on ne crée pas un composant par type de contenu : chaque fenêtre relève d'un
+rôle, qui décide de ce qu'elle contient et de sa forme.
+
+| Rôle | Question | Composant | Forme |
+|---|---|---|---|
+| **Confirmer** | « Je valide cette action ? » | `ConfirmModal` | petite carte, deux boutons ; ni clic extérieur ni Échap pendant l'action |
+| **Saisir** | « Je renseigne quelque chose » | gabarit Créer (une définition) | étapes, validation, récapitulatif |
+| **Gérer une liste** | « Je modifie un ensemble » | `ControlTable` dans `ModalShell` | `lg` ; les saisies repassent par Créer |
+| **Consulter** | « Je lis, je regarde » | `ModalShell`, sans champ | `xl` pour un journal ou un aperçu ; aucune action de saisie |
+| **Choisir** | « Je prends un élément parmi plusieurs » | `ModalShell` | `sm` ou `md` ; un choix, retour immédiat |
+
+La largeur se règle par `size` (`sm` 480 px, `md` 680 px par défaut, `lg` 880 px, `xl`
+1100 px), jamais par une classe `panel-class` propre à la fenêtre ; sur téléphone, toutes
+sont la même feuille pleine largeur. `panel-class` ne sert qu'à une variante de surface
+commune (`filter-sheet`, `settings-drawer`). Une taille qui manque s'ajoute à `ModalShell`,
+pour toutes les fenêtres.
+
 Un média de la bibliothèque se transmet toujours entier : côté serveur par
 `services/media_ref.py` (`media_ref`, toutes ses images), côté interface en `MediaRef`
 (`@/types`). Un composant commun qui affiche un média le reçoit dans `media` et montre

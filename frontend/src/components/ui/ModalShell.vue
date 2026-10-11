@@ -9,7 +9,7 @@
       <DialogContent
         ref="panelRef"
         class="modal-panel"
-        :class="panelClass"
+        :class="[`modal-size-${size}`, panelClass]"
         :aria-label="ariaLabel || undefined"
         v-bind="subtitle ? {} : { 'aria-describedby': undefined }"
         @open-auto-focus="onOpenAutoFocus"
@@ -46,8 +46,12 @@ import { useShellMode } from '@/composables/useShellMode';
 import UiButton from './UiButton.vue';
 import UiFeedback from './UiFeedback.vue';
 
-const props = withDefaults(defineProps<{ open?: boolean; title: string; subtitle?: string; ariaLabel?: string; panelClass?: string; error?: string; busy?: boolean; initialFocus?: string; modal?: boolean }>(),
-  { open: true, subtitle: '', ariaLabel: '', panelClass: '', error: '', busy: false, initialFocus: '', modal: true });
+/** Largeur sur ordinateur : `sm` 480 px (une question, un choix), `md` 680 px (par defaut), `lg` 880 px
+ * (liste et detail), `xl` 1100 px (journal, apercu). Sur telephone, toujours la feuille pleine largeur. */
+export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
+
+const props = withDefaults(defineProps<{ open?: boolean; size?: ModalSize; title: string; subtitle?: string; ariaLabel?: string; panelClass?: string; error?: string; busy?: boolean; initialFocus?: string; modal?: boolean }>(),
+  { open: true, size: 'md', subtitle: '', ariaLabel: '', panelClass: '', error: '', busy: false, initialFocus: '', modal: true });
 const emit = defineEmits<{ (e: 'close'): void }>();
 const shellMode = useShellMode();
 const panelRef = ref<unknown>(null);
