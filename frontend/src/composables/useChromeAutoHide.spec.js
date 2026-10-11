@@ -33,6 +33,17 @@ describe('useChromeAutoHide', () => {
     expect(hidden.value, 'remonter doit ramener les surfaces').toBe(false);
   });
 
+  it('dit si la page a quitte le haut, même quand la barre reste affichée', () => {
+    const { scrolled, hidden } = useChromeAutoHide();
+    expect(scrolled.value).toBe(false);
+    // Un peu défilé : la barre flotte déjà au-dessus du contenu, sans être masquée.
+    scrollTo(60);
+    expect(scrolled.value).toBe(true);
+    expect(hidden.value).toBe(false);
+    scrollTo(0);
+    expect(scrolled.value).toBe(false);
+  });
+
   it('ne masque rien tant qu’on est en haut de page', () => {
     const { hidden } = useChromeAutoHide();
 

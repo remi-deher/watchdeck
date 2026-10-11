@@ -24,6 +24,9 @@ const HIDE_DELTA_PX = 7;
 const SHOW_DELTA_PX = -5;
 
 const hidden = ref(false);
+/* Page defilee : on a quitte le haut. Les surfaces flottantes s'en servent pour se decoller
+   du contenu (ombre, contour) sans attendre d'etre masquees. */
+const scrolled = ref(false);
 /* Raisons de forcer l'affichage : champ de recherche au focus, tiroir de filtres
    ouvert… Tant qu'il en reste une, la barre ne se masque pas. Un ensemble plutôt qu'un
    booléen : deux composants peuvent tenir la barre visible en même temps, et le premier
@@ -52,6 +55,7 @@ export function resumeAutoHide(): void {
 function onScroll(): void {
   if (suspensions > 0) return;
   const current = Math.max(0, window.scrollY);
+  scrolled.value = current >= TOP_ZONE_PX;
   const delta = current - lastScrollY;
   if (current < TOP_ZONE_PX || delta < SHOW_DELTA_PX || holds.size > 0) hidden.value = false;
   else if (delta > HIDE_DELTA_PX && current > HIDE_AFTER_PX) hidden.value = true;
@@ -61,6 +65,8 @@ function onScroll(): void {
 export interface ChromeAutoHide {
   /** Vrai quand les surfaces flottantes doivent s'effacer. */
   hidden: Readonly<Ref<boolean>>;
+  /** Vrai des que la page a quitte le haut : la barre flotte alors au-dessus du contenu. */
+  scrolled: Readonly<Ref<boolean>>;
   /** Force l'affichage tant que `active` est vrai, sous une clé propre à l'appelant. */
   setHold: (key: string, active: boolean) => void;
   /** Ramène les surfaces à l'écran (navigation, raccourci clavier…). */
@@ -71,6 +77,7 @@ export function useChromeAutoHide(): ChromeAutoHide {
   if (typeof window !== 'undefined') {
     if (listeners === 0) {
       lastScrollY = Math.max(0, window.scrollY);
+      scrolled.value = lastScrollY >= TOP_ZONE_PX;
       window.addEventListener('scroll', onScroll, { passive: true });
     }
     listeners += 1;
@@ -95,5 +102,5 @@ export function useChromeAutoHide(): ChromeAutoHide {
     hidden.value = false;
   }
 
-  return { hidden: readonly(hidden), setHold, reveal };
+  return { hidden: readonly(hidden), scrolled: readonly(scrolled), setHold, reveal };
 }

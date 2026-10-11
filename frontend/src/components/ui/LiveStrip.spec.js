@@ -32,3 +32,62 @@ it('transmet le travail entier, ses images, zéro et ses actions accessibles sé
   expect(wrapper.emitted('action')[0][0].work).toEqual(work);
   expect(wrapper.emitted('select')).toBeUndefined();
 });
+
+/* Disposition selon le nombre : banniere, tuiles qui passent a la ligne, puis liste compacte. */
+const many = (count) => Array.from({ length: count }, (_, index) => ({
+  key: `k${index}`, title: `Film ${index}`, who: 'Films — USB 1', progress: index * 5, status: `${index} %`,
+  badge: { label: `${index}. Sous-titres (préparation) et une très longue étape`, tone: 'accent' },
+  actions: [{ key: 'log', label: 'Journal' }],
+}));
+const mountMany = (count, extra = {}) => mount(LiveStrip, { props: { items: many(count), title: `${count} en cours`, idle: { title: 'Rien' }, ...extra }, global: { stubs } });
+
+describe('LiveStrip · disposition', () => {
+  it('un seul élément : bannière', () => {
+    expect(mountMany(1).find('.live-strip-list').classes()).toContain('is-banner');
+  });
+
+  it('de deux à huit éléments : tuiles qui passent à la ligne, jamais une liste', () => {
+    for (const count of [2, 5, 8]) {
+      const wrapper = mountMany(count);
+      expect(wrapper.find('.live-strip-list').classes(), `${count} éléments`).toContain('is-fanart');
+      expect(wrapper.findAll('.live-entry')).toHaveLength(count);
+      expect(wrapper.find('.live-compact').exists()).toBe(false);
+    }
+  });
+
+  it('au-delà de huit : liste compacte, repliée après six lignes puis dépliable', async () => {
+    const wrapper = mountMany(11);
+    expect(wrapper.find('.live-strip-list').exists()).toBe(false);
+    expect(wrapper.findAll('.live-row')).toHaveLength(6);
+    const toggle = wrapper.get('.live-compact-more button');
+    expect(toggle.text()).toBe('Afficher les 5 autres');
+    await toggle.trigger('click');
+    expect(wrapper.findAll('.live-row')).toHaveLength(11);
+    expect(toggle.text()).toBe('Réduire');
+    await toggle.trigger('click');
+    expect(wrapper.findAll('.live-row')).toHaveLength(6);
+  });
+
+  it('pas de bouton de dépliage quand tout tient', () => {
+    expect(mountMany(9).findAll('.live-row')).toHaveLength(6);
+    expect(mount(LiveStrip, { props: { items: many(9).slice(0, 6), title: '6', idle: { title: 'Rien' } }, global: { stubs } }).find('.live-compact-more').exists()).toBe(false);
+  });
+
+  it('la liste garde titre, étape, progression et actions, et remonte sélection et action', async () => {
+    const wrapper = mountMany(9);
+    const row = wrapper.get('.live-row');
+    expect(row.get('strong').text()).toBe('Film 0');
+    expect(row.text()).toContain('Films — USB 1');
+    expect(row.find('.live-card-track i').attributes('style')).toContain('width: 0%');
+    await row.get('.live-row-main').trigger('click');
+    expect(wrapper.emitted('select')[0][0].key).toBe('k0');
+    await row.get('.live-actions button').trigger('click');
+    expect(wrapper.emitted('action')[0]).toEqual([expect.objectContaining({ key: 'k0' }), 'log']);
+  });
+
+  it('un badge long garde son texte complet en infobulle plutôt que d’être coupé net', () => {
+    const tuile = mountMany(3).get('.live-badge');
+    expect(tuile.attributes('title')).toBe(many(1)[0].badge.label);
+    expect(mountMany(9).get('.live-row-badge').attributes('title')).toBe(many(1)[0].badge.label);
+  });
+});

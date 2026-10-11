@@ -103,3 +103,50 @@ test('la file lit le travail entier : zéro réel et verrou en attente', async (
   await expect(page.locator('.track-queue')).toContainText('Attente du verrou de disque');
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
 });
+
+/* Beaucoup de runners : les tuiles passent a la ligne au lieu de se serrer, puis une liste compacte. */
+const runners = (count) => Array.from({ length: count }, (_, index) => ({
+  path: `/usb${index}/f.mkv`, name: `/usb${index}/MEDIA/FILMS/Film numero ${index} avec un titre assez long.mkv`,
+  library: index % 2 ? "Films — NAS DATA2" : "Films — USB 1", step: `${index}. Sous-titres (préparation)`, percent: index * 7, media: null,
+}));
+async function mockRunners(page, count) {
+  await mockApi(page);
+  await page.route("**/api/fileflows/status", (route) => route.fulfill({ json: { ...STATUS, runners: runners(count) } }));
+}
+
+for (const count of [5, 8]) {
+  test(`${count} runners : tuiles d'une largeur minimale, qui passent à la ligne`, async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop", "disposition large");
+    await mockRunners(page, count);
+    await page.goto("/encoding/queue");
+    const entries = page.locator(".live-strip-list.is-fanart .live-entry");
+    await expect(entries).toHaveCount(count, { timeout: 30_000 });
+    const widths = await entries.evaluateAll((nodes) => nodes.map((node) => Math.round(node.getBoundingClientRect().width)));
+    expect(Math.min(...widths), `largeurs ${widths}`).toBeGreaterThanOrEqual(255);
+    // Aucune carte ne sort de la page : plus de bandeau coupe sur le bord droit.
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBe(0);
+    await expect(page.locator(".live-compact")).toHaveCount(0);
+  });
+}
+
+test("onze runners : liste compacte, repliée après six lignes", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "disposition large");
+  await mockRunners(page, 11);
+  await page.goto("/encoding/queue");
+  const rows = page.locator(".live-compact .live-row");
+  await expect(rows).toHaveCount(6, { timeout: 30_000 });
+  await page.getByRole("button", { name: "Afficher les 5 autres" }).click();
+  await expect(rows).toHaveCount(11);
+  await expect(page.locator(".live-strip-list")).toHaveCount(0);
+});
+
+test("sur téléphone, les runners défilent en rail", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "disposition étroite");
+  await mockRunners(page, 5);
+  await page.goto("/encoding/queue");
+  const list = page.locator(".live-strip-list.is-fanart");
+  await expect(list).toBeVisible({ timeout: 30_000 });
+  const scrolls = await list.evaluate((node) => node.scrollWidth > node.clientWidth && getComputedStyle(node).overflowX === "auto");
+  expect(scrolls).toBe(true);
+});
