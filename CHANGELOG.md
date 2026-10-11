@@ -1,7 +1,17 @@
 # Changelog
 
+## 1.90.5 — 2026-10-11
+
+
+### 🐛 Corrections
+
+- serialize lifecycle transitions against stale polls ([e4b25f3](https://github.com/remi-deher/watchdeck/commit/e4b25f3cef73c11d7484abc192f4816dc8383ecf))
 ## 1.90.4 — 2026-10-11
 
+
+### 🔧 Maintenance
+
+- v1.90.4 (#831) ([adfc633](https://github.com/remi-deher/watchdeck/commit/adfc6330c743a1cc5eb792d422afb20cd73bf055))
 ## 1.90.3 — 2026-10-11
 
 
