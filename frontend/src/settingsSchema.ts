@@ -34,7 +34,8 @@ export const settingsPatchSchema = z.object({
   arr_poll_interval_seconds: integer(10, 86_400),
   arr_queue_interval_seconds: integer(10, 86_400),
   torrent_status_interval_seconds: integer(10, 86_400),
-  activity_retention_days: integer(1, 3650),
+  // Vide ou « conserver indéfiniment » : null, que le serveur enregistre comme sans limite.
+  activity_retention_days: integer(1, 3650).nullable(),
   digest_hour: integer(0, 23),
   digest_minute: integer(0, 59),
   notification_purge_hour: integer(0, 23),
