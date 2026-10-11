@@ -38,6 +38,7 @@ async function mockApi(page) {
       "/api/arr/wanted": WANTED,
       "/api/downloads/history": { items: [{ id: 90, title: "Film importé", media_type: "movie", source: "radarr", processing_mode: "automatic", completed_at: "2026-09-20T10:00:00Z" }], errors: [] },
       "/api/downloads/clients": TORRENTS,
+      "/api/downloads/clients/7/metadata": { categories: [{ name: "Films" }], tags: ["vff"], mutable: true },
       "/api/downloads/global-stats": { download_speed: 2048, upload_speed: 0, connected: 1, total: 1, clients: [] },
       "/api/disk-space": [],
     }[url.pathname];
@@ -133,4 +134,27 @@ test("la vue d'ensemble signale ce qui demande une intervention et mène à la f
   await expect(page.getByText("Derniers imports")).toHaveCount(0);
   await page.getByRole("link", { name: "Ouvrir la file" }).click();
   await expect(page).toHaveURL(/view=queue/);
+});
+
+test("l'ajout d'un torrent passe par la fenêtre de création, avec les catégories du client", async ({ page }) => {
+  const posts = [];
+  await mockApi(page);
+  await page.route("**/api/downloads/add", async (route) => {
+    posts.push(route.request().postDataJSON());
+    await route.fulfill({ json: { ok: true } });
+  });
+  await page.goto("/downloads?view=clients&sub=instances");
+  await page.getByRole("button", { name: "Ajouter un torrent" }).first().click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("Que voulez-vous télécharger ?");
+
+  // Rien n'est envoyé tant que le lien manque.
+  await dialog.getByRole("button", { name: "Ajouter le torrent" }).click();
+  await expect(dialog).toContainText("Ce champ est requis.");
+
+  await dialog.getByLabel("Lien Magnet ou URL .torrent").fill("magnet:?xt=urn:btih:abc");
+  await dialog.getByLabel("Catégorie").fill("films");
+  await dialog.getByRole("button", { name: "Ajouter le torrent" }).click();
+  await expect(dialog).toContainText("Torrent ajouté");
+  expect(posts[0]).toMatchObject({ client_id: 7, torrent_url_or_magnet: "magnet:?xt=urn:btih:abc", category: "Films" });
 });

@@ -490,6 +490,47 @@ describe('CreateTemplate', () => {
   });
 });
 
+describe('CreateTemplate · champs', () => {
+  const definition = (extra = {}) => ({
+    noun: 'un torrent',
+    another: 'un autre torrent',
+    submitLabel: 'Ajouter le torrent',
+    initial: () => ({ link: '', file: null, category: '' }),
+    steps: [{ key: 'torrent', label: 'Torrent', title: 'Quoi ?', fields: [
+      { key: 'link', type: 'textarea', label: 'Lien', required: true, when: (v) => !v.file },
+      { key: 'file', type: 'file', label: 'Fichier', accept: '.torrent' },
+      { key: 'category', type: 'suggest', label: 'Catégorie', suggestions: ['Films', 'Séries'] },
+    ] }],
+    submit: async () => ({ message: 'Torrent ajouté' }),
+    ...extra,
+  });
+  const button = (label) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === label);
+
+  it('rend texte long, fichier et saisie avec propositions, et nomme le bouton de la définition', async () => {
+    const { default: CreateTemplate } = await import('./CreateTemplate.vue');
+    const wrapper = mount(CreateTemplate, { props: { open: true, definition: definition() }, attachTo: document.body, global });
+    await flushPromises();
+    expect(document.querySelector('.create-modal textarea')).not.toBeNull();
+    expect(document.querySelector('.create-modal .ui-file-drop')).not.toBeNull();
+    expect([...document.querySelectorAll('.create-modal datalist option')].map((o) => o.value)).toEqual(['Films', 'Séries']);
+    expect(button('Ajouter le torrent')).toBeDefined();
+    wrapper.unmount();
+  });
+
+  it('s’ouvre déjà rempli (fichier déposé) et se ferme sans écran de résultat si la définition est rapide', async () => {
+    const { default: CreateTemplate } = await import('./CreateTemplate.vue');
+    const file = new File(['x'], 'film.torrent');
+    const wrapper = mount(CreateTemplate, { props: { open: true, definition: definition({ quick: true }), values: { file } }, attachTo: document.body, global });
+    await flushPromises();
+    // Le fichier rend le lien facultatif : on peut ajouter sans rien taper.
+    expect(document.body.textContent).toContain('film.torrent');
+    button('Ajouter le torrent').click(); await flushPromises();
+    expect(wrapper.emitted('created')).toHaveLength(1);
+    expect(wrapper.emitted('close')).toHaveLength(1);
+    wrapper.unmount();
+  });
+});
+
 describe('AnalyzeTemplate', () => {
   const leads = Array.from({ length: 7 }, (_, i) => ({ key: `l${i}`, text: `Constat ${i}` }));
 

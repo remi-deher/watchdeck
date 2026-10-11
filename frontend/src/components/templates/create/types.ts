@@ -4,7 +4,8 @@
 
 export type CreateValues = Record<string, any>;
 
-export type CreateFieldType = 'text' | 'url' | 'email' | 'secret' | 'number' | 'select' | 'cards' | 'toggle';
+/* `suggest` : texte libre avec propositions ; `file` : un fichier, par glisser-deposer ou parcours. */
+export type CreateFieldType = 'text' | 'textarea' | 'url' | 'email' | 'secret' | 'number' | 'select' | 'cards' | 'toggle' | 'file' | 'suggest';
 
 export interface CreateOption {
   value: string;
@@ -22,6 +23,12 @@ export interface CreateField {
   required?: boolean;
   /** Choix (select, cards) ; une fonction quand ils dependent des autres reponses. */
   options?: CreateOption[] | ((values: CreateValues) => CreateOption[]);
+  /** Propositions d'un champ `suggest` ; une fonction quand elles dependent des autres reponses. */
+  suggestions?: string[] | ((values: CreateValues) => string[]);
+  /** Types acceptes par un champ `file` (« .torrent »). */
+  accept?: string;
+  /** Lignes d'un champ `textarea`. */
+  rows?: number;
   /** Regle propre : renvoie le message d'erreur, ou rien. */
   validate?: (value: any, values: CreateValues) => string | null | undefined;
   /** Champ present seulement si… */
@@ -61,6 +68,10 @@ export interface CreateDefinition {
   noun: string;
   /** « une autre instance » : le bouton qui recommence apres creation. */
   another: string;
+  /** Libelle du bouton de la derniere etape, a defaut « Creer » (ou « Enregistrer »). */
+  submitLabel?: string;
+  /** Pas d'ecran de resultat : la fenetre se ferme des que c'est fait (petites modifications). */
+  quick?: boolean;
   initial: () => CreateValues;
   steps: CreateStep[];
   /** Test obligatoire avant de quitter l'etape `test.step` ; tout champ de `test.fields`

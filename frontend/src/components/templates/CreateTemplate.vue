@@ -47,6 +47,12 @@
         <SecretField v-else-if="field.type === 'secret'" v-model="values[field.key]" :label="field.label" :hint="field.help" />
         <UiField v-else v-slot="{ id }" :label="field.label" :hint="field.help" :error="errors[field.key]" :required="field.required">
           <UiSelect v-if="field.type === 'select'" :id="id" v-model="values[field.key]" :options="optionsOf(field)" :aria-label="field.label" />
+          <textarea v-else-if="field.type === 'textarea'" :id="id" v-model="values[field.key]" class="input" :rows="field.rows || 3" :placeholder="field.placeholder" :required="field.required" />
+          <UiFileDrop v-else-if="field.type === 'file'" :id="id" v-model="values[field.key]" :accept="field.accept" :placeholder="field.placeholder" />
+          <template v-else-if="field.type === 'suggest'">
+            <input :id="id" v-model="values[field.key]" class="input" type="text" :list="`${id}-options`" autocomplete="off" :placeholder="field.placeholder" :required="field.required" />
+            <datalist :id="`${id}-options`"><option v-for="item in suggestionsOf(field)" :key="item" :value="item" /></datalist>
+          </template>
           <input v-else :id="id" v-model="values[field.key]" class="input" :type="INPUT_TYPES[field.type]" :placeholder="field.placeholder" :required="field.required" />
         </UiField>
         <p v-if="(field.type === 'secret' || field.type === 'cards' || field.type === 'toggle') && errors[field.key]" class="create__error">{{ errors[field.key] }}</p>
@@ -69,7 +75,7 @@
       </template>
       <template v-else>
         <UiButton :disabled="stepIndex === 0 || busy" @click="goTo(stepIndex - 1)">Retour</UiButton>
-        <UiButton variant="primary" :loading="busy" @click="next">{{ isLast ? (mode === 'edit' ? 'Enregistrer' : 'Créer') : 'Continuer' }}</UiButton>
+        <UiButton variant="primary" :loading="busy" @click="next">{{ isLast ? (definition.submitLabel || (mode === 'edit' ? 'Enregistrer' : 'Créer')) : 'Continuer' }}</UiButton>
       </template>
     </template>
   </ModalShell>
@@ -85,6 +91,7 @@ import SecretField from '@/components/ui/SecretField.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiField from '@/components/ui/UiField.vue';
+import UiFileDrop from '@/components/ui/UiFileDrop.vue';
 import UiRadioCards from '@/components/ui/UiRadioCards.vue';
 import UiSelect from '@/components/ui/UiSelect.vue';
 import { useConfirm } from '@/composables/useConfirm';
@@ -138,6 +145,7 @@ function titleOf(entry: CreateStep): string {
   return typeof entry.title === 'function' ? entry.title(values) : entry.title;
 }
 const visibleFields = (entry: CreateStep) => entry.fields.filter((field) => !field.when || field.when(values));
+const suggestionsOf = (field: CreateField) => (typeof field.suggestions === 'function' ? field.suggestions(values) : field.suggestions || []);
 const optionsOf = (field: CreateField) => (typeof field.options === 'function' ? field.options(values) : field.options || []);
 
 /* Une erreur disparait des que son champ change. */
@@ -199,6 +207,7 @@ async function next(): Promise<void> {
     result.value = await props.definition.submit({ ...values });
     furthest.value = allSteps.value.length;
     emit('created', result.value, { ...values });
+    if (props.definition.quick) close();
   } catch (cause) {
     error.value = humanizeError(cause);
   } finally {
@@ -211,7 +220,7 @@ const summaryRows = computed(() => steps.value.flatMap((entry, index) => visible
   .filter((field) => field.summary !== 'hide')
   .map((field) => {
     const raw = values[field.key];
-    let value = raw === true ? 'Oui' : raw === false ? 'Non' : String(raw ?? '—');
+    let value = raw === true ? 'Oui' : raw === false ? 'Non' : raw instanceof File ? raw.name : String(raw ?? '—');
     const option = optionsOf(field).find((entry) => entry.value === raw);
     if (option) value = option.label;
     if (field.type === 'secret' || field.summary === 'mask') value = raw ? `••••${String(raw).slice(-4)}` : '—';

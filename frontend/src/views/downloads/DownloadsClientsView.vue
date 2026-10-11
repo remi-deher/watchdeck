@@ -115,13 +115,19 @@
       </template>
     </MonitorTemplate>
 
-    <AddTorrentModal :open="showAdd" :clients="configured" :initial-file="droppedFile" @close="showAdd = false; droppedFile = null" @added="reload" />
+    <CreateTemplate
+      :open="showAdd"
+      :definition="addDefinition"
+      :values="droppedFile ? { source: 'file', file: droppedFile } : null"
+      @close="showAdd = false; droppedFile = null"
+      @created="reload"
+    />
     <TorrentMetaModal :targets="metaTargets" :busy="busy" @close="metaTargets = null" @save="saveMeta" />
   </PageTemplate>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Gauge, Minimize2, EyeOff, Plus, Server } from '@lucide/vue';
 import { useTorrentClients } from '@/composables/useTorrentClients';
@@ -138,7 +144,9 @@ import UiButton from '@/components/ui/UiButton.vue';
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 import UiProgress from '@/components/ui/UiProgress.vue';
-import AddTorrentModal from '@/components/downloads/AddTorrentModal.vue';
+import CreateTemplate from '@/components/templates/CreateTemplate.vue';
+import { torrentCreation } from '@/creations/torrent';
+import { useTorrentMetadata } from '@/composables/useTorrentMetadata';
 import TorrentMetaModal from '@/components/downloads/TorrentMetaModal.vue';
 import TorrentStateBadge from '@/components/downloads/TorrentStateBadge.vue';
 import TorrentsCommandBar from '@/components/downloads/TorrentsCommandBar.vue';
@@ -196,6 +204,10 @@ const notices = computed(() => [
 /* Un fichier .torrent glissé sur la liste ouvre l'ajout, déjà rempli. */
 const showAdd = ref(false);
 const droppedFile = ref<File | null>(null);
+/* Ce que chaque client connaît (catégories, tags) est lu à l'ouverture, pour le proposer. */
+const metadata = useTorrentMetadata();
+watch(showAdd, (open) => { if (open) void metadata.loadAll(configured.value.filter((client: any) => client.enabled).map((client: any) => client.id)); });
+const addDefinition = computed(() => torrentCreation({ clients: configured.value.filter((client: any) => client.enabled), metadata: metadata.of, ensure: metadata.ensure }));
 function onDrop(event: DragEvent): void {
   const file = event.dataTransfer?.files?.[0];
   if (!file?.name.endsWith('.torrent')) return;
