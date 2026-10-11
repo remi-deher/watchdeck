@@ -157,7 +157,7 @@ watch(message, (value) => { if (value) toast.success(value); });
 
 provideSettingsPage({ query, dirty, saving, save, cancel: discardChanges });
 /* Panneaux ecrits en sections declarees (ils portent leur ConfigureTemplate). */
-const selfConfiguring = new Set<SettingsPanel>(['privacy', 'requests', 'network', 'api']);
+const selfConfiguring = new Set<SettingsPanel>(['privacy', 'requests', 'network', 'api', 'downloads', 'subtitles', 'webhooks', 'notifications-channels', 'notifications-rules', 'scheduled-tasks', 'data', 'system-version', 'maintenance', 'reasons']);
 
 watch(tab, (value) => ensureSettingsLoaded(value).catch(() => {}));
 onMounted(() => ensureSettingsLoaded().catch(() => {}));

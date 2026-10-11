@@ -1,23 +1,20 @@
 <template>
-  <div class="settings-rows scheduled-tab">
+  <ConfigureTemplate :sections="sections" v-bind="page.bind.value" @save="page.save" @cancel="page.cancel">
     <!-- Le verdict avant le tableau : une tâche en échec se voit sans le parcourir. -->
-    <section v-if="failed.length" class="scheduled-verdict" :class="failed.length ? 'is-error' : 'is-good'" aria-live="polite">
-      <div>
-        <h2>{{ failed.length ? `${failed.length} tâche${failed.length > 1 ? 's' : ''} en échec` : 'Toutes les tâches passent' }}</h2>
-        <p>{{ tasks.length }} tâches{{ upcoming ? ` · prochaine : ${upcoming.task.label} (${upcoming.label})` : '' }}</p>
-      </div>
-    </section>
+    <template #section-verdict>
+      <p class="scheduled-verdict" role="status">{{ tasks.length }} tâches{{ upcoming ? ` · prochaine : ${upcoming.task.label} (${upcoming.label})` : '' }}</p>
+    </template>
 
-    <SettingsSection title="Historique" subtitle="Conservation de l'historique d'exécution des tâches ci-dessous.">
-      <SettingsRow label="Historique de polling" description="En jours.">
+    <template #section-history>
+      <ConfigureField label="Historique de polling" help="En jours.">
         <RetentionDaysInput v-model="form.poll_history_retention_days" :default-days="30"/>
-      </SettingsRow>
-    </SettingsSection>
+      </ConfigureField>
+    </template>
 
     <!-- Les tâches se comparent : un tableau aligne fréquence, dernière exécution et état
          d'une tâche à l'autre, là où onze cartes faisaient défiler plus de trois écrans. -->
-    <LiveStrip v-if="runningTasks.length" title="Tâches en cours" :items="runningTasks" :idle="{ title: 'Aucune tâche en cours' }" />
-    <SettingsSection title="Tâches planifiées" subtitle="Fréquence de chaque tâche de fond et résultat de sa dernière exécution.">
+    <template #section-tasks>
+      <LiveStrip v-if="runningTasks.length" title="Tâches en cours" :items="runningTasks" :idle="{ title: 'Aucune tâche en cours' }" />
       <UiDataTable label="Tâches planifiées" :rows="sortedTasks" :columns="TASK_COLUMNS" :row-key="(task: any) => task.job" class="scheduled-table">
         <template #empty><p class="empty">Aucune tâche planifiée.</p></template>
         <template #cell-task="{ row: task }">
@@ -53,21 +50,21 @@
           </div>
         </template>
       </UiDataTable>
-    </SettingsSection>
+    </template>
+  </ConfigureTemplate>
 
-    <ModalShell :open="Boolean(openHistory)" :title="`Historique : ${historyTask?.label || ''}`" @close="openHistory = null">
-      <p v-if="historyLoading" class="notice">Chargement…</p>
-      <ul v-else-if="history.length" class="scheduled-task-history">
-        <li v-for="row in history" :key="row.id" :class="row.status">
-          <span class="history-status">{{ row.status === 'complete' ? 'OK' : 'Échec' }}</span>
-          <span>{{ formatDate(row.started_at) }}</span>
-          <span>{{ formatDuration(row.duration_ms) }}</span>
-          <span v-if="row.error" class="scheduled-task-error">{{ row.error }}</span>
-        </li>
-      </ul>
-      <p v-else class="empty">Aucun historique.</p>
-    </ModalShell>
-  </div>
+  <ModalShell :open="Boolean(openHistory)" :title="`Historique : ${historyTask?.label || ''}`" @close="openHistory = null">
+    <p v-if="historyLoading" class="notice">Chargement…</p>
+    <ul v-else-if="history.length" class="scheduled-task-history">
+      <li v-for="row in history" :key="row.id" :class="row.status">
+        <span class="history-status">{{ row.status === 'complete' ? 'OK' : 'Échec' }}</span>
+        <span>{{ formatDate(row.started_at) }}</span>
+        <span>{{ formatDuration(row.duration_ms) }}</span>
+        <span v-if="row.error" class="scheduled-task-error">{{ row.error }}</span>
+      </li>
+    </ul>
+    <p v-else class="empty">Aucun historique.</p>
+  </ModalShell>
 </template>
 <script setup lang="ts">
 import LiveStrip from '@/components/ui/LiveStrip.vue';
@@ -81,14 +78,15 @@ import { useRealtime } from '@/events';
 import { useToast } from '@/composables/useToast';
 import { humanizeError } from '@/utils/apiError';
 import { nextRun, nextRunLabel, sortTasks } from './scheduledTasks';
-import { History, Play } from '@lucide/vue';
+import { CalendarClock, History, ListChecks, Play, TriangleAlert } from '@lucide/vue';
 import { api } from '@/api';
 import { form } from '@/settingsForm';
 import { presetsFor } from '@/settingsPresets';
 import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
-import SettingsSection from './SettingsSection.vue';
-import SettingsRow from './SettingsRow.vue';
+import ConfigureTemplate from '@/components/templates/ConfigureTemplate.vue';
+import ConfigureField from '@/components/templates/configure/ConfigureField.vue';
+import { useSettingsPage } from '@/composables/useSettingsPage';
 import IntervalPresetInput from './IntervalPresetInput.vue';
 import UiTimeField from '@/components/ui/UiTimeField.vue';
 import RetentionDaysInput from './RetentionDaysInput.vue';
@@ -103,6 +101,7 @@ const TASK_COLUMNS: UiColumn[] = [
   { key: 'actions', label: '', card: 'actions', className: 'actions' },
 ];
 
+const page = useSettingsPage();
 const openHistory = ref<string | null>(null);
 const tasksQuery = useQuery({ queryKey: ['settings', 'scheduled-tasks'], queryFn: () => api<any[]>('/api/scheduled-tasks') });
 const tasks = computed(() => tasksQuery.data.value || []);
@@ -118,6 +117,12 @@ const upcoming = computed(() => {
     .sort((a: any, b: any) => a.at.getTime() - b.at.getTime())[0];
   return next ? { task: next.task, label: nextRunLabel(next.task, now.value) } : null;
 });
+
+const sections = computed(() => [
+  ...(failed.value.length ? [{ key: 'verdict', title: `${failed.value.length} tâche${failed.value.length > 1 ? 's' : ''} en échec`, description: 'Une tâche de fond n\'a pas abouti à sa dernière exécution.', icon: TriangleAlert, keywords: ['échec', 'erreur'] }] : []),
+  { key: 'history', title: 'Historique', description: 'Conservation de l\'historique d\'exécution des tâches ci-dessous.', icon: History, keywords: ['rétention', 'jours', 'polling'] },
+  { key: 'tasks', title: 'Tâches planifiées', description: 'Fréquence de chaque tâche de fond et résultat de sa dernière exécution.', icon: ListChecks, keywords: ['fréquence', 'cron', 'heure', 'intervalle', 'lancer', 'planification'] },
+]);
 
 /* « Lancer » met la tâche dans la file tout de suite ; son état revient par les événements. */
 const queryClient = useQueryClient();
@@ -165,11 +170,7 @@ function taskStatusText(task: any): string {
 </script>
 <style scoped lang="scss">
 .scheduled-table :deep(td) { vertical-align: middle; }
-.scheduled-verdict { padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface); }
-.scheduled-verdict.is-good { border-color: color-mix(in srgb, var(--green) 45%, var(--border)); background: color-mix(in srgb, var(--green) 7%, var(--surface)); }
-.scheduled-verdict.is-error { border-color: color-mix(in srgb, var(--red) 45%, var(--border)); background: color-mix(in srgb, var(--red) 7%, var(--surface)); }
-.scheduled-verdict h2 { margin: 0 0 2px; font-size: var(--fs-md); }
-.scheduled-verdict p { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.scheduled-verdict { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 .scheduled-next { display: block; color: var(--muted); font-size: var(--fs-xs); white-space: nowrap; }
 .scheduled-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: flex-end; }
 .scheduled-desc {

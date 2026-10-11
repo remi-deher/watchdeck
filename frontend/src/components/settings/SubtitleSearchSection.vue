@@ -1,38 +1,34 @@
 <template>
   <!-- Sous-titres francais des medias en VO : recherche a la demande par Plex, ou par
        Bazarr quand il est configure (Connexions > Integrations). -->
-  <SettingsSection
-    title="Sous-titres français"
-    subtitle="Cherche des sous-titres pour les médias en VO qui n'en ont pas, comme Bazarr : via Plex (intégré) ou via Bazarr."
-    :status="form.subtitle_search_enabled ? 'active' : 'inactive'"
-  >
-    <template #actions>
-      <UiButton :loading="running" @click="runNow"><Captions />Chercher maintenant</UiButton>
+  <ConfigureTemplate :sections="sections" v-bind="page.bind.value" @save="page.save" @cancel="page.cancel">
+    <template #section-subtitles>
+      <!-- Le dernier passage avant le détail : une recherche qui échoue en silence se voit ici. -->
+      <p v-if="lastPass" class="subtitle-last" :class="lastPass.failed ? 'is-error' : 'is-ok'" aria-live="polite">{{ lastPass.text }}</p>
+      <p v-if="summary" class="subtitle-summary">
+        {{ summary.missing }} média(s) sans sous-titres français, dont {{ summary.due }} à chercher.
+        <template v-if="summary.bazarr">
+          Bazarr ({{ summary.bazarr.name }}) :
+          <template v-if="summary.bazarr.connected">{{ summary.bazarr.movies ?? '?' }} film(s) et {{ summary.bazarr.episodes ?? '?' }} épisode(s) en attente.</template>
+          <template v-else>injoignable.</template>
+        </template>
+        <template v-else>Aucune instance Bazarr : la recherche passe par Plex.</template>
+      </p>
+      <div><UiButton :loading="running" @click="runNow"><Captions />Chercher maintenant</UiButton></div>
+      <ConfigureField label="Recherche automatique" help="Reprend régulièrement, par lots, les médias sans sous-titres français. Un média sans résultat n'est recherché à nouveau qu'au bout de 7 jours.">
+        <ToggleSwitch v-model="form.subtitle_search_enabled" title="Recherche automatique des sous-titres" />
+      </ConfigureField>
+      <ConfigureField label="Fournisseur" help="Automatique : Bazarr pour les médias qu'il connaît (venus de Radarr/Sonarr), Plex pour les autres.">
+        <UiSelect v-model="form.subtitle_search_provider" :options="providerOptions" />
+      </ConfigureField>
+      <ConfigureField label="Fréquence (heures)">
+        <UiNumberField v-model="form.subtitle_search_interval_hours" :min="1" :max="168" :disabled="!form.subtitle_search_enabled" aria-label="Fréquence de la recherche en heures" />
+      </ConfigureField>
+      <ConfigureField label="Médias par passage" help="Chaque recherche Plex interroge un fournisseur externe : un lot modeste évite d'être limité.">
+        <UiNumberField v-model="form.subtitle_search_batch_size" :min="1" :max="200" :disabled="!form.subtitle_search_enabled" aria-label="Nombre de médias par passage" />
+      </ConfigureField>
     </template>
-    <!-- Le dernier passage avant le détail : une recherche qui échoue en silence se voit ici. -->
-    <p v-if="lastPass" class="subtitle-last" :class="lastPass.failed ? 'is-error' : 'is-ok'" aria-live="polite">{{ lastPass.text }}</p>
-    <p v-if="summary" class="subtitle-summary">
-      {{ summary.missing }} média(s) sans sous-titres français, dont {{ summary.due }} à chercher.
-      <template v-if="summary.bazarr">
-        Bazarr ({{ summary.bazarr.name }}) :
-        <template v-if="summary.bazarr.connected">{{ summary.bazarr.movies ?? '?' }} film(s) et {{ summary.bazarr.episodes ?? '?' }} épisode(s) en attente.</template>
-        <template v-else>injoignable.</template>
-      </template>
-      <template v-else>Aucune instance Bazarr : la recherche passe par Plex.</template>
-    </p>
-    <SettingsRow label="Recherche automatique" description="Reprend régulièrement, par lots, les médias sans sous-titres français. Un média sans résultat n'est recherché à nouveau qu'au bout de 7 jours.">
-      <ToggleSwitch v-model="form.subtitle_search_enabled" title="Recherche automatique des sous-titres" />
-    </SettingsRow>
-    <SettingsRow label="Fournisseur" description="Automatique : Bazarr pour les médias qu'il connaît (venus de Radarr/Sonarr), Plex pour les autres.">
-      <UiSelect v-model="form.subtitle_search_provider" :options="providerOptions" />
-    </SettingsRow>
-    <SettingsRow label="Fréquence (heures)" :disabled="!form.subtitle_search_enabled">
-      <UiNumberField v-model="form.subtitle_search_interval_hours" :min="1" :max="168" :disabled="!form.subtitle_search_enabled" aria-label="Fréquence de la recherche en heures" />
-    </SettingsRow>
-    <SettingsRow label="Médias par passage" description="Chaque recherche Plex interroge un fournisseur externe : un lot modeste évite d'être limité." :disabled="!form.subtitle_search_enabled">
-      <UiNumberField v-model="form.subtitle_search_batch_size" :min="1" :max="200" :disabled="!form.subtitle_search_enabled" aria-label="Nombre de médias par passage" />
-    </SettingsRow>
-  </SettingsSection>
+  </ConfigureTemplate>
 </template>
 
 <script setup lang="ts">
@@ -45,9 +41,15 @@ import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiNumberField from '@/components/ui/UiNumberField.vue';
 import UiSelect from '@/components/ui/UiSelect.vue';
-import SettingsRow from './SettingsRow.vue';
-import SettingsSection from './SettingsSection.vue';
+import ConfigureTemplate from '@/components/templates/ConfigureTemplate.vue';
+import ConfigureField from '@/components/templates/configure/ConfigureField.vue';
+import { useSettingsPage } from '@/composables/useSettingsPage';
 import { formatRelativeDate } from '@/utils/format';
+
+const page = useSettingsPage();
+const sections = [
+  { key: 'subtitles', title: 'Sous-titres français', description: 'Cherche des sous-titres pour les médias en VO qui n\'en ont pas, comme Bazarr : via Plex (intégré) ou via Bazarr.', icon: Captions, keywords: ['bazarr', 'plex', 'vo', 'srt', 'recherche automatique'] },
+];
 
 /* Dernier passage de la recherche planifiée, lu dans les tâches (même requête que Planification). */
 const tasksQuery = useQuery({ queryKey: ['settings', 'scheduled-tasks'], queryFn: () => api<any[]>('/api/scheduled-tasks') });
@@ -91,7 +93,7 @@ const runNow = () => runMutation.mutate();
 
 <style scoped>
 .subtitle-summary { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
-.subtitle-last { margin: 0 0 var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--inset-radius); font-size: var(--fs-sm); }
+.subtitle-last { margin: 0; padding: var(--space-2) var(--space-3); border-radius: var(--inset-radius); font-size: var(--fs-sm); }
 .subtitle-last.is-ok { background: color-mix(in srgb, var(--green) 9%, transparent); color: var(--green-text); }
 .subtitle-last.is-error { background: color-mix(in srgb, var(--red) 9%, transparent); color: var(--red-text); }
 </style>

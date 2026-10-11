@@ -1,48 +1,52 @@
 <template>
-  <div class="maintenance-tab">
-    <UiFeedback v-if="error" type="error" :message="error" retry @retry="load" />
+  <ConfigureTemplate :sections="sections" v-bind="page.bind.value" @save="page.save" @cancel="page.cancel">
     <!-- La tâche en cours reste en haut : sous la liste, elle partait hors de l'écran. -->
-    <section v-if="current" class="panel run-panel" aria-live="polite">
-      <UiSectionHeader :title="actions[current.action]?.label || current.action">
-        <template #meta><StatusBadge :status="current.status" /></template>
-      </UiSectionHeader>
-      <UiProgress :value="current.progress" label="Progression de la tâche" />
-      <!-- Passes longues (préchargement des images) : le média en cours, avec sa pochette. -->
-      <div v-if="current.current" class="run-media">
-        <img v-if="current.current.cover_url" class="run-media__cover" :src="current.current.cover_url" alt="" width="48" height="72" decoding="async">
-        <span v-else class="run-media__cover run-media__cover--empty" aria-hidden="true" />
-        <div class="run-media__text">
-          <strong>{{ current.current.title }}</strong>
-          <small>{{ current.current.done }} sur {{ current.current.total }}</small>
+    <template v-if="current" #section-run>
+      <div class="run-panel" aria-live="polite">
+        <StatusBadge :status="current.status" />
+        <UiProgress :value="current.progress" label="Progression de la tâche" />
+        <!-- Passes longues (préchargement des images) : le média en cours, avec sa pochette. -->
+        <div v-if="current.current" class="run-media">
+          <img v-if="current.current.cover_url" class="run-media__cover" :src="current.current.cover_url" alt="" width="48" height="72" decoding="async">
+          <span v-else class="run-media__cover run-media__cover--empty" aria-hidden="true" />
+          <div class="run-media__text">
+            <strong>{{ current.current.title }}</strong>
+            <small>{{ current.current.done }} sur {{ current.current.total }}</small>
+          </div>
         </div>
+        <details v-if="(current.logs || []).length" class="run-logs">
+          <summary>Journal du passage</summary>
+          <pre>{{ current.logs.join(String.fromCharCode(10)) }}</pre>
+        </details>
       </div>
-      <details v-if="(current.logs || []).length" class="run-logs">
-        <summary>Journal du passage</summary>
-        <pre>{{ current.logs.join(String.fromCharCode(10)) }}</pre>
-      </details>
-    </section>
-    <SettingsItemList v-for="group in groups" :key="group.key" :title="group.label" :subtitle="group.hint">
-      <SettingsItem
-        v-for="key in group.actions"
-        :key="key"
-        :title="actions[key].label || key"
-        :subtitle="actions[key].enabled === false ? actions[key].disabled_reason || '' : actions[key].description"
-        :status="statusOf(key).status"
-        :status-text="statusOf(key).text"
-        :keywords="actions[key].description"
-      >
-        <template #actions>
-          <UiButton
-            size="sm"
-            :variant="isSensitive(actions[key]) ? 'danger' : 'secondary'"
-            :disabled="running || actions[key].enabled === false"
-            @click="run(key, actions[key])"
-          ><Play/>{{ isSensitive(actions[key]) ? 'Lancer…' : 'Exécuter' }}</UiButton>
-        </template>
-      </SettingsItem>
-    </SettingsItemList>
-    <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
-  </div>
+    </template>
+
+    <template v-for="group in groups" :key="group.key" #[`section-${group.key}`]>
+      <SettingsItemList>
+        <SettingsItem
+          v-for="key in group.actions"
+          :key="key"
+          :title="actions[key].label || key"
+          :subtitle="actions[key].enabled === false ? actions[key].disabled_reason || '' : actions[key].description"
+          :status="statusOf(key).status"
+          :status-text="statusOf(key).text"
+          :keywords="actions[key].description"
+        >
+          <template #actions>
+            <UiButton
+              size="sm"
+              :variant="isSensitive(actions[key]) ? 'danger' : 'secondary'"
+              :disabled="running || actions[key].enabled === false"
+              @click="run(key, actions[key])"
+            ><Play/>{{ isSensitive(actions[key]) ? 'Lancer…' : 'Exécuter' }}</UiButton>
+          </template>
+        </SettingsItem>
+      </SettingsItemList>
+    </template>
+
+    <UiFeedback v-if="error" type="error" :message="error" retry @retry="load" />
+  </ConfigureTemplate>
+  <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
 </template>
 
 <script setup lang="ts">
@@ -52,15 +56,19 @@ import { useConfirm } from '@/composables/useConfirm';
 import UiProgress from '@/components/ui/UiProgress.vue';
 import { computed, ref, watch } from "vue";
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { Play } from "@lucide/vue";
+import { Play, Wrench } from "@lucide/vue";
 import { api } from "@/api";
 import { useRealtime } from "@/events";
-import UiSectionHeader from '@/components/ui/UiSectionHeader.vue';
+import ConfigureTemplate from '@/components/templates/ConfigureTemplate.vue';
+import StatusBadge from '@/components/ui/StatusBadge.vue';
+import UiFeedback from '@/components/ui/UiFeedback.vue';
+import { useSettingsPage } from '@/composables/useSettingsPage';
 import SettingsItem from './SettingsItem.vue';
 import SettingsItemList from './SettingsItemList.vue';
 import { formatRelativeDate } from '@/utils/format';
 import { groupActions, isSensitive, lastRunLabel, type MaintenanceMeta } from './maintenanceGroups';
 
+const page = useSettingsPage();
 const runId = ref<string>();
 const actionError = ref('');
 const actionsQuery = useQuery({ queryKey: ['settings', 'maintenance', 'actions'], queryFn: () => api<Record<string, any>>('/api/maintenance/actions') });
@@ -74,6 +82,12 @@ const runQuery = useQuery({
 const current = computed(() => runQuery.data.value || null);
 const running = computed(() => startMutation.isPending.value || Boolean(runId.value && !['done', 'error'].includes(current.value?.status)));
 const error = computed(() => actionError.value || (actionsQuery.error.value as Error | null)?.message || (runQuery.error.value as Error | null)?.message || '');
+
+/* La tache en cours, puis un groupe d'actions par section. */
+const sections = computed(() => [
+  ...(current.value ? [{ key: 'run', title: actions.value[current.value.action]?.label || String(current.value.action), description: 'Passage en cours.', icon: Wrench }] : []),
+  ...groups.value.map((group) => ({ key: group.key, title: group.label, description: group.hint, icon: Wrench, keywords: group.actions.map((key) => `${actions.value[key]?.label || key} ${actions.value[key]?.description || ''}`) })),
+]);
 
 async function load(): Promise<void> {
   actionError.value = '';
@@ -119,10 +133,9 @@ useRealtime(['job.updated'], (type?: string, event?: any) => {
 </script>
 
 <style scoped lang="scss">
-.maintenance-tab { display: flex; flex-direction: column; gap: var(--space-3); }
-.run-logs { margin-top: var(--space-3); }
+.run-panel { display: grid; gap: var(--space-3); }
 .run-logs summary { color: var(--muted); cursor: pointer; font-size: var(--fs-sm); }
-.run-media { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-3); min-width: 0; }
+.run-media { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
 .run-media__cover { flex: none; width: 48px; height: 72px; border-radius: var(--radius-xs); object-fit: cover; background: var(--surface-2); }
 .run-media__text { display: grid; gap: 2px; min-width: 0; }
 .run-media__text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

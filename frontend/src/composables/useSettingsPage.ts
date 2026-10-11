@@ -1,4 +1,4 @@
-import { computed, inject, provide, type ComputedRef, type InjectionKey, type Ref } from 'vue';
+import { computed, inject, provide, ref, type ComputedRef, type InjectionKey, type Ref } from 'vue';
 
 /**
  * Ce que la page Reglages confie a un panneau qui se declare en sections (gabarit
@@ -16,13 +16,21 @@ export interface SettingsPageState {
 
 const KEY: InjectionKey<SettingsPageState> = Symbol('settings-page');
 
+const INERT: SettingsPageState = {
+  query: ref(''),
+  dirty: computed(() => false),
+  saving: ref(false),
+  save: () => {},
+  cancel: () => {},
+};
+
 export function provideSettingsPage(state: SettingsPageState): void {
   provide(KEY, state);
 }
 
 export function useSettingsPage() {
-  const state = inject(KEY);
-  if (!state) throw new Error('useSettingsPage : a utiliser sous la page Reglages.');
+  /* Hors de la page Reglages (un panneau monte seul), rien a enregistrer : etat inerte. */
+  const state = inject(KEY, null) ?? INERT;
   return {
     bind: computed(() => ({ query: state.query.value, dirty: state.dirty.value, saving: state.saving.value })),
     save: state.save,
