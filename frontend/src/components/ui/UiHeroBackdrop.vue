@@ -64,10 +64,10 @@ const imageStyle = computed(() => ({
 .ui-hero-backdrop.is-fade {
   --hero-fade-mask: linear-gradient(
     to bottom,
-    #000 0%, #000 38%,
-    rgba(0, 0, 0, 0.94) 46%, rgba(0, 0, 0, 0.82) 54%, rgba(0, 0, 0, 0.66) 62%,
-    rgba(0, 0, 0, 0.48) 70%, rgba(0, 0, 0, 0.32) 78%, rgba(0, 0, 0, 0.18) 86%,
-    rgba(0, 0, 0, 0.07) 93%, rgba(0, 0, 0, 0.02) 97%, transparent 100%
+    black 0%, black 38%,
+    color-mix(in srgb, black 94%, transparent) 46%, color-mix(in srgb, black 82%, transparent) 54%, color-mix(in srgb, black 66%, transparent) 62%,
+    color-mix(in srgb, black 48%, transparent) 70%, color-mix(in srgb, black 32%, transparent) 78%, color-mix(in srgb, black 18%, transparent) 86%,
+    color-mix(in srgb, black 7%, transparent) 93%, color-mix(in srgb, black 2%, transparent) 97%, transparent 100%
   );
   background: transparent;
   -webkit-mask-image: var(--hero-fade-mask);

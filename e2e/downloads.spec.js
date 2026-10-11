@@ -46,20 +46,20 @@ async function mockApi(page) {
   return calls;
 }
 
-test("la file d'attente regroupe les interventions et confirme avant de retirer", async ({ page }) => {
+test("la file d'attente met l'intervention d'abord, avec sa cause, et confirme avant de retirer", async ({ page }) => {
   const calls = await mockApi(page);
   await page.goto("/downloads?view=queue");
-  const groups = page.locator(".download-group");
-  await expect(groups.first()).toBeVisible({ timeout: 30_000 });
-  await expect(groups.filter({ hasText: "Intervention requise" })).toContainText("Film bloqué");
-  await expect(groups.filter({ hasText: "En téléchargement" })).toContainText("Film en cours 1080p");
-  await expect(groups.filter({ hasText: "En téléchargement" }).getByText("1080P", { exact: true })).toHaveText("1080P");
+  await expect(page.getByRole("heading", { name: "Demande une intervention" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator("section.is-blocked")).toContainText("Film bloqué");
+  await expect(page.locator("section.is-blocked")).toContainText("Aucun média de la bibliothèque ne réclame");
+  await expect(page.locator("section.is-blocked").getByRole("button", { name: "Associer" })).toBeVisible();
+  await expect(page.getByText("Film en cours 1080p")).toBeVisible();
 
-  // Sur un runner lent, les panneaux Radarr / Sonarr arrivent apres la file et la
-  // decalent : le clic tombait a l'ancienne position du bouton, sur un autre bloc. On
-  // attend que la page ait fini de charger, puis que le bouton ne bouge plus.
+  // Pas de cartes d'instances ni de bandeau « non associes » : la file ne montre que la file.
+  await expect(page.locator(".download-group, .download-card-grid")).toHaveCount(0);
+
   await page.waitForLoadState("networkidle");
-  const retirer = groups.filter({ hasText: "En téléchargement" }).getByRole("button", { name: "Retirer" });
+  const retirer = page.locator("section.is-blocked").getByRole("button", { name: "Retirer" });
   await retirer.scrollIntoViewIfNeeded();
   await retirer.click();
   await expect(page.getByRole("alertdialog")).toContainText("Retirer ce téléchargement ?");
@@ -109,25 +109,18 @@ test("le tableau des torrents filtre, affiche les debits et ouvre l'inspecteur",
   await expect(drawer.getByRole("button", { name: "Reprendre" })).toBeVisible();
 });
 
-test("« Terminés » affiche l'historique, et la section Clients ne l'affiche jamais", async ({ page }) => {
+test("« Terminés » mène à l'historique, qui n'est plus dans la file", async ({ page }) => {
   await mockApi(page);
+  // L'ancienne adresse du filtre « Terminés » ouvre l'historique.
   await page.goto("/downloads?view=queue&sub=completed");
-  const history = page.getByRole("tabpanel", { name: "Historique des téléchargements" });
-  await expect(history).toContainText("Film importé");
-  await expect(page.locator(".download-group")).toHaveCount(0);
+  await expect(page.getByText("Film importé")).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator("section.is-blocked, #track-running")).toHaveCount(0);
+
+  // La file ne montre que les derniers terminés, avec un lien vers l'historique.
+  await page.goto("/downloads?view=queue");
+  await expect(page.getByRole("link", { name: "Voir l’historique" })).toBeVisible({ timeout: 30_000 });
 
   await page.goto("/downloads?view=clients&sub=instances");
   await expect(page.locator(".torrent-table")).toBeVisible();
-  await expect(page.getByRole("tabpanel", { name: "Historique des téléchargements" })).toHaveCount(0);
-});
-
-test("les cartes de la file forment une grille sur grand ecran", async ({ page }) => {
-  await mockApi(page);
-  await page.goto("/downloads?view=queue");
-  const grid = page.locator(".download-card-grid").first();
-  await expect(grid).toBeVisible();
-  const columns = await grid.evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(" ").length);
-  const width = page.viewportSize().width;
-  if (width >= 1200) expect(columns).toBeGreaterThan(1);
-  else if (width < 500) expect(columns).toBe(1);
+  await expect(page.getByText("Film importé")).toHaveCount(0);
 });

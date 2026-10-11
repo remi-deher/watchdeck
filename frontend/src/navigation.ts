@@ -260,8 +260,9 @@ function pipelineSections(): NavSection[] {
   return [
     // La section tient à `view` seul : `sub` choisit une vue de la section (Torrents,
     // Synthèse…), pas une autre section.
-    { key: 'overview', label: 'Vue d’ensemble', to: { path: '/downloads', query: { view: 'overview' } }, icon: Gauge, active: (route) => route.path === '/downloads' && !['queue', 'clients'].includes(String(route.query.view)) },
-    { key: 'queue', label: 'File d’attente', to: { path: '/downloads', query: { view: 'queue' } }, icon: ListOrdered, active: (route) => route.path === '/downloads' && route.query.view === 'queue' },
+    { key: 'overview', label: 'Vue d’ensemble', to: { path: '/downloads', query: { view: 'overview' } }, icon: Gauge, active: (route) => route.path === '/downloads' && !['queue', 'clients', 'history'].includes(String(route.query.view)) },
+    { key: 'queue', label: 'File d’attente', to: { path: '/downloads', query: { view: 'queue' } }, icon: ListOrdered, active: (route) => route.path === '/downloads' && route.query.view === 'queue' && route.query.sub !== 'completed' },
+    { key: 'history', label: 'Historique', to: { path: '/downloads', query: { view: 'history' } }, icon: History, active: (route) => route.path === '/downloads' && (route.query.view === 'history' || (route.query.view === 'queue' && route.query.sub === 'completed')) },
     { key: 'clients', label: 'Clients', to: { path: '/downloads', query: { view: 'clients', sub: 'instances' } }, icon: Download, active: (route) => route.path === '/downloads' && route.query.view === 'clients' },
   ];
 }

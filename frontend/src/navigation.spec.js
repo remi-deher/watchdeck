@@ -143,7 +143,7 @@ describe('navigation — sections', () => {
 
     // Films et Series ont fusionne dans la file : c'etaient deux vues filtrees de la
     // meme liste. Le type de media est desormais un filtre, pas une section.
-    expect(keys(sections)).toEqual(['overview', 'queue', 'clients']);
+    expect(keys(sections)).toEqual(['overview', 'queue', 'history', 'clients']);
   });
 
   it('ne transforme pas les instances désactivées en navigation', () => {
@@ -156,7 +156,7 @@ describe('navigation — sections', () => {
     );
     // Films et Series ont fusionne dans la file : c'etaient deux vues filtrees de la
     // meme liste. Le type de media est desormais un filtre, pas une section.
-    expect(keys(sections)).toEqual(['overview', 'queue', 'clients']);
+    expect(keys(sections)).toEqual(['overview', 'queue', 'history', 'clients']);
   });
 
   it('retourne une liste vide pour une destination inconnue', () => {
