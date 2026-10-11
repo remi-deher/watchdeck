@@ -122,14 +122,15 @@
       @close="showAdd = false; droppedFile = null"
       @created="reload"
     />
-    <TorrentMetaModal :targets="metaTargets" :busy="busy" @close="metaTargets = null" @save="saveMeta" />
+    <CreateTemplate :open="Boolean(metaTargets)" :definition="metaDefinition" mode="edit" :values="metaValues" @close="metaTargets = null" />
+    <TorrentMetadataModal :open="showMetadata" :clients="enabledClients" :metadata="metadata" @close="showMetadata = false" />
   </PageTemplate>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { Gauge, Minimize2, EyeOff, Plus, Server } from '@lucide/vue';
+import { Gauge, Minimize2, EyeOff, Plus, Server, Tags } from '@lucide/vue';
 import { useTorrentClients } from '@/composables/useTorrentClients';
 import { useTorrentSpeeds } from '@/composables/useTorrentSpeeds';
 import { torrentKey } from '@/composables/useTorrentActions';
@@ -147,7 +148,8 @@ import UiProgress from '@/components/ui/UiProgress.vue';
 import CreateTemplate from '@/components/templates/CreateTemplate.vue';
 import { torrentCreation } from '@/creations/torrent';
 import { useTorrentMetadata } from '@/composables/useTorrentMetadata';
-import TorrentMetaModal from '@/components/downloads/TorrentMetaModal.vue';
+import TorrentMetadataModal from '@/components/downloads/TorrentMetadataModal.vue';
+import { torrentMetaEdit } from '@/creations/torrentMetadata';
 import TorrentStateBadge from '@/components/downloads/TorrentStateBadge.vue';
 import TorrentsCommandBar from '@/components/downloads/TorrentsCommandBar.vue';
 import { TORRENT_BULK_ACTIONS, TORRENT_COLUMNS, TORRENT_DEFAULT_COLUMNS, torrentRowActions } from '@/components/downloads/torrentDefinitions';
@@ -188,11 +190,13 @@ const scope = computed(() => clientId.value || 'all');
 const displayActions = computed(() => [
   { key: 'alt-speed', label: 'Mode alternatif', icon: Gauge, pressed: speeds.altSpeed.value, title: 'Limites de vitesse alternatives (mode tortue)' },
   { key: 'compact', label: 'Compact', icon: Minimize2, pressed: compact.value, title: 'Affichage compact' },
+  { key: 'metadata', label: 'Catégories et tags', icon: Tags, title: 'Créer, renommer ou supprimer les catégories et tags du client' },
   { key: 'incognito', label: 'Discret', icon: EyeOff, pressed: incognito.value, title: 'Masquer les noms des torrents' },
 ]);
 const rowActions = (row: any) => torrentRowActions(row).map((action) => ({ ...action, disabled: isBusy(row) }));
 function onAction(key: string, targets: any[]): void {
   if (key === 'alt-speed') speeds.toggleAltSpeed();
+  else if (key === 'metadata') showMetadata.value = true;
   else run(key, targets);
 }
 
@@ -207,6 +211,12 @@ const droppedFile = ref<File | null>(null);
 /* Ce que chaque client connaît (catégories, tags) est lu à l'ouverture, pour le proposer. */
 const metadata = useTorrentMetadata();
 watch(showAdd, (open) => { if (open) void metadata.loadAll(configured.value.filter((client: any) => client.enabled).map((client: any) => client.id)); });
+/* Classement de la sélection : préremplie depuis le premier torrent, avec ce que son client connaît. */
+const showMetadata = ref(false);
+const metaClient = computed(() => metaTargets.value?.[0]?.client_id);
+watch(metaClient, (id) => { if (id != null) void metadata.load(id); });
+const metaValues = computed(() => ({ category: metaTargets.value?.[0]?.category || '', tags: metaTargets.value?.[0]?.tags || '' }));
+const metaDefinition = computed(() => torrentMetaEdit(metadata.of(metaClient.value), metaTargets.value?.length || 0, saveMeta));
 const addDefinition = computed(() => torrentCreation({ clients: configured.value.filter((client: any) => client.enabled), metadata: metadata.of, ensure: metadata.ensure }));
 function onDrop(event: DragEvent): void {
   const file = event.dataTransfer?.files?.[0];

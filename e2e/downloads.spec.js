@@ -158,3 +158,22 @@ test("l'ajout d'un torrent passe par la fenêtre de création, avec les catégor
   await expect(dialog).toContainText("Torrent ajouté");
   expect(posts[0]).toMatchObject({ client_id: 7, torrent_url_or_magnet: "magnet:?xt=urn:btih:abc", category: "Films" });
 });
+
+test("les catégories et tags d'un client se gèrent dans un tableau, avec confirmation avant de supprimer", async ({ page }) => {
+  const calls = [];
+  await mockApi(page);
+  await page.route("**/api/downloads/clients/7/metadata", async (route) => {
+    if (route.request().method() === "POST") calls.push(route.request().postDataJSON());
+    await route.fulfill({ json: { categories: [{ name: "Films" }], tags: ["vff"], mutable: true } });
+  });
+  await page.goto("/downloads?view=clients&sub=instances");
+  await page.getByRole("button", { name: "Catégories et tags" }).first().click();
+  const dialog = page.getByRole("dialog", { name: "Catégories et tags" });
+  await expect(dialog).toContainText("Films");
+  await expect(dialog).toContainText("vff");
+
+  await dialog.getByRole("button", { name: "Supprimer vff" }).or(dialog.getByRole("button", { name: /Supprimer/ }).last()).click();
+  await expect(page.getByRole("alertdialog")).toContainText("Supprimer le tag « vff » ?");
+  await page.getByRole("alertdialog").getByRole("button", { name: "Annuler" }).click();
+  expect(calls).toHaveLength(0);
+});
