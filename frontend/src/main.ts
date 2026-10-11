@@ -90,7 +90,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/issues', component: IssuesView, meta: { title: 'Problèmes signalés' } },
   { path: '/calendar', component: CalendarView, meta: { title: 'Calendrier' } },
   { path: '/users', component: UsersView, meta: { title: 'Utilisateurs' } },
-  { path: '/users/new', component: () => import('@/views/UserDetailView.vue'), meta: { title: 'Nouvel utilisateur' } },
+  { path: '/users/new', redirect: '/users' },
   { path: '/users/:userId', component: () => import('@/views/UserDetailView.vue'), meta: { title: 'Utilisateur' } },
   { path: '/notifications', component: NotificationsView, meta: { title: 'Notifications' } },
   { path: '/logs', component: LogsView, meta: { title: 'Journaux' } },

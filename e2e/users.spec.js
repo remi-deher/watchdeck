@@ -19,6 +19,7 @@ async function mockApi(page) {
     const json = {
       "/api/session": { role: "admin", is_owner: true },
       "/api/users": USERS,
+      "/api/users/2": { ...USERS[1], stats: { total: 0 }, notification_history: [] },
       "/api/settings": { seer_enabled: false },
     }[url.pathname];
     await route.fulfill({ json: json ?? {} });
@@ -61,4 +62,21 @@ test("bloquer la connexion de la sélection demande confirmation", async ({ page
 
   await page.getByRole("alertdialog").getByRole("button", { name: "Bloquer la connexion" }).click();
   await expect.poll(() => calls.find((call) => call.path === "/api/users/bulk/permissions")?.body).toBe(JSON.stringify({ user_ids: [1], can_login: false }));
+});
+
+test("la fiche d'un compte porte ses actions dans l'en-tête et ses parties en onglets", async ({ page }) => {
+  const calls = await mockApi(page);
+  await page.goto("/users/2");
+  await expect(page.locator(".detail__title")).toHaveText("Bruno");
+  await expect(page.getByRole("tablist", { name: "Sections de la fiche" })).toContainText("Comptes liés");
+  await page.getByRole("button", { name: "Activer le compte" }).click();
+  await expect.poll(() => calls.find((call) => call.path === "/api/users/2/enabled")?.body).toBe(JSON.stringify({ enabled: true }));
+});
+
+test("ajouter un compte passe par la fenêtre de création", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/users");
+  await page.getByRole("button", { name: "Ajouter" }).click();
+  await expect(page.getByRole("dialog")).toContainText("Compte Plex");
+  await expect(page.getByRole("dialog")).toContainText("Compte local");
 });
