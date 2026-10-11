@@ -116,8 +116,10 @@ export function useTorrentClients() {
     else void runAction(key, targets);
   }
   async function saveMeta(category: string, tags: string): Promise<void> {
+    const count = metaTargets.value?.length || 0;
     await saveMetadata(metaTargets.value || [], category, tags);
     metaTargets.value = null;
+    addToast({ type: 'success', message: count > 1 ? `Classement enregistré pour ${count} torrents.` : 'Classement enregistré.' });
   }
 
   return {

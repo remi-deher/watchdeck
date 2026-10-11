@@ -195,6 +195,9 @@
   --accent-hover: #f7c35a;
   --on-accent: #1a1204;
   --green: #22c55e;
+  /* Vert plein, assez sombre pour un texte clair posé dessus (badge sur une image). */
+  --green-solid: #15803d;
+  --on-green-solid: #ffffff;
   --red: #ef4444;
   --amber: #f59e0b;
   --blue: #38bdf8;
@@ -225,6 +228,8 @@
   --accent-hover: #8a5000;
   --on-accent: #ffffff;
   --green: #16a34a;
+  --green-solid: #15803d;
+  --on-green-solid: #ffffff;
   --red: #dc2626;
   --amber: #d97706;
   --blue: #0284c7;

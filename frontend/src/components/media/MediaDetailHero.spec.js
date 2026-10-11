@@ -1,9 +1,19 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { flushPromises } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import { mount } from '@vue/test-utils';
 import MediaDetailHero from './MediaDetailHero.vue';
 import UiHeroBackdrop from '@/components/ui/UiHeroBackdrop.vue';
 import VfUpgradeButton from '@/components/media/VfUpgradeButton.vue';
+import { useDownloadSources } from '@/composables/useDownloadSources';
+
+/* Les *arr configures : la liste partagee des sources, sans passer par le reseau. */
+vi.mock('@/api', () => ({ api: vi.fn(async (path) => (path === '/api/arr-instances' ? arrMock.list : [])) }));
+const arrMock = vi.hoisted(() => ({ list: [] }));
+async function avecArr(list) {
+  arrMock.list = list;
+  await useDownloadSources().load({ force: true });
+}
 
 /* Les actions secondaires vivent dans un menu teleporte dans <body> : on l'ouvre au clavier. */
 async function ouvrirMenu(wrapper) {
@@ -101,34 +111,49 @@ describe('MediaDetailHero', () => {
     expect(wrapperRequested.find('.mdh-request-btn').exists()).toBe(false);
   });
 
-  it('range Rechercher dans le menu pour un film en bibliothèque si admin', async () => {
+  it('propose Télécharger le film pour un film en bibliothèque si Radarr est configuré', async () => {
+    await avecArr([{ id: 1, arr_type: 'radarr', enabled: true }]);
     const wrapper = mount(MediaDetailHero, {
       props: { detail: { title: 'Soulm8te', media_type: 'movie', in_library: true, library_id: 42 }, admin: true },
       attachTo: document.body,
     });
+    await flushPromises();
 
-    expect(wrapper.text()).not.toContain('Rechercher');
     expect(wrapper.findComponent(VfUpgradeButton).exists()).toBe(true);
-    expect(libelles(await ouvrirMenu(wrapper))).toContain('Rechercher une version');
+    expect(wrapper.get('.mdh-download-btn').text()).toContain('Télécharger le film');
+    expect(libelles(await ouvrirMenu(wrapper))).not.toContain('Rechercher une version');
     wrapper.unmount();
   });
 
-  it('range Rechercher dans le menu pour une série si admin et émet open-audio', async () => {
+  it('propose Télécharger la série (par saison) si Sonarr est configuré et émet open-audio', async () => {
+    await avecArr([{ id: 2, arr_type: 'sonarr', enabled: true }]);
     const wrapper = mount(MediaDetailHero, {
       props: { detail: { title: 'Severance', media_type: 'show', in_library: true, library_id: 99 }, admin: true },
       attachTo: document.body,
     });
+    await flushPromises();
 
-    const items = await ouvrirMenu(wrapper);
-    const search = items.find((item) => item.textContent.includes('Rechercher'));
-    expect(search).toBeDefined();
-    search.dispatchEvent(new Event('click', { bubbles: true }));
-    await nextTick();
+    const button = wrapper.get('.mdh-download-btn');
+    expect(button.text()).toContain('Télécharger la série');
+    expect(button.attributes('title')).toContain('saison');
+    await button.trigger('click');
     expect(wrapper.emitted('open-audio')).toHaveLength(1);
     wrapper.unmount();
   });
 
+  it('masque Télécharger sans l’*arr du type : pas de Radarr pour une série, ni de Sonarr pour un film', async () => {
+    await avecArr([{ id: 1, arr_type: 'radarr', enabled: true }, { id: 3, arr_type: 'sonarr', enabled: false }]);
+    const serie = mount(MediaDetailHero, { props: { detail: { title: 'Severance', media_type: 'show', in_library: true, library_id: 99 }, admin: true } });
+    await flushPromises();
+    expect(serie.find('.mdh-download-btn').exists()).toBe(false);
+    await avecArr([]);
+    const film = mount(MediaDetailHero, { props: { detail: { title: 'Soulm8te', media_type: 'movie', in_library: true, library_id: 42 }, admin: true } });
+    await flushPromises();
+    expect(film.find('.mdh-download-btn').exists()).toBe(false);
+  });
+
   it('masque la recherche de release pour les non-admins', async () => {
+    await avecArr([{ id: 1, arr_type: 'radarr', enabled: true }]);
     const wrapper = mount(MediaDetailHero, {
       props: { detail: { title: 'Soulm8te', media_type: 'movie', in_library: true, library_id: 42 }, admin: false },
       attachTo: document.body,
@@ -168,17 +193,41 @@ describe('MediaDetailHero', () => {
     });
 
     expect(wrapper.get('.mdh-facts').text()).toBe('2024 · ★ 8.3 · Science-fiction, Aventure');
-    expect(wrapper.findAll('.mdh-badges .badge')).toHaveLength(0);
+    expect(wrapper.findAll('.mdh-poster-badges .badge')).toHaveLength(0);
     expect(wrapper.find('.tag-row').exists()).toBe(false);
   });
 
-  it('place la langue d’un film dans la rangée de badges, à côté du statut', () => {
+  it('met l’état de la demande à côté du type, et Plex avec la langue sous l’affiche', () => {
     const wrapper = mount(MediaDetailHero, {
-      props: { detail: { title: 'Dune', media_type: 'movie', in_library: true, has_vf: true }, statusLabel: 'Disponible', statusClass: 'available' },
+      props: { detail: { title: 'Dune', media_type: 'movie', in_library: true, has_vf: true, availability: { plex: 'present', episodes: { state: 'unknown' } } } },
     });
-
-    expect(wrapper.findAll('.mdh-badges .badge').map((badge) => badge.text())).toHaveLength(2);
+    expect(wrapper.find('.mdh-kicker .mdh-status').exists()).toBe(false);
+    // Une seule ligne sous l'affiche : presence Plex et langue.
+    expect(wrapper.findAll('.sheet-hero__below .mdh-poster-badges .badge')).toHaveLength(2);
     expect(wrapper.find('.mdh-language-summary').exists()).toBe(false);
+
+    const demande = mount(MediaDetailHero, { props: { detail: { title: 'Dune', media_type: 'movie', requested: true, request_id: 4, availability: { plex: 'absent', episodes: { state: 'unknown' } } } } });
+    expect(demande.get('.mdh-kicker').text()).toContain('Demandé');
+    expect(demande.find('.mdh-poster-badges').exists()).toBe(false);
+
+    const disponible = mount(MediaDetailHero, { props: { detail: { title: 'Dune', media_type: 'movie' }, statusLabel: 'Disponible', statusClass: 'available' } });
+    expect(disponible.get('.mdh-kicker').text()).toContain('Disponible');
+  });
+
+  it('place les dates sous l’affiche, ou à droite quand le résumé est court', () => {
+    const dates = { cinema: '2024-03-01', plateforme: '2024-06-01' };
+    const court = mount(MediaDetailHero, { props: { detail: { title: 'Dune', media_type: 'movie', overview: 'Bref.', release_dates: dates } } });
+    expect(court.find('.sheet-hero__below .mdh-dates').exists()).toBe(false);
+    expect(court.find('.sheet-hero__extra .mdh-dates').exists()).toBe(true);
+
+    const long = mount(MediaDetailHero, { props: { detail: { title: 'Dune', media_type: 'movie', overview: 'x'.repeat(260), release_dates: dates } } });
+    expect(long.find('.sheet-hero__below .mdh-dates').exists()).toBe(true);
+    expect(long.find('.sheet-hero__extra').exists()).toBe(false);
+  });
+
+  it('pose l’image en fondu, plus haute que l’ancienne bannière', () => {
+    const wrapper = mount(MediaDetailHero, { props: { detail: { title: 'Dune', media_type: 'movie', backdrop_url: '/hero.jpg' } } });
+    expect(wrapper.getComponent(UiHeroBackdrop).props('fade')).toBe(true);
   });
 
   it('sort le retour du flux, pour qu’il ne descende pas avec le titre', () => {
@@ -212,7 +261,7 @@ it('le contrat de disponibilité prime sur un ancien libellé opérationnel', ()
     statusLabel: 'Disponible dans Plex',
     detail: { title: 'Importé', media_type: 'movie', operational_status: 'completed', availability: { plex: 'absent', episodes: { state: 'unknown' } } },
   } });
-  expect(wrapper.get('.mdh-badges').text()).toBe('À confirmer dans Plex');
+  expect(wrapper.get('.mdh-kicker .mdh-status').text()).toBe('À confirmer dans Plex');
 });
 
 it('utilise la prochaine étape du parcours plutôt qu’un motif historique contradictoire', () => {

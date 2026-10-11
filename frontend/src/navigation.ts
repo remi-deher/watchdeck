@@ -107,7 +107,7 @@ export const DESTINATIONS: NavDestination[] = [
   { key: 'dashboard', label: 'Accueil', icon: Gauge, group: 'Pilotage', access: 'admin', match: (p) => p.startsWith('/dashboard') || p.startsWith('/issues'), to: '/dashboard' },
   // Groupe Explorer : la bibliotheque d'abord (ce qu'on possede), puis ce qu'on peut
   // decouvrir, puis ce qui sort.
-  { key: 'library', label: 'Bibliothèque', icon: Library, group: 'Explorer', access: 'moderator', match: (p) => p.startsWith('/library') || p.startsWith('/vf-upgrades'), to: { path: '/library', query: { hub: '1' } } },
+  { key: 'library', label: 'Bibliothèque', icon: Library, group: 'Explorer', access: 'moderator', match: (p) => p.startsWith('/library'), to: { path: '/library', query: { hub: '1' } } },
   { key: 'discover', label: 'Explorer', icon: Compass, group: 'Explorer', match: (p) => p.startsWith('/discover') && !p.startsWith('/discover/requests'), to: '/discover' },
   // Le calendrier suit les sorties : un outil de suivi, pas une facon de parcourir le
   // catalogue. Il etait une section d'Explorer ; il devient une destination.
@@ -117,6 +117,9 @@ export const DESTINATIONS: NavDestination[] = [
   { key: 'storage', label: 'Stockage et transferts', icon: DatabaseZap, group: 'Gestion des médias', access: 'admin', match: (p) => p.startsWith('/storage'), to: '/storage' },
   // Traitements FileFlows (reencodage, correction des sous-titres) : suivi et relance.
   { key: 'encoding', label: 'Encodage', icon: Cpu, group: 'Gestion des médias', access: 'admin', match: (p) => p.startsWith('/encoding'), to: '/encoding' },
+  // Alignement des pistes et recherche de versions VF : un outil de gestion du parc, pas une
+  // facon de parcourir la bibliotheque (qui n'a plus qu'une rangee : Tout / Films / Series / Musique).
+  { key: 'vf', label: 'Améliorations VF', icon: Languages, group: 'Gestion des médias', access: 'admin', match: (p) => p.startsWith('/vf-upgrades'), to: '/vf-upgrades' },
   // Lectures Plex et analyse du catalogue sont deux espaces distincts, pas deux
   // sections d'un meme : les regrouper obligeait chaque page a empiler sa propre
   // rangee d'onglets sous celle de la destination.
@@ -257,8 +260,9 @@ function pipelineSections(): NavSection[] {
   return [
     // La section tient à `view` seul : `sub` choisit une vue de la section (Torrents,
     // Synthèse…), pas une autre section.
-    { key: 'overview', label: 'Vue d’ensemble', to: { path: '/downloads', query: { view: 'overview' } }, icon: Gauge, active: (route) => route.path === '/downloads' && !['queue', 'clients'].includes(String(route.query.view)) },
-    { key: 'queue', label: 'File d’attente', to: { path: '/downloads', query: { view: 'queue' } }, icon: ListOrdered, active: (route) => route.path === '/downloads' && route.query.view === 'queue' },
+    { key: 'overview', label: 'Vue d’ensemble', to: { path: '/downloads', query: { view: 'overview' } }, icon: Gauge, active: (route) => route.path === '/downloads' && !['queue', 'clients', 'history'].includes(String(route.query.view)) },
+    { key: 'queue', label: 'File d’attente', to: { path: '/downloads', query: { view: 'queue' } }, icon: ListOrdered, active: (route) => route.path === '/downloads' && route.query.view === 'queue' && route.query.sub !== 'completed' },
+    { key: 'history', label: 'Historique', to: { path: '/downloads', query: { view: 'history' } }, icon: History, active: (route) => route.path === '/downloads' && (route.query.view === 'history' || (route.query.view === 'queue' && route.query.sub === 'completed')) },
     { key: 'clients', label: 'Clients', to: { path: '/downloads', query: { view: 'clients', sub: 'instances' } }, icon: Download, active: (route) => route.path === '/downloads' && route.query.view === 'clients' },
   ];
 }
@@ -287,10 +291,10 @@ export function sectionsFor(destinationKey: string, context: NavContext): NavSec
       sections = [{ key: 'tracking', label: 'Suivi des demandes', to: '/discover/requests', icon: Inbox }];
       break;
     case 'library':
-      sections = [
-        libraryFilter('catalog', 'Catalogue', Library, []),
-        { key: 'vf', label: 'Améliorations VF', to: '/vf-upgrades', icon: Languages, access: 'admin' },
-      ];
+      sections = [libraryFilter('catalog', 'Catalogue', Library, [])];
+      break;
+    case 'vf':
+      sections = [{ key: 'vf', label: 'Améliorations VF', to: '/vf-upgrades', icon: Languages }];
       break;
     case 'dashboard':
       sections = [

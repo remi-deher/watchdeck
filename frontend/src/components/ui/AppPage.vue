@@ -305,9 +305,19 @@ useIntersectionObserver(stickySentinel, ([entry]) => {
    la lecture, sans vide au-dessus d'eux. Sur telephone la barre vit en bas : la rangee
    garde l'effacement ci-dessus, pour rendre toute la hauteur au contenu. */
 @include bp.from(shell-medium) {
+  /* Barre visible, la rangee se colle a la distance qu'elle a en haut de page (la marge du
+     contenu plus l'ecart entre les enfants de la page) : collee au ras de la barre, elle
+     la touchait des que celle-ci revenait. Elle part du meme point que son emplacement
+     normal, sans saut au premier defilement. */
+  .app-page__sticky {
+    --app-sticky-top: calc(var(--app-shell-offset-top) + var(--space-3) + var(--space-4));
+    top: var(--app-sticky-top);
+  }
+  /* Barre masquee : la rangee monte toujours jusqu'en haut de l'ecran, d'ou le meme
+     deplacement qu'avant, compte de son nouveau point de depart. */
   .app-page__sticky.is-hidden:not(:focus-within) {
     opacity: 1;
-    transform: translateY(calc(var(--safe-top, 0px) - var(--app-shell-offset-top, 54px)));
+    transform: translateY(calc(var(--safe-top, 0px) - var(--app-sticky-top, var(--app-shell-offset-top, 54px))));
     pointer-events: none;
   }
 }
