@@ -3,7 +3,7 @@
        qui télécharge ? Le verdict n'apparaît que s'il y a quelque chose à traiter ; ce qui
        tourne passe dans le bandeau commun ; chaque point d'attention mène à la page qui le
        règle (la file, les clients, le stockage). Pas de liste : elles ont leurs pages. -->
-  <PageTemplate title="Vue d’ensemble" :state="pageState" :error="error" @retry="reload">
+  <PageTemplate title="Vue d’ensemble" :state="pageState" skeleton="cards" :error="error" @retry="reload">
     <MonitorTemplate
       :items="overview.items"
       :kpis="overview.kpis"
