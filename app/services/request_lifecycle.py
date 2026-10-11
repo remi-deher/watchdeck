@@ -6,9 +6,11 @@ garde la frontiere transactionnelle, mais tous les effets persistants sont ajout
 la meme transaction.
 """
 
+import json
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy import inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import FulfillmentStatus, MediaRequest, RequestStatus
@@ -36,6 +38,35 @@ async def transition_request(
     peut ainsi n'envoyer une notification qu'une fois, meme si webhook et poll voient
     le meme evenement presque simultanement.
     """
+    if inspect(req).persistent:
+        # Les polls gardent parfois cet objet pendant des appels reseau. Relire sous
+        # verrou, avant tout autoflush, pour ne pas ecraser une transition concurrente.
+        context_history = inspect(req).attrs.diagnostic_context.history
+        context_changes = {}
+        if context_history.has_changes():
+            try:
+                previous = json.loads(context_history.deleted[0] or "{}") if context_history.deleted else {}
+                pending = json.loads(req.diagnostic_context or "{}")
+                context_changes = {key: value for key, value in pending.items() if previous.get(key) != value}
+            except (TypeError, ValueError, AttributeError):
+                pass
+        with db.no_autoflush:
+            await db.refresh(
+                req,
+                attribute_names=[
+                    "status",
+                    "fulfillment_status",
+                    "fulfillment_updated_at",
+                    "fulfillment_error",
+                    "is_downloading",
+                    "available_at",
+                    "diagnostic_context",
+                ],
+                with_for_update=True,
+            )
+        if context_changes:
+            update_request_context(req, **context_changes)
+
     now = now_utc_naive()
     old_business = req.status.value if hasattr(req.status, "value") else str(req.status)
     old_fulfillment = (
@@ -139,6 +170,9 @@ async def transition_request(
             poster_url=unwrap_image_proxy(req.poster_url),
             request_id=req.id,
         )
+    # Une autre transition peut suivre dans la meme transaction : sa relecture doit
+    # retrouver celle-ci, sans perdre les changements encore en memoire.
+    await db.flush()
     try:
         from ..realtime import publish_request_event
 
