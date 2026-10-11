@@ -6,6 +6,10 @@
     :match-count="settingsSearch.matched.value"
     :total-count="settingsSearch.total.value"
   >
+    <!-- L'enregistrement des panneaux a formulaire est aussi l'action de la capsule. -->
+    <template v-if="formPanels.has(tab)" #quick-action>
+      <UiButton variant="primary" :loading="saving" @click="save"><template #icon><Save /></template>{{ saving ? 'Enregistrement…' : 'Enregistrer' }}</UiButton>
+    </template>
     <ConfigureTemplate :dirty="dirty" :saving="saving" @save="save" @cancel="discardChanges">
     <!-- La colonne de navigation a disparu : ses groupes sont devenus des destinations
          du rail et ses entrees leurs sections. Un seul panneau reste ici, sur toute la
@@ -66,7 +70,9 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { Save } from '@lucide/vue';
 import SettingsOverview from '@/components/settings/SettingsOverview.vue';
+import UiButton from '@/components/ui/UiButton.vue';
 import PageTemplate from '@/components/templates/PageTemplate.vue';
 import ConfigureTemplate from '@/components/templates/ConfigureTemplate.vue';
 import SettingsValidationSummary from '@/components/settings/SettingsValidationSummary.vue';
@@ -122,6 +128,11 @@ const elsewhere = computed(() => {
 // propre API, actions, journaux) ne le chargent pas et n'affichent pas sa barre.
 const standaloneTabs = new Set<SettingsPanel>([
   'templates', 'system-version', 'download-clients', 'maintenance', 'data',
+]);
+// Ceux dont les champs passent par le bouton Enregistrer de la capsule.
+const formPanels = new Set<SettingsPanel>([
+  'plex', 'services', 'media', 'webhooks', 'downloads', 'vf-upgrades', 'subtitles', 'scheduled-tasks',
+  'notifications-channels', 'notifications-rules', 'requests', 'network', 'api', 'privacy',
 ]);
 let settingsLoadPromise: Promise<void> | undefined;
 function ensureSettingsLoaded(value = tab.value): Promise<void> {
