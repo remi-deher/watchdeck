@@ -45,7 +45,7 @@ describe('AppPage dans l’Administration', () => {
 
   it('porte les sections dans la page hors de l’Administration aussi, sur téléphone', async () => {
     restore = stubShellMode('compact');
-    const wrapper = await mountAt('/library');
+    const wrapper = await mountAt('/activity');
     expect(wrapper.find('.app-subnav__item').exists()).toBe(true);
   });
 
