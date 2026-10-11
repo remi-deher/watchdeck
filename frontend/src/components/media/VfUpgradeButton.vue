@@ -421,7 +421,7 @@ async function toggle(): Promise<void> {
     await Promise.allSettled([load(), searchNormal()]);
   }
 }
-onMounted(load);
+onMounted(() => load());
 defineExpose({ toggle, count: computed(() => publishedReleases.value.length) });
 </script>
 
