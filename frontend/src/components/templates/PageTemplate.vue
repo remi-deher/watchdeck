@@ -25,8 +25,6 @@
     :filters-open="filtersOpen"
     :active-count="filterCount"
     :error="state === 'error' ? error : ''"
-    :loading="state === 'loading'"
-    :loading-message="loadingMessage"
     retry
     @update:query="emit('update:query', $event)"
     @toggle-filters="filtersOpen = !filtersOpen"
@@ -60,6 +58,8 @@
       </template>
     </UiEmptyState>
     <UiEmptyState v-else-if="state === 'empty'" :title="empty.title" :message="empty.message" :icon="empty.icon" />
+    <!-- Chargement : la forme de la page se pose tout de suite, le contenu la remplace. -->
+    <UiSkeleton v-else-if="state === 'loading'" :variant="skeleton" :label="loadingMessage" />
     <slot v-else-if="state === 'ready'" />
   </AppPage>
 </template>
@@ -73,6 +73,7 @@ import AppSubnav, { type SubnavItem } from '@/components/ui/AppSubnav.vue';
 import FilterSidebar from '@/components/ui/FilterSidebar.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
+import UiSkeleton from '@/components/ui/UiSkeleton.vue';
 
 /** `ready` montre le contenu ; les autres etats le remplacent, a l'identique partout. */
 export type PageState = 'ready' | 'loading' | 'error' | 'unconfigured' | 'empty';
@@ -117,6 +118,8 @@ withDefaults(
     state?: PageState;
     error?: string;
     loadingMessage?: string;
+    /** Forme du squelette affiche pendant le chargement. */
+    skeleton?: 'cards' | 'list' | 'table' | 'grid' | 'detail';
     unconfigured?: PageMessage;
     empty?: PageMessage;
   }>(),
@@ -133,6 +136,7 @@ withDefaults(
     state: 'ready',
     error: '',
     loadingMessage: 'Chargement…',
+    skeleton: 'list',
     unconfigured: () => ({ title: 'Service non configuré' }),
     empty: () => ({ title: 'Rien à afficher' }),
   },

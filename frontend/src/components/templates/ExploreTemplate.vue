@@ -21,23 +21,55 @@
         </div>
       </div>
 
-      <p v-if="loading && !items.length" class="explore__loading">Chargement…</p>
-      <section v-else-if="items.length" v-list-motion :class="view === 'list' ? 'panel media-list' : 'media-grid library-grid'" :aria-busy="loading">
-        <template v-for="(item, index) in items" :key="keyOf(item, index)">
-          <slot name="item" :item="item" :view="view" :index="index" />
+      <!-- Grille : la collection commune (chargement, erreur, vide, defilement continu). Au-dela
+           de quelques centaines d'elements, seules les lignes visibles sont rendues. -->
+      <MediaPosterCollection
+        v-if="view === 'grid'"
+        ref="collection"
+        :items="items"
+        :loading="loading"
+        :loading-more="loadingMore"
+        :has-more="hasMore"
+        :error="error"
+        :size="size"
+        :empty-message="emptyMessage"
+        @load-more="emit('load-more')"
+        @retry="emit('retry')"
+      >
+        <div v-if="virtualGrid.padTop.value" data-virtual-spacer aria-hidden="true" :style="{ height: `${virtualGrid.padTop.value}px`, ...SPACER_STYLE }" />
+        <template v-for="(item, index) in virtualGrid.visibleItems.value" :key="keyOf(item, index)">
+          <slot name="item" :item="item" :view="view" :index="index" :animated="!virtualGrid.hasBeenShown(item)" />
         </template>
-      </section>
-      <UiEmptyState v-else :title="chips.length ? 'Aucun résultat' : emptyTitle" :message="chips.length ? 'Aucun élément ne correspond aux filtres actifs.' : emptyMessage">
-        <template v-if="chips.length" #action><UiButton @click="emit('reset')">Réinitialiser les filtres</UiButton></template>
-      </UiEmptyState>
+        <div v-if="virtualGrid.padBottom.value" data-virtual-spacer aria-hidden="true" :style="{ height: `${virtualGrid.padBottom.value}px`, ...SPACER_STYLE }" />
+        <template #empty>
+          <UiEmptyState :title="chips.length ? 'Aucun résultat' : emptyTitle" :message="chips.length ? 'Aucun élément ne correspond aux filtres actifs.' : emptyMessage">
+            <template v-if="chips.length" #action><UiButton @click="emit('reset')">Réinitialiser les filtres</UiButton></template>
+          </UiEmptyState>
+        </template>
+      </MediaPosterCollection>
 
-      <InfiniteScrollTrigger :has-more="hasMore" :loading="loadingMore" @load="emit('load-more')" />
+      <template v-else>
+        <UiFeedback v-if="error" type="error" :message="error" retry @retry="emit('retry')" />
+        <UiFeedback v-if="loading && !items.length" type="loading" message="Chargement…" />
+        <section v-else-if="items.length" v-list-motion class="panel media-list" :aria-busy="loading">
+          <template v-for="(item, index) in items" :key="keyOf(item, index)">
+            <slot name="item" :item="item" :view="view" :index="index" :animated="false" />
+          </template>
+        </section>
+        <UiEmptyState v-else :title="chips.length ? 'Aucun résultat' : emptyTitle" :message="chips.length ? 'Aucun élément ne correspond aux filtres actifs.' : emptyMessage">
+          <template v-if="chips.length" #action><UiButton @click="emit('reset')">Réinitialiser les filtres</UiButton></template>
+        </UiEmptyState>
+        <InfiniteScrollTrigger :has-more="hasMore" :loading="loadingMore" @load="emit('load-more')" />
+      </template>
     </div>
   </div>
 </template>
 
 <script setup lang="ts" generic="T">
-import { computed } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
+import { useWindowVirtualGrid } from '@/composables/useWindowVirtualGrid';
+import MediaPosterCollection from '@/components/media/MediaPosterCollection.vue';
+import UiFeedback from '@/components/ui/UiFeedback.vue';
 import type { FilterChip } from '@/composables/useFiltersDrawer';
 import FilterChips from '@/components/ui/FilterChips.vue';
 import InfiniteScrollTrigger from '@/components/ui/InfiniteScrollTrigger.vue';
@@ -60,6 +92,9 @@ const props = withDefaults(
     /** Grille ou liste, choisi dans la feuille des filtres (bloc ExploreDisplay). */
     view?: ExploreView;
     hasMore?: boolean;
+    /** Taille des affiches : `music` pour des pochettes carrees. */
+    size?: 'standard' | 'compact' | 'music';
+    error?: string;
     loading?: boolean;
     loadingMore?: boolean;
     emptyTitle?: string;
@@ -72,6 +107,8 @@ const props = withDefaults(
     chips: () => [],
     view: 'grid',
     hasMore: false,
+    size: 'standard',
+    error: '',
     loading: false,
     loadingMore: false,
     emptyTitle: 'Rien ici pour l’instant',
@@ -82,16 +119,34 @@ const emit = defineEmits<{
   /** Retirer tous les filtres. */
   reset: [];
   'load-more': [];
+  retry: [];
 }>();
 
 /* Les pastilles viennent de la page : pas de registre de groupes a lire ici. */
 const NO_GROUPS = new Map<symbol, () => FilterChip[]>();
 
 const keyOf = (item: T, index: number) => (props.itemKey ? props.itemKey(item, index) : ((item as any)?.id ?? index));
+
+/* Grille virtualisee au-dela de 300 elements (voir useWindowVirtualGrid). La grille de la
+   collection apparait et disparait avec les etats de chargement : on la retrouve apres
+   chaque rendu plutot que de la tenir pour acquise. */
+/* En ligne pour l'emporter sur la regle de MediaGrid (`content-visibility: auto` sur ses
+   enfants) : hors ecran, l'intercalaire prendrait la taille d'une affiche, pas celle des
+   lignes qu'il remplace. */
+const SPACER_STYLE = { gridColumn: '1 / -1', contentVisibility: 'visible', containIntrinsicSize: 'none' } as const;
+const collection = ref<any>(null);
+const gridElement = ref<HTMLElement | null>(null);
+const itemsList = computed<readonly T[]>(() => props.items);
+const virtualGrid = useWindowVirtualGrid(gridElement, itemsList, (item) => String(keyOf(item, 0)));
+watch([() => props.items.length, () => props.loading, () => props.view], () => {
+  void nextTick(() => { gridElement.value = collection.value?.$el?.querySelector?.('.media-grid') ?? null; });
+}, { immediate: true, flush: 'post' });
 const countText = computed(() => {
   const count = props.total ?? props.items.length;
   const [one, many] = props.unit;
-  return `${count} ${count > 1 ? many : one} ${props.chips.length ? (count > 1 ? 'correspondent' : 'correspond') : ''}`.trim();
+  // Sans total connu et avec une suite a charger, le nombre affiche n'est qu'un minimum.
+  const shown = props.total == null && props.hasMore ? `${count}+` : String(count);
+  return `${shown} ${count > 1 || shown.endsWith('+') ? many : one} ${props.chips.length ? (count > 1 ? 'correspondent' : 'correspond') : ''}`.trim();
 });
 </script>
 
@@ -103,5 +158,4 @@ const countText = computed(() => {
 .explore__chips :deep(.filter-chips) { margin: 0; }
 .explore__clear { border: 0; background: transparent; color: var(--accent); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
 .explore__count { flex: none; margin: 0; font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 700; }
-.explore__loading { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 </style>

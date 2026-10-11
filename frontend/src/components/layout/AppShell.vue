@@ -1,6 +1,8 @@
 <template>
   <a href="#main-content" class="skip-link">Aller au contenu principal</a>
 
+  <UiNavigationProgress :active="navigationEnCours" />
+
   <div class="app-shell" :data-mode="mode" :data-rail="railState" :data-space="space">
     <!-- Une seule navigation primaire est montée à la fois. En rendre deux et en
          masquer une dupliquerait l'état, les repères ARIA et l'ordre de tabulation. -->
@@ -78,8 +80,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
-import { START_LOCATION, useRoute } from 'vue-router';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { START_LOCATION, useRoute, useRouter } from 'vue-router';
 import AdminCompactHeader from './AdminCompactHeader.vue';
 import AppDock from './AppDock.vue';
 import AppNavSheet from './AppNavSheet.vue';
@@ -92,8 +94,10 @@ import { isTypingTarget } from '@/utils/focus';
 import { usePageSections } from '@/composables/usePageSections';
 import { usePageTitle } from '@/composables/usePageTitle';
 import OfflineBanner from './OfflineBanner.vue';
+import UiNavigationProgress from '@/components/ui/UiNavigationProgress.vue';
+import { navigationEnCours, prechargerRoute } from '@/composables/useNavigationFeedback';
 import { useShellMode } from '@/composables/useShellMode';
-import { destinationForPath, dockDestinationsFor, isAdminSpace } from '@/navigation';
+import { destinationForPath, destinationsFor, dockDestinationsFor, isAdminSpace } from '@/navigation';
 import { lastAppPath } from '@/composables/lastAppPath';
 
 const props = withDefaults(defineProps<{ isAdmin?: boolean; canModerate?: boolean }>(), {
@@ -102,8 +106,19 @@ const props = withDefaults(defineProps<{ isAdmin?: boolean; canModerate?: boolea
 });
 
 const route = useRoute();
+const router = useRouter();
 const mode = useShellMode();
 const collapsed = useRailCollapsed();
+/* Une fois l'ecran stable, les vues du menu sont chargees d'avance : le premier clic sur
+   chaque entree ne depend plus du reseau. Sauf economie de donnees demandee. */
+onMounted(() => {
+  const connexion = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+  if (connexion?.saveData) return;
+  const charger = () => destinationsFor(props.isAdmin, props.canModerate).forEach((entree) => prechargerRoute(router, entree.to));
+  if ('requestIdleCallback' in window) window.requestIdleCallback(charger, { timeout: 4000 });
+  else setTimeout(charger, 2000);
+});
+
 const sheetOpen = ref(false);
 const sectionsOpen = ref(false);
 const palette = ref<{ open: (prefill?: string) => void } | null>(null);

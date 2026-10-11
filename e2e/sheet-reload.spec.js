@@ -21,7 +21,7 @@ test.beforeEach(async ({ page }) => {
 
 test("recharger une fiche ouverte depuis une page garde la page de fond", async ({ page }) => {
   await page.goto("/library?type=movie&query=Film");
-  await expect(page.getByText("6 médias affichés")).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator(".explore__count")).toContainText("6 médias", { timeout: 15_000 });
   await page.goto("/library?type=movie&query=Film");
   // L'ouverture au clavier évite de confondre la révélation tactile avec le
   // chargement asynchrone de la fiche : ce test vérifie le rechargement du fond.
@@ -34,5 +34,5 @@ test("recharger une fiche ouverte depuis une page garde la page de fond", async 
   await expect(page.locator(".media-overlay__panel")).toBeVisible({ timeout: 15_000 });
   const main = page.locator("#main-content");
   await expect(main).not.toContainText("[object Promise]");
-  await expect(main.getByText("6 médias affichés")).toBeVisible({ timeout: 15_000 });
+  await expect(main.locator(".explore__count")).toContainText("6 médias", { timeout: 15_000 });
 });

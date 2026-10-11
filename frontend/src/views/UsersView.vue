@@ -10,7 +10,7 @@
     :match-count="filtered.length"
     :total-count="users.length"
     :filter-count="filterCount"
-    :state="error ? 'error' : pending ? 'loading' : 'ready'"
+    :state="error ? 'error' : pending ? 'loading' : 'ready'" skeleton="table"
     :error="error"
     @retry="reload"
     @reset-filters="reset"

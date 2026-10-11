@@ -61,7 +61,8 @@
 .hero-btn:active,
 .icon-button:active,
 .text-button:active,
-.app-dock__link:active {
+.app-dock__link:active,
+.app-nav-link[data-pending] {
   transform: scale(0.97);
   /* Plus vif a l'enfoncement qu'au relachement : l'appui doit repondre tout de suite,
      le retour peut s'etaler. */

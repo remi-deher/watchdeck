@@ -65,4 +65,20 @@ describe('useVfUpgrade', () => {
     expect(upgrade.feedback.value).toContain('toutes ont été écartées');
     expect(upgrade.scanSummary.value).toEqual({ matched: 0, raw: 7 });
   });
+
+  it('partage une seule requete entre les boutons d’un même média, et en relance une après une action', async () => {
+    let finir;
+    api.mockImplementationOnce(() => new Promise((resolve) => { finir = resolve; }));
+    const boutons = Array.from({ length: 40 }, (_, n) => useVfUpgrade('library_item', 21, 'episode', 1, n + 1));
+    const lectures = boutons.map((bouton) => bouton.load());
+    expect(api).toHaveBeenCalledTimes(1);
+    finir({ suggestions: [{ ...suggestion, scope: 'episode', season_number: 1, episode_number: 3 }] });
+    await Promise.all(lectures);
+    expect(boutons[2].suggestion.value?.id).toBe(4);
+    expect(boutons[0].suggestion.value).toBeNull();
+
+    api.mockResolvedValueOnce({ suggestions: [] });
+    await boutons[0].load({ fresh: true });
+    expect(api).toHaveBeenCalledTimes(2);
+  });
 });

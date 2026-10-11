@@ -3,7 +3,6 @@
     :open="open"
     :title="`Alignement Plex : ${item?.title || 'Média'}`"
     :subtitle="item ? `${item.media_type === 'movie' ? 'Film' : 'Série'}${item.year ? ' • ' + item.year : ''}` : ''"
-    panel-class="align-streams-modal"
     :error="error"
     :busy="busy"
     @close="requestClose"
@@ -548,11 +547,6 @@ async function confirmAlign(): Promise<void> {
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
-.align-streams-modal {
-  max-width: 620px;
-  width: 95vw;
-}
-
 .preview-loading {
   display: flex;
   flex-direction: column;

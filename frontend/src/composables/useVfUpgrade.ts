@@ -3,6 +3,23 @@ import { humanizeError } from '@/utils/apiError';
 import { api } from '@/api';
 import type { VfUpgradeItem } from '@/types/vfUpgrades';
 
+/* Une fiche de serie porte un bouton par saison et par episode, et chacun lisait les
+   suggestions du meme media a son montage : des dizaines de requetes identiques, chacune
+   rafraichissant l'etat cote serveur. Les lectures simultanees d'un meme media partagent
+   desormais une seule requete ; un rechargement apres une action (`fresh`) en relance une. */
+const enCours = new Map<string, Promise<{ suggestions?: VfUpgradeItem[] }>>();
+
+function lireSuggestions(sourceType: string, sourceId: number | string, fresh: boolean) {
+  const cle = `${sourceType}:${sourceId}`;
+  const partagee = enCours.get(cle);
+  if (partagee && !fresh) return partagee;
+  const requete = api<{ suggestions?: VfUpgradeItem[] }>(
+    `/api/vf-upgrades?source_type=${sourceType}&source_id=${sourceId}`
+  ).finally(() => { if (enCours.get(cle) === requete) enCours.delete(cle); });
+  enCours.set(cle, requete);
+  return requete;
+}
+
 export function useVfUpgrade(
   sourceType: string,
   sourceId: number | string,
@@ -22,14 +39,12 @@ export function useVfUpgrade(
     return s.scope === scope && s.season_number === seasonNumber && s.episode_number === episodeNumber;
   }
 
-  async function load({ preserveFeedback = false }: { preserveFeedback?: boolean } = {}): Promise<void> {
+  async function load({ preserveFeedback = false, fresh = false }: { preserveFeedback?: boolean; fresh?: boolean } = {}): Promise<void> {
     loading.value = true;
     error.value = '';
     if (!preserveFeedback) feedback.value = '';
     try {
-      const data = await api<{ suggestions?: VfUpgradeItem[] }>(
-        `/api/vf-upgrades?source_type=${sourceType}&source_id=${sourceId}`
-      );
+      const data = await lireSuggestions(sourceType, sourceId, fresh);
       suggestion.value = (data.suggestions || []).find(matches) || null;
     } catch (e: any) {
       error.value = humanizeError(e);
@@ -58,7 +73,7 @@ export function useVfUpgrade(
         : result.raw_found
           ? `${result.raw_found} release(s) trouvée(s), mais toutes ont été écartées par les critères VF.`
           : 'Aucune release retournée par les indexeurs.';
-      await load({ preserveFeedback: true });
+      await load({ preserveFeedback: true, fresh: true });
     } catch (e: any) {
       error.value = humanizeError(e);
     } finally {
@@ -80,7 +95,7 @@ export function useVfUpgrade(
         body: JSON.stringify({ guid: release.guid, indexer_id: release.indexer_id, force }),
       });
       feedback.value = result.message || 'Release acceptee par Sonarr/Radarr.';
-      await load({ preserveFeedback: true });
+      await load({ preserveFeedback: true, fresh: true });
     } catch (e: any) {
       error.value = humanizeError(e);
     } finally {
@@ -93,7 +108,7 @@ export function useVfUpgrade(
     error.value = '';
     try {
       await api(`/api/vf-upgrades/${suggestion.value.id}/dismiss`, { method: 'POST' });
-      await load();
+      await load({ fresh: true });
     } catch (e: any) {
       error.value = humanizeError(e);
     }
