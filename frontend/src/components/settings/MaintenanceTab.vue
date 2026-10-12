@@ -22,26 +22,7 @@
     </template>
 
     <template v-for="group in groups" :key="group.key" #[`section-${group.key}`]>
-      <SettingsItemList>
-        <SettingsItem
-          v-for="key in group.actions"
-          :key="key"
-          :title="actions[key].label || key"
-          :subtitle="actions[key].enabled === false ? actions[key].disabled_reason || '' : actions[key].description"
-          :status="statusOf(key).status"
-          :status-text="statusOf(key).text"
-          :keywords="actions[key].description"
-        >
-          <template #actions>
-            <UiButton
-              size="sm"
-              :variant="isSensitive(actions[key]) ? 'danger' : 'secondary'"
-              :disabled="running || actions[key].enabled === false"
-              @click="run(key, actions[key])"
-            ><Play/>{{ isSensitive(actions[key]) ? 'Lancer…' : 'Exécuter' }}</UiButton>
-          </template>
-        </SettingsItem>
-      </SettingsItemList>
+      <ResourceList :resources="resourcesOf(group.actions)" @action="(resource, key) => run(resource.key, actions[resource.key])" />
     </template>
 
     <UiFeedback v-if="error" type="error" :message="error" retry @retry="load" />
@@ -51,7 +32,6 @@
 
 <script setup lang="ts">
 import ConfirmModal from '@/components/ConfirmModal.vue';
-import UiButton from '@/components/ui/UiButton.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import UiProgress from '@/components/ui/UiProgress.vue';
 import { computed, ref, watch } from "vue";
@@ -63,8 +43,8 @@ import ConfigureTemplate from '@/components/templates/ConfigureTemplate.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
 import { useSettingsPage } from '@/composables/useSettingsPage';
-import SettingsItem from './SettingsItem.vue';
-import SettingsItemList from './SettingsItemList.vue';
+import ResourceList from '@/components/templates/configure/ResourceList.vue';
+import type { ConfigureResource } from '@/components/templates/configure/types';
 import { formatRelativeDate } from '@/utils/format';
 import { groupActions, isSensitive, lastRunLabel, type MaintenanceMeta } from './maintenanceGroups';
 
@@ -103,6 +83,23 @@ const runningAction = computed(() => (running.value && current.value ? String(cu
 const statusOf = (key: string) => lastRunLabel(actions.value[key], runningAction.value === key, formatRelativeDate);
 
 const startMutation = useMutation({ mutationFn: (action: string) => api<any>(`/api/maintenance/run/${action}`, { method: 'POST' }), retry: 0 });
+
+/* Une action de maintenance : son dernier passage, et « Exécuter » (« Lancer… » si elle est sensible). */
+const TONES: Record<string, 'ok' | 'error' | 'warn' | 'off'> = { active: 'ok', error: 'error', inactive: 'off' };
+function resourcesOf(keys: string[]): ConfigureResource[] {
+  return keys.map((key) => {
+    const meta = actions.value[key];
+    const status = statusOf(key);
+    return {
+      key,
+      label: meta.label || key,
+      subtitle: meta.enabled === false ? meta.disabled_reason || '' : meta.description,
+      state: status.text ? { tone: TONES[status.status] || 'off', text: status.text } : undefined,
+      editable: false,
+      actions: [{ key: 'run', label: isSensitive(meta) ? 'Lancer…' : 'Exécuter', icon: Play, tone: isSensitive(meta) ? 'danger' as const : undefined, disabled: running.value || meta.enabled === false }],
+    };
+  });
+}
 
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
 

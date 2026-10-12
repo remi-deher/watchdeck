@@ -1,6 +1,5 @@
 <template>
   <CrudResourceList
-    :icon="Download"
     :items="clients"
     :item-subtitle="(item: any) => [clientLabel(item.client_type), item.url].filter(Boolean).join(' · ')"
     empty-label="Aucun client configuré."
@@ -19,7 +18,6 @@
 import { useRoute, useRouter } from 'vue-router';
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { useMutation } from '@tanstack/vue-query';
-import { Download } from '@lucide/vue';
 import { api } from '@/api';
 import CrudResourceList from '../CrudResourceList.vue';
 import ConfirmModal from '../../ConfirmModal.vue';

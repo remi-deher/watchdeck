@@ -28,7 +28,7 @@ export interface ConnectionsPayload {
 }
 
 export interface RowState {
-  /** Valeur de `SettingsItem.status`. */
+  /** Valeur de `ConfigureResource.state`. */
   status: 'active' | 'error' | 'inactive' | 'neutral';
   text: string;
   /** Détail du dernier contrôle : la réponse en cas de succès, la cause en cas d'erreur. */

@@ -59,7 +59,7 @@ test("modifier une instance ouvre la fenêtre sur ses valeurs, à son adresse", 
   const card = page.locator("#configure-instances");
   await expect(card).toContainText("Radarr maison", { timeout: 15000 });
 
-  await card.getByRole("button", { name: /Radarr maison/ }).click();
+  await card.getByRole("button", { name: "Modifier" }).first().click();
   const dialog = page.getByRole("dialog");
   await expect(page).toHaveURL(/\/settings\/resource\/arr\/3$/);
   await expect(dialog).toContainText("Modifier le service");

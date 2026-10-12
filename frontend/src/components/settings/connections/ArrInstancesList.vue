@@ -1,7 +1,6 @@
 <template>
 
   <CrudResourceList
-:icon="ServerCog"
 
     :items="arrInstances"
 
@@ -37,8 +36,6 @@ import { useRoute, useRouter } from 'vue-router';
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
 
 import { useMutation } from '@tanstack/vue-query';
-
-import { ServerCog } from '@lucide/vue';
 
 import { api } from '@/api';
 

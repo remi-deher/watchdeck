@@ -1,24 +1,25 @@
 <template>
   <div class="profile-tab">
-    <SettingsSection title="Ce que vous recevez" subtitle="Chaque changement est enregistré tout de suite.">
-      <SettingsRow v-for="row in toggles" :key="row.key" :label="row.label" :description="row.description">
-        <ToggleSwitch
-          :model-value="preferences[row.key] !== false"
-          :title="row.label"
-          :disabled="mutation.isPending.value"
-          @update:model-value="(value) => save({ [row.key]: value })"
-        />
-      </SettingsRow>
-    </SettingsSection>
-
-    <SettingsSection title="Où vous écrire" subtitle="Les messages partent par email, si l'administrateur a configuré l'envoi.">
-      <SettingsRow label="Email de notification" :description="emailHint" label-for="profile-notification-email">
-        <form class="profile-email" @submit.prevent="saveEmail">
-          <input id="profile-notification-email" v-model="email" type="email" autocomplete="email" :placeholder="plexEmail || 'vous@exemple.fr'">
-          <UiButton type="submit" :loading="mutation.isPending.value" :disabled="email.trim() === (preferences.notification_email || '')">Enregistrer</UiButton>
-        </form>
-      </SettingsRow>
-    </SettingsSection>
+    <ConfigureTemplate :sections="sections">
+      <template #section-receive>
+        <ConfigureField v-for="row in toggles" :key="row.key" :label="row.label" :help="row.description">
+          <ToggleSwitch
+            :model-value="preferences[row.key] !== false"
+            :title="row.label"
+            :disabled="mutation.isPending.value"
+            @update:model-value="(value) => save({ [row.key]: value })"
+          />
+        </ConfigureField>
+      </template>
+      <template #section-write>
+        <ConfigureField label="Email de notification" :help="emailHint" for-id="profile-notification-email">
+          <form class="profile-email" @submit.prevent="saveEmail">
+            <input id="profile-notification-email" v-model="email" type="email" autocomplete="email" :placeholder="plexEmail || 'vous@exemple.fr'">
+            <UiButton type="submit" :loading="mutation.isPending.value" :disabled="email.trim() === (preferences.notification_email || '')">Enregistrer</UiButton>
+          </form>
+        </ConfigureField>
+      </template>
+    </ConfigureTemplate>
   </div>
 </template>
 
@@ -26,8 +27,8 @@
 import { computed, ref, watch } from 'vue';
 import { useMutation, useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
-import SettingsRow from '@/components/settings/SettingsRow.vue';
-import SettingsSection from '@/components/settings/SettingsSection.vue';
+import ConfigureTemplate from '@/components/templates/ConfigureTemplate.vue';
+import ConfigureField from '@/components/templates/configure/ConfigureField.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import type { ProfilePreferences } from './profileSecurity';
@@ -44,6 +45,12 @@ const toggles: { key: ToggleKey; label: string; description: string }[] = [
   { key: 'notify_on_request', label: 'Accusé de réception', description: 'Un message à chaque demande envoyée, pour confirmer qu’elle est bien partie.' },
   { key: 'notify_digest', label: 'Récapitulatif quotidien', description: 'Un seul message par jour avec les nouveautés.' },
   { key: 'notify_newsletter', label: 'Nouveautés de la semaine', description: 'Une lettre par semaine avec les films et séries ajoutés au serveur, et leur langue.' },
+];
+
+/* Chaque changement s'enregistre tout de suite : pas de barre d'enregistrement. */
+const sections = [
+  { key: 'receive', title: 'Ce que vous recevez', description: 'Chaque changement est enregistré tout de suite.' },
+  { key: 'write', title: 'Où vous écrire', description: 'Les messages partent par email, si l’administrateur a configuré l’envoi.' },
 ];
 
 const email = ref('');

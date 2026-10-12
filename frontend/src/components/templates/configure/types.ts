@@ -31,6 +31,8 @@ export interface ConfigureResource {
   subtitle?: string;
   /** Absent : pas d'interrupteur (ressource en lecture seule, flow…). */
   enabled?: boolean;
+  /** Petite mention a cote du nom (« Par défaut »). */
+  tag?: string;
   /** Etat en une ligne (« Correspondance Plex OK », « Injoignable »…). */
   state?: { tone: ResourceTone; text: string };
   /** Propose « Tester » pour cette ressource. */
@@ -38,7 +40,7 @@ export interface ConfigureResource {
   /** Faux : pas de « Modifier ». */
   editable?: boolean;
   /** Actions propres (« Scanner »…), remontees par `action`. */
-  actions?: Array<{ key: string; label: string; icon?: any; loading?: boolean }>;
+  actions?: Array<{ key: string; label: string; icon?: any; loading?: boolean; disabled?: boolean; /** `danger` : retirer, supprimer. */ tone?: 'danger'; /** Icone seule ; le libelle devient l'infobulle. */ iconOnly?: boolean }>;
   /** Se deplie sur son detail (emplacement `detail` de ResourceList). */
   expandable?: boolean;
   [key: string]: any;
