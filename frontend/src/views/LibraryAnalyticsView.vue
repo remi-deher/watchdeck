@@ -1,20 +1,25 @@
 <template>
-    <AppPage
+    <!-- Inventaire de la médiathèque : deux vues dans l'adresse (fichiers, insights) ; la recherche
+         et tous les filtres sont ceux de la barre du haut. L'export est l'action du contexte, le
+         choix des colonnes un outil de page. -->
+    <PageTemplate
       :title="activeTab === 'table' ? 'Inventaire' : 'Insights de la médiathèque'"
+      class="analytics-page"
+      :tabs="TABS"
+      :active-tab="activeTab"
+      tabs-label="Vue de l’inventaire"
       v-model:query="filters.search"
-      search-scope="Bibliothèque"
-      placeholder="Filtrer par titre, série ou studio…"
-      search-kind="filter"
+      :search="{ placeholder: 'Filtrer par titre, série ou studio…', scope: 'Bibliothèque', kind: 'filter' }"
       :match-count="tableTotal"
-      :has-filters="true"
-      :active-count="activeCount"
-      :filters-open="filtersOpen"
-      @toggle-filters="filtersOpen = !filtersOpen" page-class="analytics-page">
-
+      :filter-count="activeCount"
+      :filter-chips="activeChips"
+      @reset-filters="reset"
+    >
       <template #tools>
-        <UiSegmentedControl :model-value="activeTab" :options="TAB_OPTIONS" ariaLabel="Vue de l’inventaire" @update:model-value="setTab(String($event))" />
-        <UiButton variant="primary" :href="exportUrl"><template #icon><FileDown /></template>Exporter CSV</UiButton>
         <UiButton v-if="activeTab === 'table'" icon-only title="Personnaliser les colonnes" aria-label="Personnaliser les colonnes" @click="mediaTable?.openColumnPicker()"><Columns /></UiButton>
+      </template>
+      <template #quick-action>
+        <UiButton variant="primary" :href="exportUrl"><template #icon><FileDown /></template>Exporter CSV</UiButton>
       </template>
 
     <UiFeedback v-if="loading && !data.summary" type="loading" message="Analyse du catalogue Plex…" />
@@ -30,8 +35,7 @@
       </div>
     </header>
 
-    <div class="psh-layout">
-      <FilterSidebar :open="filtersOpen" :active-count="activeCount" :chips="activeChips" :match-count="tableTotal" @close="filtersOpen=false" @reset="reset">
+      <template #filters>
         <FilterGroup label="Type de média">
           <UiChipGroup label="Type de média" :options="[{ value: '', label: 'Tous les types' }, { value: 'movie', label: 'Films' }, { value: 'episode', label: 'Épisodes' }, { value: 'track', label: 'Musique' }]" v-model="filters.media_type" />
         </FilterGroup>
@@ -61,8 +65,7 @@
           <UiNumberField v-model="filters.min_size_gb" :min="0" :step="0.5" placeholder="Min. (Go)" aria-label="Poids minimal en Go" />
           <UiNumberField v-model="filters.max_size_gb" :min="0" :step="0.5" placeholder="Max. (Go)" aria-label="Poids maximal en Go" />
         </FilterGroup>
-      </FilterSidebar>
-      <div class="psh-main">
+      </template>
 
     <section v-if="activeTab === 'table'" class="workspace-section inventory-section">
       <!-- Chiffres du filtre courant, puis deux raccourcis : ce sont des filtres de la
@@ -101,7 +104,6 @@
               <Check :style="{ visibility: filters[menu.key] === option.value ? 'visible' : 'hidden' }" />{{ option.label }}
             </UiMenuItem>
           </UiMenu>
-          <button type="button" class="quick-filter" :class="{ active: filtersOpen }" @click="filtersOpen = true"><SlidersHorizontal aria-hidden="true" />Plus de filtres</button>
         </div>
         <div v-if="activeChips.length" class="inventory-active">
           <span class="inventory-active__label">Filtres actifs</span>
@@ -179,9 +181,7 @@
         <UiEmptyState v-if="!selectedRows.length" title="Aucun fichier" message="Aucun fichier pour cet insight." compact />
       </section>
     </section>
-      </div><!-- .psh-main -->
-    </div><!-- .psh-layout -->
-  </AppPage>
+    </PageTemplate>
 </template>
 
 <script setup lang="ts">
@@ -197,6 +197,7 @@ import UiMenu from '@/components/ui/UiMenu.vue';
 import UiMenuItem from '@/components/ui/UiMenuItem.vue';
 import UiMenuSeparator from '@/components/ui/UiMenuSeparator.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
+import PageTemplate from '@/components/templates/PageTemplate.vue';
 import type { FilterChip } from '@/composables/useFiltersDrawer';
 import { resolutionLabel } from '@/utils/mediaTechnical';
 
@@ -226,15 +227,15 @@ import {
 const route=useRoute();
 const router = useRouter();
 const activeTab = computed<'table' | 'insights'>(()=>route.query.view==='insights'?'insights':'table');
-const TAB_OPTIONS = [{ value: 'table' as const, label: 'Fichiers' }, { value: 'insights' as const, label: 'Insights' }];
-/* Les insights ne sont plus une entree de navigation : la bascule de la page les ouvre,
-   avec leur propre adresse (?view=insights) pour qu'un lien y mene toujours. */
-function setTab(tab: string): void {
-  const query = { ...route.query };
-  if (tab === 'insights') query.view = 'insights'; else delete query.view;
-  void router.replace({ query });
-}
-const filtersOpen = ref(false);
+/* Les insights ne sont plus une entree de navigation : ils sont la seconde vue de la page, avec leur
+   propre adresse (?view=insights) pour qu'un lien y mene toujours. */
+const TABS = computed(() => {
+  const { view: _view, ...rest } = route.query;
+  return [
+    { key: 'table', label: 'Fichiers', to: { path: route.path, query: rest } },
+    { key: 'insights', label: 'Insights', to: { path: route.path, query: { ...rest, view: 'insights' } } },
+  ];
+});
 const selectedInsight = ref<any>({ ...DEFAULT_INSIGHT });
 const mediaTable = ref<any>(null);
 const filters = reactive<Record<string, any>>({
@@ -436,7 +437,6 @@ function date(value: string): string {
   return value ? `Actualisé ${formatDateTime(value)}` : '';
 }
 
-watch(activeTab, () => { filtersOpen.value = false; });
 useRealtime(['library.analytics.updated'], () => load());
 </script>
 
