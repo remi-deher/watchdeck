@@ -23,6 +23,9 @@
     >
 
     <template v-if="currentView === 'history'" #filters>
+        <FilterGroup label="Ordre">
+          <UiChipGroup label="Ordre de l’historique" :options="[{ value: 'date_desc', label: 'Plus récentes d’abord' }, { value: 'date_asc', label: 'Plus anciennes d’abord' }]" v-model="historySort" />
+        </FilterGroup>
         <FilterGroup label="Type de média">
           <UiChipGroup label="Type de média" :options="[{ value: '', label: 'Tous les types' }, { value: 'movie', label: 'Films' }, { value: 'episode', label: 'Séries' }, { value: 'track', label: 'Musique' }]" v-model="typeFilter" />
         </FilterGroup>
@@ -202,6 +205,7 @@ import { formatDuration, signedPercent } from '@/utils/format';
 
 const {
   METHOD_CHOICES,
+  historySort,
   methodFilter,
   typeFilter,
   userFilter,

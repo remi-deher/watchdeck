@@ -149,7 +149,7 @@ const days = computed(() => {
 
 .understand { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); min-width: 0; }
 .understand.has-detail { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: start; }
-.understand__main { display: grid; align-content: start; gap: var(--space-3); min-width: 0; }
+.understand__main { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: var(--space-3); min-width: 0; }
 .understand__bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .understand__export { margin-left: auto; }
 .understand__summary { display: flex; flex-wrap: wrap; gap: var(--space-4); margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: var(--fs-sm); }

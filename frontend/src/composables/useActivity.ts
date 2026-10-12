@@ -132,12 +132,15 @@ export function useActivity() {
      fenetre-la donnait « les lectures d'Untel parmi les cent dernieres » au lieu de ses
      cent dernieres, sans que le compteur affiche ne le trahisse. */
   const HISTORY_PAGE_SIZE=100;
+  /* L'ordre de la chronologie : les plus recentes d'abord, ou les plus anciennes. Il part au
+     serveur, qui ordonne toute la periode et pas seulement la premiere page. */
+  const historySort=ref('date_desc');
   interface HistoryPage {items?: any[]; total?: number; has_more?: boolean; facets?: {users?: string[]; devices?: string[]; servers?: Array<{id: number; name: string}>}}
   // La recherche part en base apres une pause de saisie ; les listes deroulantes, la periode
   // et le tri immediatement. Tous font partie de la cle : en changer annule la lecture en
   // cours et repart de la premiere page, ce que faisait `useLatestRequest` a la main.
   const historyNeedle=refDebounced(computed(()=>historySearch.value.trim()),250);
-  const historyKey=computed(()=>({days:days.value,query:historyNeedle.value,method:methodFilter.value,mediaType:typeFilter.value,user:userFilter.value,device:deviceFilter.value,server:serverFilter.value}));
+  const historyKey=computed(()=>({days:days.value,sort:historySort.value,query:historyNeedle.value,method:methodFilter.value,mediaType:typeFilter.value,user:userFilter.value,device:deviceFilter.value,server:serverFilter.value}));
   function historyParams(offset: number): URLSearchParams {
     const key=historyKey.value;
     const params=new URLSearchParams({days:String(key.days),limit:String(HISTORY_PAGE_SIZE),offset:String(offset)});
@@ -147,7 +150,7 @@ export function useActivity() {
     if(key.user)params.set('user',key.user);
     if(key.device)params.set('device',key.device);
     if(key.server)params.set('server',key.server);
-    params.set('sort','date_desc');
+    params.set('sort',key.sort);
     return params;
   }
   const historyQuery=useInfiniteQuery({
@@ -223,6 +226,8 @@ export function useActivity() {
     if(scopedUser.value)params.set('user',scopedUser.value);
     return `/api/playback/statistics?${params}`;
   }
+  /* Les statistiques ne servent qu'aux trois vues d'analyse : le direct et l'historique ont les leurs. */
+  const STATISTICS_VIEWS=['overview','quality','users'];
   const statisticsQuery=useQuery({
     queryKey:computed(()=>['playback','statistics',days.value,scopedUser.value]),
     queryFn:async({signal})=>{
@@ -236,7 +241,7 @@ export function useActivity() {
     // Changer de periode ou d'utilisateur garde les chiffres affiches jusqu'aux nouveaux.
     placeholderData:keepPreviousData,
     // La vue « En direct » n'affiche aucune statistique.
-    enabled:computed(()=>currentView.value!=='live'),
+    enabled:computed(()=>STATISTICS_VIEWS.includes(currentView.value)),
   });
   const EMPTY_STATISTICS={history:[],daily:[],users:[],summary:{}};
   const data=computed<Record<string, any>>(()=>{
@@ -249,10 +254,10 @@ export function useActivity() {
       liveConfigured:live?live.configured!==false:(statistics.configured??statistics.liveConfigured??true),
     };
   });
-  const loaded=computed(()=>Boolean(statisticsQuery.data.value)||(currentView.value==='live'&&Boolean(liveQuery.data.value)));
+  const loaded=computed(()=>currentView.value==='history'||Boolean(statisticsQuery.data.value)||(currentView.value==='live'&&Boolean(liveQuery.data.value)));
   const loading=computed(()=>liveQuery.isFetching.value||statisticsQuery.isFetching.value);
   const error=computed(()=>{
-    const failure=(currentView.value!=='live'?statisticsQuery.error.value:null)||liveQuery.error.value;
+    const failure=(STATISTICS_VIEWS.includes(currentView.value)?statisticsQuery.error.value:null)||liveQuery.error.value;
     return failure?humanizeError(failure):'';
   });
   const updatedAt=computed(()=>Math.max(statisticsQuery.dataUpdatedAt.value||0,liveQuery.dataUpdatedAt.value||0)||Date.now());
@@ -263,7 +268,7 @@ export function useActivity() {
   },{immediate:true});
   function load(): void {
     void liveQuery.refetch();
-    if(currentView.value!=='live')void statisticsQuery.refetch();
+    if(STATISTICS_VIEWS.includes(currentView.value))void statisticsQuery.refetch();
   }
   function setDays(value: number): void {days.value=value;storedDays.value=value;router.replace({query:{...route.query,days:value===30?undefined:String(value)}})}
   function setPeriod(value: string | number): void { if (typeof value === 'number') setDays(value); }
@@ -313,7 +318,7 @@ export function useActivity() {
   watch(()=>route.query.days,value=>{const next=Number(value)||days.value;if(next!==days.value)days.value=next});
   useRealtime(['activity.updated'],()=>{
     void queryClient.invalidateQueries({queryKey:queryKeys.playback.live},{cancelRefetch:false});
-    if(currentView.value!=='live')void queryClient.invalidateQueries({queryKey:['playback','statistics']},{cancelRefetch:false});
+    if(STATISTICS_VIEWS.includes(currentView.value))void queryClient.invalidateQueries({queryKey:['playback','statistics']},{cancelRefetch:false});
   },{refreshOnVisible:false});
   // Horloge locale du libelle « actualise il y a N s » : doit tourner meme onglet masque,
   // sinon l'age affiche au retour sur l'onglet est faux.
@@ -421,6 +426,7 @@ const liveRecent=computed((): TrackRecent[]=>{
   const pageState=computed(()=>loaded.value?'ready':error.value?'error':'loading');
 
   return {
+    historySort,
     methodFilter,
     typeFilter,
     userFilter,

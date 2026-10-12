@@ -408,10 +408,10 @@ test("le selecteur de periode de l'activite change bien de valeur", async ({ pag
   expect(activeAfter).not.toBe(activeBefore);
 });
 
-test("changer le tri de l'historique redemande la periode entiere", async ({ page }) => {
-  // Le tri vivait dans le navigateur, sur les cent lignes deja chargees : « Anciennes »
-  // retournait la premiere page au lieu d'aller chercher les plus anciennes lectures,
-  // et le changement ne declenchait aucune requete.
+test("changer l'ordre de l'historique redemande la periode entiere", async ({ page }) => {
+  // L'ordre vivait dans le navigateur, sur les cent lignes deja chargees : « plus anciennes
+  // d'abord » retournait la premiere page au lieu d'aller chercher les plus anciennes
+  // lectures, et le changement ne declenchait aucune requete.
   const sorts = [];
   page.on("request", (request) => {
     const url = new URL(request.url());
@@ -419,15 +419,10 @@ test("changer le tri de l'historique redemande la periode entiere", async ({ pag
   });
 
   await page.goto("/activity?view=history");
-  // Chaque colonne se trie d'un clic ; un second clic inverse le sens.
-  const bar = page.getByRole("toolbar", { name: /Trier/ });
-  await expect(bar).toBeVisible({ timeout: 15000 });
-  await bar.getByRole("button", { name: /Trier par date/ }).click();
+  await expect(page.locator(".understand")).toBeVisible({ timeout: 15000 });
+  await page.getByRole("button", { name: "Afficher les filtres" }).click();
+  await page.getByRole("button", { name: "Plus anciennes d’abord" }).click();
   await expect.poll(() => sorts.at(-1), { timeout: 10000 }).toBe("date_asc");
-  await bar.getByRole("button", { name: /Trier par titre/ }).click();
-  await expect.poll(() => sorts.at(-1), { timeout: 10000 }).toBe("title_asc");
-  await bar.getByRole("button", { name: /Trier par titre/ }).click();
-  await expect.poll(() => sorts.at(-1), { timeout: 10000 }).toBe("title_desc");
 });
 
 test("une session s'ouvre dans la feuille, avec son adresse, et retour la referme", async ({ page }) => {
@@ -455,7 +450,7 @@ test("une session s'ouvre dans la feuille, avec son adresse, et retour la referm
     route.fulfill({ json: sessions.find((item) => item.id === id) });
   });
   await page.goto("/activity?view=history");
-  const row = page.locator(".history-table button").first();
+  const row = page.locator(".understand-row").first();
   await expect(row).toBeVisible({ timeout: 15000 });
   await row.click();
 
@@ -464,7 +459,7 @@ test("une session s'ouvre dans la feuille, avec son adresse, et retour la referm
   await expect(sheet).toBeVisible();
   await expect(page).toHaveURL(/\/activity\/session\/1$/);
   await expect(sheet.getByRole("heading", { level: 1 })).toHaveText("Le Voyage de Chihiro");
-  await expect(page.locator(".history-table")).toBeAttached();
+  await expect(page.locator(".understand")).toBeAttached();
 
   // Suivant : la session voisine de la liste, sans nouvelle entree d'historique.
   await sheet.getByRole("button", { name: "Suivant", exact: true }).click();
@@ -515,15 +510,15 @@ test("l'historique charge la suite au defilement", async ({ page }) => {
   });
 
   await page.goto("/activity?view=history");
-  const rows = page.locator(".history-table button");
+  const rows = page.locator(".understand-row");
   await expect(rows).toHaveCount(30, { timeout: 15000 });
 
   // On descend : la sentinelle placee sous la liste doit declencher la page suivante.
-  await page.locator(".history-sentinel").scrollIntoViewIfNeeded();
+  await page.locator(".infinite-scroll-trigger").scrollIntoViewIfNeeded();
 
   await expect(rows).toHaveCount(60, { timeout: 10000 });
   // Et l'historique se lit par date : chaque journee porte son en-tete.
-  await expect(page.locator(".history-day").first()).toBeVisible();
+  await expect(page.locator(".understand__day").first()).toBeVisible();
 });
 
 test("une confirmation ouverte depuis un tiroir reste cliquable", async ({ page }) => {
