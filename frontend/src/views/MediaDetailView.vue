@@ -361,11 +361,6 @@ const autoImportMutation = useMutation({
   retry: 0,
   onSuccess: invalidateMedia,
 });
-const joinMutation = useMutation({
-  mutationFn: (id: number) => api<any>(`/api/requests/${id}/join`, { method: 'POST' }),
-  retry: 0,
-  onSuccess: invalidateMedia,
-});
 const recheckMutation = useMutation({
   mutationFn: (path: string) => api(path, { method: 'POST' }), retry: 0, onSuccess: invalidateMedia,
 });
@@ -582,15 +577,6 @@ async function submitRequest(): Promise<void> {
   } finally {
     busy.value = false;
   }
-}
-
-async function joinRequest(): Promise<void> {
-  if (!detail.value?.request_id || !sessionUserId.value) return;
-  busy.value = true; error.value = '';
-  try {
-    const data = await joinMutation.mutateAsync(detail.value.request_id);
-    successMessage.value = data.already_joined ? 'Cette demande est déjà dans votre suivi.' : 'Demande ajoutée à votre suivi.';
-  } catch (e: any) { error.value = e.message; } finally { busy.value = false; }
 }
 
 /** Le média n'est plus dans Plex et le serveur vient de le retirer : la fiche n'existe plus. */

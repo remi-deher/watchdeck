@@ -53,7 +53,7 @@
 
 <script setup lang="ts">
 import { isInPlex, mediaAvailabilityBadge } from "@/utils/mediaAvailability";
-import { proxyUrl, srcSetFor } from '@/utils/mediaImage';
+import { proxyUrl } from '@/utils/mediaImage';
 import { mediaTypeLabel, isMusicType } from '@/utils/labels';
 import MediaLanguageBadge from './MediaLanguageBadge.vue';
 import { computed, onMounted, ref, useSlots, watch } from 'vue';
@@ -168,7 +168,6 @@ const factsLine = computed(() => {
 const status = computed(() => (!isMusic.value && (availabilityStatus.value || (props.statusLabel ? { label: props.statusLabel, variant: props.statusClass } : null))) || null);
 const plexStatus = computed(() => (status.value?.variant === 'in-plex' ? status.value : null));
 const kickerStatus = computed(() => (status.value && !plexStatus.value ? status.value : null));
-const posterBadges = computed(() => Boolean(plexStatus.value || movieLanguage.value));
 /* Un film porte sa langue sous l'affiche ; une serie, le detail par saison. */
 const movieLanguage = computed(() => !isShow.value && !props.preview && showLanguageSummary.value);
 

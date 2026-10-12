@@ -44,10 +44,7 @@
 .app-nav-link,
 .app-subnav__item,
 .filter-badge,
-.kpi-card,
 .hero-btn,
-.icon-button,
-.text-button,
 .app-dock__link {
   @extend %pressable;
 }
@@ -57,10 +54,7 @@
 .app-nav-link:active,
 .app-subnav__item:active,
 .filter-badge:active,
-.kpi-card:active,
 .hero-btn:active,
-.icon-button:active,
-.text-button:active,
 .app-dock__link:active,
 .app-nav-link[data-pending] {
   transform: scale(0.97);
@@ -89,21 +83,11 @@
   .modal-panel[data-state="open"] { animation: surface-feuille-in var(--motion-duration-base) var(--motion-ease-emphasized); }
   .modal-panel[data-state="closed"] { animation: surface-feuille-out var(--motion-duration-fast) var(--motion-ease-exit) forwards; }
 }
-/* Tiroir de detail : il arrive du bord droit sur ordinateur, du bas sur telephone. */
-@media (min-width: 768px) {
-  .detail-drawer[data-state="open"] { animation: surface-tiroir-in var(--motion-duration-base) var(--motion-ease-emphasized); }
-  .detail-drawer[data-state="closed"] { animation: surface-tiroir-out var(--motion-duration-fast) var(--motion-ease-exit) forwards; pointer-events: none; }
-}
-@media (max-width: 767.98px) {
-  .detail-drawer[data-state="open"] { animation: surface-feuille-in var(--motion-duration-base) var(--motion-ease-emphasized); }
-  .detail-drawer[data-state="closed"] { animation: surface-feuille-out var(--motion-duration-fast) var(--motion-ease-exit) forwards; pointer-events: none; }
-}
-@keyframes surface-tiroir-in { from { transform: translate3d(100%, 0, 0); } }
-@keyframes surface-tiroir-out { to { transform: translate3d(100%, 0, 0); } }
 @keyframes surface-feuille-in { from { transform: translate3d(0, 100%, 0); } }
 @keyframes surface-feuille-out { to { transform: translate3d(0, 100%, 0); } }
 @media (prefers-reduced-motion: reduce) {
-  .drawer-backdrop[data-state], .modal-panel[data-state], .detail-drawer[data-state] { animation: none !important; }
+  .drawer-backdrop[data-state],
+.modal-panel[data-state] { animation: none !important; }
 }
 
 /* En bas d'ecran la feuille vient du bord, pas du centre : c'est de la qu'on l'a
@@ -121,16 +105,13 @@
 
 @media (prefers-reduced-motion: reduce) {
   .ui-button:active,
-  .poster-action:active,
-  .app-nav-link:active,
-  .app-subnav__item:active,
-  .filter-badge:active,
-  .kpi-card:active,
-  .hero-btn:active,
-  .icon-button:active,
-  .text-button:active,
-  .app-dock__link:active,
-  .poster-card:active { transform: none; }
+.poster-action:active,
+.app-nav-link:active,
+.app-subnav__item:active,
+.filter-badge:active,
+.hero-btn:active,
+.app-dock__link:active,
+.poster-card:active { transform: none; }
 }
 
 /* Le transport de l'affiche jusqu'a la fiche a ete retire : il mesurait et deplacait

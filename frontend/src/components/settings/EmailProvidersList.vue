@@ -34,31 +34,15 @@ interface EmailProvider {
   name: string;
   provider_type: string;
   enabled: boolean;
-  smtp_host: string;
-  smtp_port: number;
-  smtp_tls: boolean;
-  smtp_user: string;
-  smtp_password: string;
-  oauth_tenant: string;
-  oauth_client_id: string;
-  oauth_client_secret: string;
-  oauth_mailbox: string;
-  brevo_api_key: string;
   oauth_connected?: boolean;
 }
 
-const defaults = {
-  name: '', provider_type: 'smtp', enabled: true,
-  smtp_host: '', smtp_port: 587, smtp_tls: true, smtp_user: '', smtp_password: '',
-  oauth_tenant: 'consumers', oauth_client_id: '', oauth_client_secret: '', oauth_mailbox: '',
-  brevo_api_key: '',
-};
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
 
 // Noms conservés côté template : le composable fournit la mécanique, pas le vocabulaire.
 const {
   items: providers, load, toggle, remove: removeProvider,
-} = useCrudResource<EmailProvider>('/api/email-providers', defaults, {
+} = useCrudResource<EmailProvider>('/api/email-providers', {
   confirmTitle: 'Supprimer ce fournisseur ?',
 });
 

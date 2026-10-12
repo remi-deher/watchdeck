@@ -56,13 +56,9 @@ const connections = useConnectionsStatus();
 
 function capitalize(value: string): string { return value ? value.charAt(0).toUpperCase() + value.slice(1) : ''; }
 
-
-
-const arrDefaults = { name: '', arr_type: 'sonarr', url: '', api_key: '', quality_profile_id: null, root_folder: '', minimum_availability: 'released', is_default: false, enabled: true, indexer_ids: null };
-
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
 
-const { items: arrInstances, toggle: toggleArr, remove } = useCrudResource('/api/arr-instances', arrDefaults, {
+const { items: arrInstances, toggle: toggleArr, remove } = useCrudResource('/api/arr-instances', {
 
   confirmTitle: 'Supprimer cette instance ?',
 

@@ -114,10 +114,9 @@ import { bufferSpan, formatBuffer, hasTranscodeBuffer, transcoderState } from '@
 import { formatDurationExact as formatDuration, formatBandwidth, formatDateTime, formatTime } from '@/utils/format';
 import { computed, ref } from 'vue';
 import { useIntervalFn } from '@vueuse/core';
-import { ArrowRight, CircleStop, ClipboardCopy, Clock3, Copy, Cpu, Flag, Gauge, MonitorPlay, Network, Pause, Play, Server, Timer, Workflow } from '@lucide/vue';
+import { ArrowRight, CircleStop, ClipboardCopy, Clock3, Cpu, Flag, Gauge, MonitorPlay, Network, Play, Server, Timer, Workflow } from '@lucide/vue';
 import { timecode } from '@/utils/format';
 import { estimateProgressMs, estimatedEnd, isAdvancing } from '@/utils/playbackClock';
-import UiButton from '@/components/ui/UiButton.vue';
 import { useToast } from '@/composables/useToast';
 import { mediaDetailPath } from '@/mediaUrl';
 import { useMediaOverlay, useOuvrirFiche } from '@/composables/useMediaOverlay';
@@ -252,15 +251,6 @@ const bitrateHint = computed(() => {
   if (source) return `source ${formatBandwidth(source)}`;
   return bandwidthHint(flow);
 });
-const playerApp = computed(() => {
-  const player = stream.value.player || {};
-  return [player.product, player.version].filter(Boolean).join(' ');
-});
-const playerDevice = computed(() => {
-  const player = stream.value.player || {};
-  const system = [player.platform, player.platform_version].filter(Boolean).join(' ');
-  return [[player.vendor, player.model].filter(Boolean).join(' '), system].filter(Boolean).join(' · ');
-});
 const buffer = computed(() => (hasTranscodeBuffer(props.session as any) ? bufferSpan(props.session as any) : null));
 const transcoder = computed(() => transcoderState(props.session as any));
 const bufferEndMs = computed(() => {
@@ -303,10 +293,6 @@ function bandwidthHint(value: any): string {
 function mediaTypeLabel(value: any): string {
   const map: Record<string, string> = { movie: 'Film', episode: 'Épisode', track: 'Musique' };
   return map[value] || 'Média';
-}
-function stateLabel(value: any): string {
-  const map: Record<string, string> = { playing: 'Lecture', paused: 'En pause', buffering: 'Mise en mémoire' };
-  return map[value] || value || 'Terminée';
 }
 function decisionLabel(value: any): string {
   const map: Record<string, string> = { transcode: 'Transcodage', copy: 'Copie directe', directplay: 'Lecture directe' };

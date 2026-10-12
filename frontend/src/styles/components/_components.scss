@@ -28,8 +28,7 @@
 .activity-metric-card strong { font-size: var(--fs-2xl); line-height: 1.2; }
 
 .primary,
-.secondary,
-.icon-button {
+.secondary {
   min-height: 38px;
   display: inline-flex;
   align-items: center;
@@ -62,8 +61,7 @@
   box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
-.secondary:hover:not(:disabled),
-.icon-button:hover:not(:disabled) {
+.secondary:hover:not(:disabled) {
   background: rgb(var(--ink) / 0.08);
   transform: translateY(-1px);
 }
@@ -72,10 +70,6 @@
   color: var(--text);
   padding: 0 14px;
   text-decoration: none;
-}
-
-.icon-button {
-  width: 38px;
 }
 
 .toolbar,
@@ -148,8 +142,8 @@
 .save-bar-enter-from,.save-bar-leave-to { opacity: 0; transform: translateY(12px); }
 
 /* Lisibilité homogène des formulaires et de leur aide contextuelle. */
-.form-section > label:not(.check),.settings-drawer-body label:not(.check),.detail-drawer label:not(.check) { display: grid; gap: var(--space-2); color: var(--text); font-size: var(--fs-sm); font-weight: 600; }
-.form-section label small,.settings-drawer-body label small,.detail-drawer label small { color: var(--muted); font-size: var(--fs-xs); font-weight: 400; line-height: 1.45; }
+.form-section > label:not(.check) { display: grid; gap: var(--space-2); color: var(--text); font-size: var(--fs-sm); font-weight: 600; }
+.form-section label small { color: var(--muted); font-size: var(--fs-xs); font-weight: 400; line-height: 1.45; }
 textarea:focus-visible,input:focus-visible,select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),select:invalid { border-color: var(--red); }
 
@@ -254,7 +248,6 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   color: var(--red-text);
 }
 
-.action-card,
 .form-section {
   display: flex;
   flex-direction: column;
@@ -315,7 +308,6 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   background: var(--surface);
 }
 
-.detail-drawer,
 .modal-panel {
   /* Conteneur de requetes : le contenu d'une fenetre s'adapte a la largeur de la
      fenetre elle-meme (680px sur ordinateur, tout l'ecran sur telephone). */
@@ -352,7 +344,6 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
    `.modal-panel` avec la meme specificite, et une media query n'en ajoute pas. Place
    dans `layout/_layout.scss`, charge plus tot, il etait purement et simplement ignore. */
 @include bp.until(tablet) {
-  .detail-drawer,
   .modal-panel {
     --drawer-pad: 16px;
     inset: auto 0 0 0;
@@ -378,74 +369,6 @@ input:invalid:not(:placeholder-shown),textarea:invalid:not(:placeholder-shown),s
   .modal-panel.modal-size-sm { width: min(480px, calc(100% - 24px)); }
   .modal-panel.modal-size-lg { width: min(880px, calc(100% - 24px)); }
   .modal-panel.modal-size-xl { width: min(1100px, calc(100% - 24px)); }
-}
-
-/* Volet d'un objet de réglage (SettingsItem). Sur ordinateur il glisse depuis la
-   droite et occupe la hauteur de l'écran : la liste reste visible à côté, on garde le
-   contexte de ce qu'on configure. Sur téléphone, c'est la feuille ancrée en bas commune
-   à toutes les fenêtres (bloc ci-dessus). */
-@include bp.from(tablet) {
-  .modal-panel.settings-drawer {
-    inset: calc(var(--safe-top) + 12px) calc(var(--safe-right) + 12px) 12px auto;
-    width: min(480px, calc(100% - 24px));
-    max-height: none;
-    transform: none;
-  }
-  .modal-panel.settings-drawer[data-state="open"] { animation: surface-tiroir-in var(--motion-duration-base) var(--motion-ease-emphasized); }
-  .modal-panel.settings-drawer[data-state="closed"] { animation: surface-tiroir-out var(--motion-duration-fast) var(--motion-ease-exit) forwards; }
-}
-
-.settings-drawer-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  margin-top: var(--space-4);
-}
-
-.settings-drawer-quick {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  padding-bottom: var(--space-4);
-  border-bottom: 1px solid var(--border);
-}
-
-.modal-panel.settings-drawer > .actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  margin-top: var(--space-5);
-}
-
-.settings-drawer-body input:not([type="checkbox"]),
-.settings-drawer-body select,
-.settings-drawer-body textarea {
-  min-height: 44px;
-}
-
-/* Les options binaires restent de vraies lignes de choix : le libellé entier est la
-   zone cliquable, pas une petite case qu'il faut viser. */
-.settings-drawer-body .check {
-  width: 100%;
-  min-height: 48px;
-  padding: 11px 13px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
-  line-height: 1.4;
-}
-
-.settings-drawer-body .check:has(input:checked),
-.settings-drawer-body .check:has([data-state="checked"]) {
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
-  background: color-mix(in srgb, var(--accent) 7%, var(--surface-2));
-}
-
-.settings-drawer-body > .actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
 }
 
 /* La feuille de filtres s'arrête SUR la barre de recherche, jamais dessus.
@@ -624,8 +547,7 @@ body[data-filter-sheet-drag] .app-topbar .ui-search-field__filter {
 /* Pendant le geste, la feuille suit le doigt sans transition : une interpolation entre
    deux positions rendrait le suivi mou et en retard sur la main. C'est au relachement
    que le mouvement redevient anime -- retour en place, ou sortie par le bas. */
-.modal-panel.is-dragging,
-.detail-drawer.is-dragging {
+.modal-panel.is-dragging {
   transition: none;
   cursor: grabbing;
 }
@@ -661,13 +583,11 @@ body[data-filter-sheet-drag] .app-topbar .ui-search-field__filter {
 /* Le flou du pied s'efface pendant le geste : floutter ce qui passe derriere une surface
    qui bouge oblige le navigateur a recomposer la scene a chaque image, et c'est ce qui
    fait clignoter l'ensemble sur Safari. A l'arret, il ne coute qu'une fois. */
-.modal-panel.is-dragging > .actions,
-.detail-drawer.is-dragging > .drawer-actions {
+.modal-panel.is-dragging > .actions {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 
-.detail-drawer::-webkit-scrollbar,
 .modal-panel::-webkit-scrollbar { width: 0; height: 0; }
 
 /* Une boite de dialogue ouverte depuis un tiroir doit passer devant lui. Les deux
@@ -690,13 +610,11 @@ body[data-filter-sheet-drag] .app-topbar .ui-search-field__filter {
 .confirm-modal__items span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .confirm-modal__items small, .confirm-modal__more { color: var(--muted); }
 .confirm-modal__typed { display: grid; gap: var(--space-1); margin: 0 0 var(--space-4); font-size: var(--fs-sm); }
-.modal-panel[data-state],
-.detail-drawer[data-state] { z-index: var(--z-modal-panel); }
+.modal-panel[data-state] { z-index: var(--z-modal-panel); }
 .modal-panel { z-index: var(--z-modal-panel); }
 
 @include bp.until(tablet) {
-  .modal-panel > .actions,
-  .detail-drawer > .drawer-actions {
+  .modal-panel > .actions {
     position: sticky;
     bottom: calc(-1 * var(--drawer-pad, 16px));
     z-index: 3;
@@ -709,8 +627,7 @@ body[data-filter-sheet-drag] .app-topbar .ui-search-field__filter {
     backdrop-filter: blur(14px);
   }
 
-  .modal-panel > .actions > *,
-  .detail-drawer > .drawer-actions > * { width: 100%; }
+  .modal-panel > .actions > * { width: 100%; }
 }
 
 .form-section textarea,
@@ -783,31 +700,13 @@ body[data-filter-sheet-drag] .app-topbar .ui-search-field__filter {
   box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
-.unmatched-header > .panel-link {
-  margin-left: auto;
-  flex-shrink: 0;
-}
-
-.unmatched-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  margin-bottom: 14px;
-}
-
 /* ===== Ergonomie tactile ===== */
 /* Cibles d'au moins 44px sur les appareils tactiles (recommandation iOS/Android) */
 @media (pointer: coarse) {
   .primary,
-  .secondary,
-  .icon-button,
-  .filter-select,
-  .panel-link {
+.secondary,
+.panel-link {
     min-height: 44px;
-  }
-
-  .icon-button {
-    width: 44px;
   }
 
   /* Cases a cocher de selection : seule cible restee sous le seuil tactile (24px,
@@ -830,10 +729,9 @@ body[data-filter-sheet-drag] .app-topbar .ui-search-field__filter {
   }
 
   /* Empêche le zoom automatique iOS au focus (police < 16px) */
-  .filter-select,
   input,
-  select,
-  textarea {
+select,
+textarea {
     font-size: max(16px, 1em);
   }
 }
@@ -841,7 +739,6 @@ body[data-filter-sheet-drag] .app-topbar .ui-search-field__filter {
 /* Retour visuel au toucher (pas de :hover sur mobile) */
 .primary:active:not(:disabled),
 .secondary:active:not(:disabled),
-.icon-button:active:not(:disabled),
 .panel-link:active {
   transform: scale(0.97);
 }

@@ -30,13 +30,12 @@ import { useConfirm } from '@/composables/useConfirm';
 import { useCrudResource } from '@/composables/useCrudResource';
 
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
-const { items: servers, toggle, remove } = useCrudResource('/api/plex-servers', {}, {
+const { items: servers, toggle, remove } = useCrudResource('/api/plex-servers', {
   confirmTitle: 'Supprimer ce serveur ?',
   confirmMessage: (name: string) => `${name} ne sera plus synchronisé. Les médias présents uniquement sur ce serveur disparaîtront de la Bibliothèque au prochain scan complet.`,
 });
 // Liste absente ou reponse inattendue (backend injoignable) : la liste s'affiche quand meme.
 const serverList = computed<any[]>(() => (Array.isArray(servers.value) ? servers.value : []));
-const primary = computed<any | null>(() => serverList.value.find((s: any) => s.is_primary) || null);
 const extraServers = computed<any[]>(() => serverList.value.filter((s: any) => !s.is_primary));
 function serverSummary(server: any): string {
   const parts = [server.url || 'Non configuré'];

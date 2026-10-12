@@ -297,28 +297,6 @@ input[type="checkbox"]:focus-visible {
   .table-cards td.card-select::before {
     display: none;
   }
-
-  .table-cards .table-detail {
-    max-width: 100%;
-    text-align: right;
-  }
-
-  .table-cards td.url-cell {
-    max-width: 100%;
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
-    overflow-wrap: anywhere;
-  }
-}
-
-.url-cell {
-  color: var(--muted);
-  font-size: var(--fs-sm);
-  max-width: 280px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 th,
@@ -434,32 +412,10 @@ td {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
-.compact-form {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--space-3);
-}
-
-.migration-summary,
 .inline-row {
   display: flex;
   gap: var(--space-3);
   align-items: center;
-}
-
-.migration-summary {
-  align-items: flex-start;
-  flex-direction: column;
-  padding: 12px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-
-.table-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
 }
 
 .inline-row {
@@ -557,8 +513,7 @@ button:disabled {
   color: var(--red-text);
 }
 
-.page:has(.calendar-day) .toolbar.wrap,
-.downloads-page .toolbar.wrap {
+.page:has(.calendar-day) .toolbar.wrap {
   position: sticky;
   top: calc(12px + var(--safe-top));
   z-index: 20;
@@ -570,19 +525,9 @@ button:disabled {
 }
 
 @include bp.until(phablet) {
-  .page:has(.calendar-day) .toolbar.wrap,
-  .downloads-page .toolbar.wrap {
+  .page:has(.calendar-day) .toolbar.wrap {
     top: 8px;
   }
-}
-
-.text-button {
-  padding: 0;
-  border: 0;
-  color: var(--text);
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
 }
 
 .bulk-bar,
@@ -603,12 +548,6 @@ button:disabled {
   background: var(--surface);
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
-}
-
-.table-detail {
-  max-width: 520px;
-  margin-top: 4px;
-  white-space: normal;
 }
 
 @include bp.from(desktop) {
@@ -669,47 +608,15 @@ button:disabled {
   align-self: center;
 }
 
-.detail-drawer.wide {
-  width: min(850px, calc(100% - 24px));
-}
-
 /* Vue maître/détail : la liste reste lisible pendant l'édition sur tablette et PC.
    Le seuil suit celui du shell (768px) et non plus 821 : entre les deux, le tiroir
    retombait sur la carte centrée à 90dvh et perdait un sixième de la hauteur de
    l'écran alors qu'il y avait toute la place d'une feuille latérale pleine hauteur. */
 @include bp.from(tablet) {
-  .drawer-backdrop:has(> .detail-drawer),
   .drawer-backdrop--detail-drawer {
     background: linear-gradient(90deg, rgba(0,0,0,.12), rgba(0,0,0,.48));
     backdrop-filter: none;
   }
-
-  .detail-drawer,
-  .detail-drawer.wide {
-    --drawer-pad: 24px;
-    /* Haut et bas non « auto » avec `height: auto` : la feuille occupe toute la hauteur
-       restante sous la barre flottante, quelle que soit la longueur du contenu. */
-    /* La feuille part du haut de la fenetre et non sous la barre flottante : c'est une
-       boite de dialogue modale, elle passe devant le shell plutot que de lui ceder
-       cinquante pixels de hauteur utile a chaque ouverture. */
-    inset: max(8px,var(--safe-top)) max(12px,var(--safe-right)) max(8px,var(--safe-bottom)) auto;
-    width: min(680px, calc(100vw - 116px));
-    height: auto;
-    max-height: none;
-    transform: none;
-    border-radius: var(--radius-lg);
-    box-shadow: -24px 0 55px rgb(var(--shadow-color) / calc(.48 * var(--shadow-scale)));
-  }
-
-  .detail-drawer.wide { width: min(820px, calc(100vw - 116px)); }
-}
-
-@include bp.between(tablet, wide) {
-  .detail-drawer,
-  .detail-drawer.wide { width: min(620px, calc(100vw - 96px)); }
-}
-
-@include bp.until(phablet) {
 }
 
 .detail-row > div:first-child,
@@ -723,14 +630,6 @@ button:disabled {
   display: block;
 }
 
-.mail-history {
-  display: block;
-  font-size: var(--fs-xs);
-  color: var(--muted);
-  opacity: 0.85;
-}
-
-.tag-row,
 .season-grid {
   display: flex;
   flex-wrap: wrap;
@@ -821,29 +720,11 @@ button:disabled {
   border-radius: var(--radius-sm);
 }
 
-.totp-qr {
-  width: min(220px, 100%);
-  padding: 8px;
-  background: white;
-  border-radius: var(--radius-sm);
-}
-
-.dashboard-grid {
-  display: grid;
-  gap: var(--space-3);
-}
-
 /* Tableau de bord : la mise en page vit dans DashboardView et ses composants. */
 @include bp.until(tablet) {
   .scan-status-panel .panel-head { align-items: flex-start; flex-direction: column; }
   .scan-status-panel .panel-head .actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); width: 100%; }
   .scan-status-panel .panel-head .actions button { min-width: 0; }
-}
-
-@include bp.from(desktop) {
-  .dashboard-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 .checklist span {
@@ -919,17 +800,6 @@ button:disabled {
 
 .spin {
   animation: spin .8s linear infinite;
-}
-
-/* --- Réglages : sections de lignes (SettingsSection/SettingsRow) et listes d'objets
-   (SettingsItemList/SettingsItem). Une seule colonne, bornée : au-delà, le libellé et
-   son contrôle s'éloignent tant que l'œil perd la ligne. --- */
-.settings-rows {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  max-width: 1080px;
-  min-width: 0;
 }
 
 /* Note explicative sous une checkbox .check autonome (celle-ci n'a pas de zone
@@ -1204,115 +1074,9 @@ button:disabled {
 
 .ratio-segment.show-seg { background: var(--blue); }
 
-/* --- Unmatched imports alert --- */
-.settings-card.unmatched-alert {
-  border-color: color-mix(in srgb, var(--red) 25%, transparent);
-  background: color-mix(in srgb, var(--red) 4%, transparent);
-}
-
-.unmatched-icon {
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--red) 12%, transparent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--red-text);
-}
-
-.unmatched-icon svg {
-  width: 18px;
-  height: 18px;
-}
-
-.unmatched-header > div strong {
-  display: block;
-  color: var(--text);
-  font-size: var(--fs-md);
-  font-weight: 600;
-}
-
-.unmatched-header > div span {
-  font-size: var(--fs-sm);
-  color: var(--muted);
-}
-
-.unmatched-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.unmatched-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: 8px 12px;
-  background: rgb(var(--ink) / 0.02);
-  border: 1px solid rgb(var(--ink) / 0.04);
-  border-radius: var(--radius-sm);
-}
-
-.unmatched-title {
-  flex: 1;
-  font-size: var(--fs-sm);
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.unmatched-more {
-  font-size: var(--fs-sm);
-  color: var(--muted);
-  text-align: center;
-  padding: 4px;
-}
-
-.row-unmatched td:first-child {
-  border-left: 2px solid color-mix(in srgb, var(--red) 50%, transparent);
-  padding-left: 10px;
-}
-
-.error-badge {
-  background: color-mix(in srgb, var(--red) 20%, transparent);
-  color: var(--red-text);
-}
-
-/* --- Modale d'import manuel --- */
-.modal-panel.import-modal {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  max-width: 560px;
-}
-
-.modal-panel.arr-instance-modal {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  width: min(720px, calc(100% - 24px));
-}
-
-.arr-instance-modal .compact-form {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-}
-
-.webhook-list { display: flex; flex-direction: column; gap: 1rem; }
-
 .webhook-item { background: var(--bg-element); border: 1px solid var(--border); padding: 1rem; border-radius: var(--radius); }
 
-.webhook-title { margin-bottom: 0.5rem; font-size: var(--fs-base); }
-
-.webhook-url { display: flex; gap: 0.5rem; align-items: center; }
-
-.webhook-url input { flex: 1; font-family: var(--font-mono); font-size: var(--fs-sm); padding: 0.5rem; background: var(--bg-hover); color: var(--text-muted); cursor: text; }
-
 .webhook-status { margin-top: 0.5rem; font-size: var(--fs-md); display: flex; align-items: center; gap: 0.25rem; }
-
-.webhook-status.status-ok { color: var(--green-text); }
 
 .webhook-status.status-error { color: var(--red-text); }
 

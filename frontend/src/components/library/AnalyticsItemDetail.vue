@@ -152,7 +152,6 @@ const { actif: enSurface, routeDeFond } = useMediaOverlay();
 const { ouvrir } = useOuvrirFiche();
 
 const known = (value: unknown): boolean => Boolean(value) && !/^inconnue?$/i.test(String(value));
-const displayTitle = computed(() => (props.item.grandparent_title ? `${props.item.grandparent_title} · ${props.item.title}` : props.item.title));
 const meta = computed(() => [
   props.item.grandparent_title || mediaTypeLabel(props.item.media_type),
   props.item.year,

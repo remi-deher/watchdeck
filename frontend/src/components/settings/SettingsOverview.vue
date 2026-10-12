@@ -30,7 +30,7 @@ import { zoneStates } from '@/adminZoneStates';
 import { queryKeys } from '@/queryKeys';
 import { useAdminAttention } from '@/composables/useAdminAttention';
 import { useSession } from '@/composables/useSession';
-import { formatFileSize, formatRelativeDate, parseApiDate } from '@/utils/format';
+import { formatFileSize, formatRelativeDate } from '@/utils/format';
 import MonitorTemplate from '@/components/templates/MonitorTemplate.vue';
 import OverviewQuickActions from './overview/OverviewQuickActions.vue';
 import OverviewServices, { type ServiceRow } from './overview/OverviewServices.vue';

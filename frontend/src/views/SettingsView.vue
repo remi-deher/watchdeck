@@ -3,8 +3,6 @@
     :title="pageTitle"
     v-model:query="query"
     :search="{ placeholder: 'Filtrer les réglages…', scope: 'Réglages', kind: 'filter' }"
-    :match-count="settingsSearch.matched.value"
-    :total-count="settingsSearch.total.value"
   >
     <!-- L'enregistrement des panneaux a formulaire est aussi l'action de la capsule. -->
     <template v-if="formPanels.has(tab)" #quick-action>
@@ -35,9 +33,6 @@
             </li>
           </ul>
         </section>
-        <p v-if="query.trim() && !settingsSearch.matched.value" class="settings-no-match">
-          Aucun réglage de cette page ne correspond à « {{ query.trim() }} ».
-        </p>
 
         <SettingsOverview v-if="tab==='overview'"/>
         <ConnectionsTab v-else-if="tab==='plex'"/>
@@ -82,7 +77,7 @@ import { useToast } from '@/composables/useToast';
 import { load, save, saving, error, message, isDirty, discardChanges } from '@/settingsForm';
 import { panelForPath, pathForLegacyTab, type SettingsPanel } from '@/settingsRoutes';
 import { SETTINGS_SEARCH_INDEX } from '@/settingsSearchIndex';
-import { matchesQuery, normalizeSearchText, provideSettingsSearch } from '@/composables/useSettingsSearch';
+import { matchesQuery, normalizeSearchText } from '@/composables/useSettingsSearch';
 import { provideSettingsPage } from '@/composables/useSettingsPage';
 
 const ConnectionsTab = defineAsyncComponent(() => import('@/components/settings/ConnectionsTab.vue'));
@@ -112,10 +107,9 @@ const route = useRoute(), router = useRouter();
 const tab = computed(() => panelForPath(route.path));
 
 /* Deux moities de la meme question : le champ retranche les cartes de la page affichee
-   (les cartes se declarent elles-memes, voir `useSettingsSearch`), et l'index dit ou
+   (les sections de ConfigureTemplate), et l'index dit ou
    trouver ce qui correspond ailleurs. */
 const query = ref('');
-const settingsSearch = provideSettingsSearch(query);
 const elsewhere = computed(() => {
   const needle = query.value.trim();
   if (normalizeSearchText(needle).length < 2) return [];
