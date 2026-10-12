@@ -9,7 +9,8 @@
        Pas de liste complete, pas de reglage, pas d'action groupee : ce sont les besoins
        des gabarits Suivre, Traiter et Configurer, vers lesquels celui-ci oriente.
        `details` accueille des panneaux de surveillance complementaires (services,
-       taches…), places a cote de l'attention. Sur telephone, le verdict et l'attention
+       taches…), places a cote de l'attention ; `after`, une lecture complementaire sur toute
+       la largeur (files, derniers elements). Sur telephone, le verdict et l'attention
        passent d'abord, puis les parties (qui y servent de menu), puis les chiffres. -->
   <div class="monitor" :class="{ 'has-details': $slots.details }">
     <!-- Le verdict ne parle que s'il y a quelque chose a dire : quand tout va bien, la
@@ -40,6 +41,9 @@
     />
     <div v-if="$slots.details" class="monitor__details"><slot name="details" /></div>
     <MonitorZones v-if="zones.length" class="monitor__zones" :groups="zones" :label="labels.zonesLabel" />
+    <!-- Lecture complementaire, sur toute la largeur, apres les parties : ce qui s'est passe
+         ou ce qui arrive (files, derniers elements), quand la page en a. -->
+    <div v-if="$slots.after" class="monitor__after"><slot name="after" /></div>
   </div>
 </template>
 
@@ -80,13 +84,13 @@ const labels = computed(() => Object.fromEntries(Object.entries(props.labels).fi
 .monitor {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: 'verdict' 'live' 'kpis' 'attention' 'zones';
+  grid-template-areas: 'verdict' 'live' 'kpis' 'attention' 'zones' 'after';
   gap: var(--space-5) var(--space-4);
   min-width: 0;
 }
 .monitor.has-details {
   grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-  grid-template-areas: 'verdict verdict' 'live live' 'kpis kpis' 'attention details' 'zones zones';
+  grid-template-areas: 'verdict verdict' 'live live' 'kpis kpis' 'attention details' 'zones zones' 'after after';
 }
 .monitor__verdict { grid-area: verdict; }
 .monitor__live { grid-area: live; min-width: 0; }
@@ -94,11 +98,12 @@ const labels = computed(() => Object.fromEntries(Object.entries(props.labels).fi
 .monitor__attention { grid-area: attention; }
 .monitor__details { grid-area: details; display: grid; align-content: start; gap: var(--space-4); min-width: 0; }
 .monitor__zones { grid-area: zones; }
+.monitor__after { grid-area: after; display: grid; gap: var(--space-4); min-width: 0; }
 
 @include bp.until(desktop) {
   .monitor.has-details {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: 'verdict' 'live' 'kpis' 'attention' 'details' 'zones';
+    grid-template-areas: 'verdict' 'live' 'kpis' 'attention' 'details' 'zones' 'after';
   }
 }
 
@@ -106,7 +111,7 @@ const labels = computed(() => Object.fromEntries(Object.entries(props.labels).fi
   .monitor,
   .monitor.has-details {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: 'verdict' 'attention' 'live' 'zones' 'kpis' 'details';
+    grid-template-areas: 'verdict' 'attention' 'live' 'zones' 'kpis' 'details' 'after';
     gap: var(--space-4);
   }
 }
