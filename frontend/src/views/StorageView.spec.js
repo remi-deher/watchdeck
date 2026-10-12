@@ -1,23 +1,37 @@
 import { mount, flushPromises } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import * as vueRouter from 'vue-router';
+import { toasts } from '@/composables/useToast';
 import StorageView from './StorageView.vue';
 const { request } = vi.hoisted(() => ({ request: vi.fn() }));
 vi.mock('@/api', () => ({ api: request }));
 vi.mock('@/components/storage/previewJob', () => ({calculatePreview: (body) => request('/api/storage/preview', {method:'POST',body:JSON.stringify(body)})}));
 vi.mock('@/events', () => ({ useRealtime: vi.fn() }));
+/* La vue est dans l'adresse (?vue=) : une adresse reactive remplace le routeur, pour que changer de vue soit synchrone. */
+vi.mock('vue-router', async (importOriginal) => {
+  const { reactive } = await import('vue');
+  const route = reactive({ path: '/storage', query: {}  });
+  return {
+    ...(await importOriginal()),
+    useRoute: () => route,
+    useRouter: () => ({ replace: (to) => { route.query = to.query || {}; }, push: (to) => { route.query = to.query || {}; } }),
+    __route: route,
+  };
+});
+const route = vueRouter.__route;
 const roots = [
   { arr_instance_id: 1, name: 'Radarr', arr_type: 'radarr', arr_roots: ['/data/FILMS','/usb/FILMS'], plex_roots: [{ section_id:'1',library:'Films',path:'/media/FILMS' }, { section_id:'1',library:'Films',path:'/usb/MEDIA/FILMS' }] },
   { arr_instance_id: 2, name: 'Sonarr', arr_type: 'sonarr', arr_roots: ['/data/SERIES'], plex_roots: [{ section_id:'2',library:'Séries',path:'/media/SERIES' }] },
 ];
 async function openPreparation(wrapper){await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');await wrapper.findAll('button').find(b=>b.text()==='Nouveau transfert').trigger('click');await wrapper.find('form').trigger('submit');}
 async function factory(openSettings=true) {
- const wrapper = mount(StorageView, {global:{stubs:{UiMenu:{template:'<div><slot name="trigger"/><slot/></div>'},UiMenuItem:{emits:['select'],template:'<button @click="$emit(\'select\',$event)"><slot/></button>'},AppSubnav:{props:['items','active'],emits:['update:active'],template:'<nav class="app-subnav__root"><button v-for="item in items" :key="item.key" @click="$emit(\'update:active\',item.key)">{{ item.label }}<span v-if="item.count!=null"> {{ item.count }}</span></button></nav>'},AppPage:{template:'<main><slot name="tabs"/><slot name="tools"/><slot/></main>'}, ModalShell:{props:['open','error'],template:'<div v-if="open" role="dialog"><span>{{ error }}</span><slot/></div>'}}}});
+ const wrapper = mount(StorageView, {global:{stubs:{UiMenu:{template:'<div><slot name="trigger"/><slot/></div>'},UiMenuItem:{emits:['select'],template:'<button @click="$emit(\'select\',$event)"><slot/></button>'},PageTemplate:{props:['tabs'],methods:{go(item){route.query=item.to.query;}},template:'<main><nav class="app-subnav__root"><button v-for="item in tabs" :key="item.key" @click="go(item)">{{ item.label }}</button></nav><slot name="quick-action"/><slot/></main>'}, ModalShell:{props:['open','error'],template:'<div v-if="open" role="dialog"><span>{{ error }}</span><slot/></div>'}}}});
  await flushPromises();
  if(openSettings){await wrapper.findAll('button').find(b=>b.text()==='Stockages').trigger('click');await flushPromises();}
  return wrapper;
 }
 describe('Storage root correspondence table', () => {
- beforeEach(()=>{localStorage.clear();request.mockReset();request.mockImplementation(async(path)=>path==='/api/storage/roots'?roots:path==='/api/storage/instances'?[{id:1,name:'Radarr',arr_type:'radarr',enabled:true},{id:2,name:'Sonarr',arr_type:'sonarr',enabled:true}]:path==='/api/storage/roots/resolve'?{candidates:[],automatic:null,comparison:{status:'sample_matched',checked_titles:5,total_titles:12,items:[]}}:path==='/api/storage/roots/check'?{status:'sample_matched',checked_titles:5,total_titles:12,items:[]}:[]);});
+ beforeEach(()=>{route.query={};localStorage.clear();request.mockReset();request.mockImplementation(async(path)=>path==='/api/storage/roots'?roots:path==='/api/storage/instances'?[{id:1,name:'Radarr',arr_type:'radarr',enabled:true},{id:2,name:'Sonarr',arr_type:'sonarr',enabled:true}]:path==='/api/storage/roots/resolve'?{candidates:[],automatic:null,comparison:{status:'sample_matched',checked_titles:5,total_titles:12,items:[]}}:path==='/api/storage/roots/check'?{status:'sample_matched',checked_titles:5,total_titles:12,items:[]}:[]);});
  it('keeps saved virtual roots visible when changing the instance of a previous task',async()=>{
   const original=request.getMockImplementation();
   request.mockImplementation(async(path,opts)=>{
@@ -244,7 +258,7 @@ describe('Storage root correspondence table', () => {
   expect(wrapper.text()).toContain('ses fichiers temporaires nettoyés');
   expect(request.mock.calls.some(([,opts])=>opts?.method==='DELETE')).toBe(false);
   await wrapper.findAll('button').find(b=>b.text()==='Annuler et supprimer').trigger('click');await flushPromises();
-  expect(request).toHaveBeenCalledWith('/api/storage/transfers/18',{method:'DELETE'});expect(wrapper.text()).toContain('annulation et nettoyage en cours');wrapper.unmount();
+  expect(request).toHaveBeenCalledWith('/api/storage/transfers/18',{method:'DELETE'});await flushPromises();expect(toasts.value.some(t=>t.title.includes('annulation et nettoyage en cours'))).toBe(true);wrapper.unmount();
  });
 
  it('opens saved settings without calculating a preview when modifying a completed task',async()=>{
