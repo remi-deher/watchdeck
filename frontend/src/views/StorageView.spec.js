@@ -24,8 +24,12 @@ const roots = [
   { arr_instance_id: 2, name: 'Sonarr', arr_type: 'sonarr', arr_roots: ['/data/SERIES'], plex_roots: [{ section_id:'2',library:'Séries',path:'/media/SERIES' }] },
 ];
 async function openPreparation(wrapper){await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');await wrapper.findAll('button').find(b=>b.text()==='Nouveau transfert').trigger('click');await wrapper.find('form').trigger('submit');}
+/* La fiche d'une tache s'ouvre par l'adresse (?tache=) ; un evenement de l'historique, d'un clic sur sa ligne. */
+const openTask=async(id,vue='transfers')=>{route.query={vue,tache:String(id)};await flushPromises();};
+const press=(wrapper,label)=>wrapper.findAll('button').find(b=>b.text()===label).trigger('click');
+async function openHistoryRow(wrapper,index=0){await press(wrapper,'Historique');await flushPromises();await wrapper.findAll('.understand-row')[index].trigger('click');await flushPromises();}
 async function factory(openSettings=true) {
- const wrapper = mount(StorageView, {global:{stubs:{UiMenu:{template:'<div><slot name="trigger"/><slot/></div>'},UiMenuItem:{emits:['select'],template:'<button @click="$emit(\'select\',$event)"><slot/></button>'},PageTemplate:{props:['tabs'],methods:{go(item){route.query=item.to.query;}},template:'<main><nav class="app-subnav__root"><button v-for="item in tabs" :key="item.key" @click="go(item)">{{ item.label }}</button></nav><slot name="quick-action"/><slot/></main>'}, ModalShell:{props:['open','error'],template:'<div v-if="open" role="dialog"><span>{{ error }}</span><slot/></div>'}}}});
+ const wrapper = mount(StorageView, {global:{stubs:{ConfirmModal:{props:['open','title','message','confirmLabel'],emits:['cancel','confirm'],template:'<div v-if="open" role="dialog" class="confirm"><p>{{ message }}</p><button @click="$emit(\'cancel\')">Annuler</button><button @click="$emit(\'confirm\')">{{ confirmLabel }}</button></div>'},RouterLink:{props:['to'],template:'<a><slot/></a>'},UiMenu:{template:'<div><slot name="trigger"/><slot/></div>'},UiMenuItem:{emits:['select'],template:'<button @click="$emit(\'select\',$event)"><slot/></button>'},PageTemplate:{props:['tabs'],methods:{go(item){route.query=item.to.query;}},template:'<main><nav class="app-subnav__root"><button v-for="item in tabs" :key="item.key" @click="go(item)">{{ item.label }}</button></nav><slot name="quick-action"/><slot/></main>'}, ModalShell:{props:['open','error'],template:'<div v-if="open" role="dialog"><span>{{ error }}</span><slot/></div>'}}}});
  await flushPromises();
  if(openSettings){await wrapper.findAll('button').find(b=>b.text()==='Stockages').trigger('click');await flushPromises();}
  return wrapper;
@@ -40,9 +44,8 @@ describe('Storage root correspondence table', () => {
    return original(path,opts);
   });
   const wrapper=await factory(false);
-  await wrapper.findAll('button').find(b=>b.text()==='Historique').trigger('click');
-  await wrapper.findAll('button').find(b=>b.text()==='Détails').trigger('click');
-  await wrapper.findAll('button').find(b=>b.text()==='Créer une copie').trigger('click');await wrapper.find('form').trigger('submit');
+  await openTask(17,'history');
+  await press(wrapper,'Créer une copie');await wrapper.find('form').trigger('submit');
   await wrapper.findAll('.instance-choice input')[0].setValue(false);
   await wrapper.findAll('.instance-choice input')[1].setValue(true);
   expect(wrapper.findAll('.source-choices input').map(input=>input.element.value)).toEqual(['/data/SERIES']);
@@ -155,38 +158,38 @@ describe('Storage root correspondence table', () => {
  });
  it('edits a saved draft without resuming it blindly',async()=>{
   const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers' && !opts?[{id:11,status:'draft',desired_state:'pause',params:{transfer_mode:'arr',arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS'},items:[]}]:original(path,opts));
-  const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
+  const wrapper=await factory();await openTask(11);
   expect(wrapper.text()).toContain('Tâche enregistrée, aucun transfert lancé');
-  expect(wrapper.findAll('button').some(b=>b.text()==='Reprendre le lot')).toBe(false);
-  await wrapper.findAll('button').find(b=>b.text()==='Modifier').trigger('click');await wrapper.find('form').trigger('submit');
+  expect(wrapper.findAll('button').some(b=>b.text()==='Reprendre')).toBe(false);
+  await press(wrapper,'Modifier');await wrapper.find('form').trigger('submit');
   expect(wrapper.find('.source-choices input').element.checked).toBe(true);wrapper.unmount();
  });
  it('verifies a draft without launching and confirms deletion separately',async()=>{
   const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers' && !opts?[{id:11,status:'draft',desired_state:'pause',params:{name:'Ma tâche',transfer_mode:'arr',arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS'},items:[]}]:path==='/api/storage/preview'?{source:{free_bytes:0},destination:{free_bytes:20e9},items:[],excluded:[],goal_covered:true}:original(path,opts));
-  const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
-  expect(wrapper.findAll('button').some(b=>b.text().replace(/\s/g,'')==='Brouillons1')).toBe(true);
-  await wrapper.findAll('button').find(b=>b.text()==='Voir le détail').trigger('click');await wrapper.findAll('button').find(b=>b.text()==='Supprimer le brouillon').trigger('click');
+  const wrapper=await factory();await openTask(11);
+  await press(wrapper,'Supprimer le brouillon');
   expect(wrapper.find('[role="dialog"]').text()).toContain('Aucun fichier média');
-  await wrapper.findAll('button').find(b=>b.text()==='Annuler').trigger('click');
+  await press(wrapper,'Annuler');await flushPromises();
   expect(request.mock.calls.some(([,opts])=>opts?.method==='DELETE')).toBe(false);
-  await wrapper.findAll('button').find(b=>b.text()==='Vérifier et lancer').trigger('click');await flushPromises();
+  await press(wrapper,'Vérifier et lancer');await flushPromises();
   expect(request.mock.calls.some(([path])=>path==='/api/storage/preview')).toBe(true);
   expect(request.mock.calls.some(([path,opts])=>path==='/api/storage/transfers' && opts?.method==='POST')).toBe(false);
   expect(wrapper.find('[role="dialog"]').exists()).toBe(true);wrapper.unmount();
  });
  it('filters transfer titles and exposes retry for blocked items',async()=>{
   const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers' && !opts?[{id:9,source_id:1,destination_id:2,status:'paused',desired_state:'pause',params:{transfer_mode:'arr'},items:[{id:1,title:'À corriger',status:'blocked',size_bytes:100,snapshot:{}},{id:2,title:'Terminé',status:'completed',size_bytes:200,snapshot:{}}]}]:original(path,opts));
-  const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
-  await wrapper.findAll('button').find(b=>b.text().startsWith('À traiter')).trigger('click');
-  await wrapper.findAll('button').find(b=>b.text()==='Examiner').trigger('click');const table=wrapper.find('[aria-label="Titres du lot 9"]');expect(table.text()).toContain('À corriger');expect(table.text()).toContain('Terminé');
-  await wrapper.findAll('button').find(b=>b.text()==='Réessayer les titres en erreur').trigger('click');await flushPromises();
+  const wrapper=await factory();await openTask(9);
+  expect(wrapper.text()).toContain('1 titre(s) à traiter');
+  await wrapper.findAll('[role="tab"]').find(t=>t.text().startsWith('Titres')).trigger('mousedown',{button:0});await flushPromises();
+  const table=wrapper.find('[aria-label="Titres de la tâche 9"]');expect(table.text()).toContain('À corriger');expect(table.text()).toContain('Terminé');
+  await press(wrapper,'Réessayer les titres en erreur');await flushPromises();
   expect(request).toHaveBeenCalledWith('/api/storage/transfers/9/command',expect.objectContaining({body:JSON.stringify({action:'retry'})}));wrapper.unmount();
  });
  it('keeps capacity in storage and terminal tasks in history',async()=>{
   request.mockImplementation(async(path)=>path==='/api/storage/roots'?roots:path==='/api/storage/locations'?[{id:1,name:'DATA1',mappings:[],free_bytes:null,enabled:true}]:path==='/api/storage/transfers'?[{id:1,source_id:1,status:'paused',items:[{id:1,status:'pending',media_type:'movie',size_bytes:2e9},{id:2,status:'completed',media_type:'series',size_bytes:3e9}]}]:[]);
   const wrapper=await factory();expect(wrapper.find('[aria-label="Stockages"]').text()).toContain('— libres');
-  await wrapper.findAll('button').find(b=>b.text()==='Historique').trigger('click');expect(wrapper.text()).not.toContain('Tâche #1');
-  await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');expect(wrapper.text()).toContain('Tâche #1');wrapper.unmount();
+  await press(wrapper,'Historique');await flushPromises();expect(wrapper.text()).not.toContain('Tâche #1');
+  await press(wrapper,'Transferts');await flushPromises();expect(wrapper.text()).toContain('Tâche #1');wrapper.unmount();
  });
 
  it('refreshes in the background without replacing rows or clearing the selected pair',async()=>{
@@ -214,9 +217,10 @@ describe('Storage root correspondence table', () => {
    {id:2,source_id:1,destination_id:2,status:'completed',released_bytes:3e9,items:[{id:2,status:'completed',media_type:'series',size_bytes:3e9,progress:{started_at:'2026-10-04T10:00:00',finished_at:'2026-10-04T10:10:00'}}]},
   ]:[]);
   const wrapper=await factory();expect(wrapper.find('[aria-label="Stockages"]').text()).toContain('5 Go libres');
-  await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
+  await openTask(1);
   expect(wrapper.find('[aria-label="Volume copié de la tâche 1"]').attributes('aria-valuenow')).toBe('50');expect(wrapper.text()).toContain('20 Mo/s');expect(wrapper.text()).toContain('≈ 50 s');
-  await wrapper.findAll('button').find(b=>b.text()==='Historique').trigger('click');const history=wrapper.find('[aria-label="Historique des transferts"]');expect(history.text()).toContain('0 film(s) · 1 série(s)');expect(history.text()).toContain('Début :');expect(history.text()).toContain('04/10/2026');wrapper.unmount();
+  await press(wrapper,'Historique');await flushPromises();expect(wrapper.text()).toContain('0 film(s) · 1 série(s)');
+  await wrapper.findAll('.understand-row')[0].trigger('click');await flushPromises();expect(wrapper.text()).toContain('Début / fin');expect(wrapper.text()).toContain('04/10/2026');wrapper.unmount();
  });
 
  it('saves paths for multiple rows without validating the shared connection',async()=>{
@@ -243,9 +247,9 @@ describe('Storage root correspondence table', () => {
 
  it('opens a fresh preview directly when relaunching a cancelled task',async()=>{
   const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:17,status:'cancelled',desired_state:'cancel',params:{mode:'release_space',goal_gb:20,arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]}]:path==='/api/storage/preview'?{source:{free_bytes:100e9},destination:{free_bytes:200e9},items:[],excluded:[],goal_covered:true}:original(path,opts));
-  const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Historique').trigger('click');
+  const wrapper=await factory();await openHistoryRow(wrapper);
   expect(wrapper.text()).toContain('Relancer');
-  await wrapper.findAll('button').find(b=>b.text()==='Relancer').trigger('click');await flushPromises();
+  await press(wrapper,'Relancer');await flushPromises();
   expect(request.mock.calls.some(([path])=>path==='/api/storage/preview')).toBe(true);
   expect(wrapper.find('[role="dialog"]').exists()).toBe(true);
   expect(wrapper.find('[role="dialog"]').text()).toContain('Mode retenu : API Sonarr / Radarr');
@@ -253,20 +257,19 @@ describe('Storage root correspondence table', () => {
  });
  it('confirms removal of a paused task before requesting durable cancellation',async()=>{
   const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:18,status:'paused',desired_state:'pause',params:{transfer_mode:'rsync_ssh'},items:[]}]:path==='/api/storage/transfers/18'&&opts?.method==='DELETE'?{deletion_pending:18}:original(path,opts));
-  const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
-  await wrapper.findAll('button').find(b=>b.text()==='Voir le détail').trigger('click');await wrapper.findAll('button').find(b=>b.text()==='Supprimer la tâche').trigger('click');
+  const wrapper=await factory();await openTask(18);
+  await press(wrapper,'Supprimer la tâche');
   expect(wrapper.text()).toContain('ses fichiers temporaires nettoyés');
   expect(request.mock.calls.some(([,opts])=>opts?.method==='DELETE')).toBe(false);
-  await wrapper.findAll('button').find(b=>b.text()==='Annuler et supprimer').trigger('click');await flushPromises();
+  await press(wrapper,'Annuler et supprimer');await flushPromises();
   expect(request).toHaveBeenCalledWith('/api/storage/transfers/18',{method:'DELETE'});await flushPromises();expect(toasts.value.some(t=>t.title.includes('annulation et nettoyage en cours'))).toBe(true);wrapper.unmount();
  });
 
  it('opens saved settings without calculating a preview when modifying a completed task',async()=>{
   const original=request.getMockImplementation();
   request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:17,status:'completed',params:{mode:'release_space',goal_gb:20,arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]}]:original(path,opts));
-  const wrapper=await factory(false);await wrapper.findAll('button').find(b=>b.text()==='Historique').trigger('click');
-  await wrapper.findAll('button').find(b=>b.text()==='Détails').trigger('click');
-  await wrapper.findAll('button').find(b=>b.text()==='Modifier').trigger('click');await flushPromises();
+  const wrapper=await factory(false);await openTask(17,'history');
+  await press(wrapper,'Modifier');await flushPromises();
   expect(wrapper.find('.objective-options').exists()).toBe(true);
   expect(request.mock.calls.some(([path])=>path==='/api/storage/preview')).toBe(false);
   wrapper.unmount();
@@ -274,8 +277,8 @@ describe('Storage root correspondence table', () => {
  it('shows a loading modal without opening preparation while relaunch preview is pending',async()=>{
   const original=request.getMockImplementation();let rejectPreview;
   request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:17,status:'cancelled',params:{mode:'release_space',goal_gb:20,arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]}]:path==='/api/storage/preview'?new Promise((resolve,reject)=>{rejectPreview=reject;}):original(path,opts));
-  const wrapper=await factory(false);await wrapper.findAll('button').find(b=>b.text()==='Historique').trigger('click');
-  await wrapper.findAll('button').find(b=>b.text()==='Relancer').trigger('click');await flushPromises();
+  const wrapper=await factory(false);await openHistoryRow(wrapper);
+  await press(wrapper,'Relancer');await flushPromises();
   expect(wrapper.find('[role="dialog"] [role="status"]').exists()).toBe(true);
   expect(wrapper.find('.instance-choice').exists()).toBe(false);
   rejectPreview(new Error('Plex indisponible'));await flushPromises();
@@ -294,9 +297,8 @@ describe('Storage root correspondence table', () => {
    if(path==='/api/storage/transfers/17'&&opts?.method==='PUT')return {id:17};
    return original(path,opts);
   });
-  const wrapper=await factory(false);await wrapper.findAll('button').find(b=>b.text()==='Historique').trigger('click');
-  await wrapper.findAll('button').find(b=>b.text()==='Détails').trigger('click');
-  await wrapper.findAll('button').find(b=>b.text()==='Modifier').trigger('click');
+  const wrapper=await factory(false);await openTask(17,'history');
+  await press(wrapper,'Modifier');
   const name=wrapper.findComponent({name:'StorageObjectiveFields'}).find('input');
   await name.setValue('Renamed task');await wrapper.find('form').trigger('submit');
   await wrapper.findAll('button').find(b=>b.text()==='Enregistrer les modifications').trigger('click');await flushPromises();
@@ -316,8 +318,8 @@ describe('Storage root correspondence table', () => {
    if(path==='/api/storage/transfers/17'&&opts?.method==='PUT')return {id:17};
    return original(path,opts);
   });
-  const wrapper=await factory(false);await wrapper.findAll('button').find(b=>b.text()==='Historique').trigger('click');
-  await wrapper.findAll('button').find(b=>b.text()==='Relancer').trigger('click');await flushPromises();
+  const wrapper=await factory(false);await openHistoryRow(wrapper);
+  await press(wrapper,'Relancer');await flushPromises();
   const previewRequest=request.mock.calls.find(([path])=>path==='/api/storage/preview');
   expect(JSON.parse(previewRequest[1].body)).toMatchObject({task_id:17,name:'Named job'});
   await wrapper.findAll('button').find(b=>b.text()==='Lancer la sélection').trigger('click');await flushPromises();

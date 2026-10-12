@@ -182,6 +182,6 @@ const days = computed(() => {
 /* Telephone : le detail passe par-dessus la liste, en feuille, et la place est gardee. */
 @include bp.until(desktop) {
   .understand.has-detail { grid-template-columns: minmax(0, 1fr); }
-  .understand__sheet { position: fixed; inset: auto 0 0; z-index: 40; max-height: 80vh; overflow-y: auto; padding: var(--space-2); }
+  .understand__sheet { position: fixed; inset: auto 0 var(--app-shell-offset-bottom, 0); z-index: 40; max-height: calc(80vh - var(--app-shell-offset-bottom, 0px)); overflow-y: auto; padding: var(--space-2); }
 }
 </style>

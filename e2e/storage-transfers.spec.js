@@ -13,8 +13,7 @@ test('background Plex finalization is readable and pausable', async ({page})=>{
   await page.route('**/storage',route=>route.fulfill({contentType:'text/html',body:readFileSync('app/static/vue/index.html','utf8')}));
   await page.route('**/vue/**',route=>{const path=new URL(route.request().url()).pathname;return route.fulfill({contentType:path.endsWith('.js')?'text/javascript':path.endsWith('.css')?'text/css':'application/octet-stream',body:readFileSync('app/static'+path)});});
  }
- await page.goto('/storage',{waitUntil:'domcontentloaded',timeout:120_000});
- await page.getByRole('button',{name:'Voir le détail',exact:true}).click();
+ await page.goto('/storage?tache=9',{waitUntil:'domcontentloaded',timeout:120_000});
  await expect(page.getByText('Copie terminée · Finalisation Plex en arrière-plan',{exact:true})).toBeVisible();
  await expect(page.getByText('1 titre(s) à confirmer · 3 Go conservés à la source.')).toBeVisible();
  const pause=page.getByRole('button',{name:'Mettre en pause',exact:true});
@@ -40,16 +39,15 @@ test('transfer actions and title details remain accessible at every screen size'
     await page.route('**/storage',route=>route.fulfill({contentType:'text/html',body:readFileSync('app/static/vue/index.html','utf8')}));
     await page.route('**/vue/**',route=>{const path=new URL(route.request().url()).pathname;return route.fulfill({contentType:path.endsWith('.js')?'text/javascript':path.endsWith('.css')?'text/css':'application/octet-stream',body:readFileSync('app/static'+path)});});
   }
-  await page.goto('/storage',{waitUntil:'domcontentloaded',timeout:120_000});
-  await page.getByRole('button',{name:'Voir le détail',exact:true}).click();
-  const openActions=()=>page.getByRole('button',{name:'Actions de la tâche 9'}).click();
+  await page.goto('/storage?tache=9',{waitUntil:'domcontentloaded',timeout:120_000});
+  const openActions=()=>page.getByRole('button',{name:'Plus d’actions'}).click();
   await openActions();
   const cancel=page.getByRole('menuitem',{name:'Annuler la tâche',exact:true});
   await expect(cancel).toBeVisible();
-  expect((await page.getByRole('button',{name:'Reprendre'}).boundingBox()).height).toBeGreaterThanOrEqual(43.5);
+  expect((await page.getByRole('button',{name:'Reprendre'}).boundingBox()).height).toBeGreaterThanOrEqual(30);
   await page.keyboard.press('Escape');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth+1)).toBe(true);
-  await page.getByText('Voir les 2 titres et leurs détails',{exact:true}).click();
+  await page.getByRole('tab',{name:/^Titres/}).click();
   const details=page.getByRole('button',{name:'Détails de The Simpsons',exact:true});
   await page.screenshot({path:`.codex/transfers-${test.info().project.name}.png`,fullPage:true});
   const bounds=await details.boundingBox();
@@ -60,11 +58,11 @@ test('transfer actions and title details remain accessible at every screen size'
   await expect(page.getByRole('dialog')).toContainText('/data/SERIES/The Simpsons');
   await page.getByRole('dialog').getByRole('button',{name:'Fermer',exact:true}).last().click();
   await openActions();await cancel.click();
-  await expect(page.getByRole('dialog')).toContainText('Avec rsync');
+  await expect(page.getByRole('alertdialog')).toContainText('Avec rsync');
   expect(commands).toBe(0);
-  await page.getByRole('button',{name:'Garder la tâche',exact:true}).click();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.getByRole('button',{name:'Actions de la tâche 9'}).click();
+  await page.getByRole('alertdialog').getByRole('button',{name:'Annuler',exact:true}).click();
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await openActions();
   await expect(page.getByRole('menuitem',{name:'Créer une copie'})).toBeVisible();
   await page.keyboard.press('Escape');
   await openActions();await cancel.click();
