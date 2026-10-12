@@ -358,13 +358,18 @@ test("le rail se replie et se deploie, et le choix survit au rechargement", asyn
   expect((await rail.boundingBox()).width).toBeCloseTo(collapsed, 0);
 });
 
-test("la sous-navigation d'une page repond aux fleches", async ({ page }) => {
-  // Les sections de l'Activite sont devenues celles de sa destination, donc des liens
-  // de navigation et non des onglets : les fleches n'ont pas de sens sur un `<nav>`.
-  // Le comportement teste ici reste celui de la variante `tabs`, toujours utilisee par
-  // les journaux, l'Acquisition, les ameliorations VF et la fiche media.
-  await page.goto("/logs");
-  const tablist = page.locator('.app-subnav [role="tablist"]').first();
+test("les onglets d'une fiche repondent aux fleches", async ({ page }) => {
+  // Les vues d'une page sont des liens de navigation (pas de fleches sur un `<nav>`) ; les parties
+  // d'une fiche sont des onglets (UiTabs, « consulter ») : les fleches changent d'onglet.
+  await page.route("**/api/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/session") return route.fulfill({ json: { role: "admin", is_owner: true } });
+    if (path === "/api/events") return route.fulfill({ contentType: "text/event-stream", body: "" });
+    if (path.startsWith("/api/media/detail")) return route.fulfill({ json: { id: 1, title: "Dune", year: 2021, media_type: "movie", in_library: true, library_id: 1, genres: [], media: {}, requests: [], availability: { plex: "present", episodes: { state: "unknown" } } } });
+    return route.fulfill({ json: {} });
+  });
+  await page.goto("/library/media/library/1");
+  const tablist = page.locator('.ui-tabs [role="tablist"]').first();
   await expect(tablist).toBeVisible({ timeout: 15_000 });
 
   const selected = tablist.locator('[role="tab"][aria-selected="true"]');
@@ -721,8 +726,8 @@ test("le hero d'une fiche est une carte posee dans la colonne", async ({ page })
     }),
   );
   await page.goto("/library/media/request/1");
-  // Le hero passe par le fond partage UiHeroBackdrop ; `.mdh-hero` reste propre a la fiche.
-  const hero = page.locator(".mdh-hero");
+  // Le hero passe par le fond partage UiHeroBackdrop ; la banniere de la fiche est celle de SheetHero.
+  const hero = page.locator(".detail__hero .sheet-hero__banner");
   await expect(hero).toBeVisible({ timeout: 15000 });
 
   const cadre = await hero.evaluate((node) => {

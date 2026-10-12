@@ -235,20 +235,20 @@ useSheetGesture(panelRef, toRef(props, 'open'), {
 /* La fiche garde sa propre fleche « Retour » pour le mode pleine page. Posee en surface,
    elle ferait double emploi avec la croix -- deux moyens de fermer au meme endroit, dont
    l'un evoque une navigation qui n'a pas lieu. */
-.media-overlay :deep(.mdh-back) { display: none; }
+.media-overlay :deep(.detail__back) { display: none; }
 
 /* L'affiche grandit avec la surface : c'est elle qu'on a touchee, elle doit arriver
    quelque part de visiblement plus grand que la vignette dont elle vient.
    La taille passe par la largeur seule (`flex-basis: auto`) : sur telephone l'en-tete
    s'empile en colonne, et une base de 156px y fixait la HAUTEUR -- l'affiche 2:3
    devenait un carre de 156 x 156. */
-.media-overlay :deep(.mdh-poster:not(.is-music)) {
+.media-overlay :deep(.detail__cover:not(.is-square)) {
   flex: 0 0 auto;
   width: 156px;
 }
 
 @include bp.from(tablet) {
-  .media-overlay :deep(.mdh-poster:not(.is-music)) {
+  .media-overlay :deep(.detail__cover:not(.is-square)) {
     width: 232px;
   }
 }

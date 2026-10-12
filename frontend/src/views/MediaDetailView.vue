@@ -7,6 +7,9 @@
          taille en pleine animation. -->
     <MediaDetailHero
       v-if="detail || apercu"
+      :tabs="detail ? mediaTabItems : []"
+      :tab="isMusic ? 'main' : tab"
+      @update:tab="tab = $event"
       :detail="detail || apercu"
       :preview="!detail"
       :status-label="detail ? statusLabel : ''"
@@ -21,7 +24,104 @@
       @scan="scanVff"
       @open-audio="tab = 'audio'"
       @request="handleRequestClick"
+    >
+      <template v-for="key in slotTabs" :key="key" #[`tab-${key}`]>
+        <MediaMusicCatalog
+      v-if="key === 'main'"
+      :detail="detail"
+      :artist-albums="artistAlbums"
+      :album-tracks="albumTracks"
+      @open-album="openDetail"
+      @listen="openPlexLink"
     />
+
+        <MediaRequestsTab
+          v-else-if="key === 'requests'"
+          :requests="detail.requests"
+          :detail="detail"
+          :admin="admin"
+          :busy="busy"
+          :addable-users="addableUsers"
+          v-model:new-requester-id="newRequesterId"
+          @add-requester="addRequester"
+          @open-release="(id: number) => ouvrirReleases(`/releases/${id}`)"
+          @retry="(id: number) => requestAction(id, 'retry')"
+          @catch-up-all="catchUpAll"
+          @resend-mail="resendMail"
+          @close-request="closeRequest"
+          @delete-request="deleteRequest"
+          @withdraw-request="withdrawRequest"
+          @set-auto-import="setAutoImport"
+          @notify-user="notifyUser"
+          @promote-requester="promoteRequester"
+          @remove-requester="removeRequester"
+          @approve="(id: number) => requestAction(id, 'approve')"
+          @reject="rejectRequest"
+        />
+
+        <MediaCalendarTab v-else-if="key === 'calendar'" :events="detail.calendar" />
+
+        <MediaEncodingTab v-else-if="key === 'encoding' && libraryItemId" :item-id="libraryItemId" />
+
+        <MediaAudioSection
+          v-else-if="key === 'audio' || key === 'missing'"
+          :vf-detail="mergedVfDetail"
+          :envelope-error="envelopeError"
+          :availability-error="availabilityError"
+          :vf-status-error="vfStatusError"
+          :source-type="releaseSourceType"
+          :source-id="releaseSourceId"
+          :admin="admin"
+          :media-title="detail.title"
+          :missing-only="key === 'missing'"
+          @correction="openCorrection"
+          @expand-season="seasons.loadSeason"
+          @aligned="onStreamsAligned"
+        />
+
+        <MediaSummaryTab
+          v-else
+          :detail="detail"
+          :busy="busy"
+          :show-issue-form="showIssueForm"
+          :show-correction-form="showCorrectionForm"
+          :users="users"
+          :correction-options="correctionOptions"
+          :correction-form="correctionForm"
+          :vf-detail="mergedVfDetail"
+          @recheck-plex="recheckPlex"
+          @open-correction="openCorrection"
+          @report-issue="reportIssue"
+          @cancel-issue="showIssueForm = false"
+          @submit-correction="sendCorrection"
+          @cancel-correction="showCorrectionForm = false"
+        />
+      </template>
+      <template v-if="detail" #after>
+        <div class="media-detail-body">
+    <MediaCast v-if="detail.cast?.length && !isMusic" :items="detail.cast" />
+
+    <MediaSaga v-if="detail.saga && !isMusic" :saga="detail.saga" />
+
+    <MediaRecommendations
+      v-if="!isMusic"
+      title="Recommandés pour vous"
+      :items="detail.recommendations || []"
+      :requesting="recRequesting"
+      @open="openDetail"
+      @request="requestRecMedia"
+    />
+    <MediaRecommendations
+      v-if="!isMusic"
+      title="Titres similaires"
+      :items="detail.similar || []"
+      :requesting="recRequesting"
+      @open="openDetail"
+      @request="requestRecMedia"
+    />
+        </div>
+      </template>
+    </MediaDetailHero>
     <div v-if="!detail && pending" class="media-detail-skeleton" aria-busy="true" aria-label="Chargement de la fiche">
       <template v-if="apercu">
         <span class="skeleton-line is-tabs" />
@@ -31,111 +131,6 @@
       </template>
       <div v-else class="drawer-loading"><LoaderCircle class="spin" /> Chargement</div>
     </div>
-    <template v-else-if="detail">
-
-      <div class="media-detail-body">
-
-        <template v-if="!isMusic">
-          <!-- Les parties du média (UiTabs, « consulter ») : une seule, pas de rangée. -->
-          <UiTabs :model-value="tab" :items="mediaTabItems" ariaLabel="Sections du média" @update:model-value="tab = $event">
-            <template #default="{ tab: shown }">
-            <MediaRequestsTab
-              v-if="shown === 'requests'"
-              :requests="detail.requests"
-              :detail="detail"
-              :admin="admin"
-              :busy="busy"
-              :addable-users="addableUsers"
-              v-model:new-requester-id="newRequesterId"
-              @add-requester="addRequester"
-              @open-release="(id: number) => ouvrirReleases(`/releases/${id}`)"
-              @retry="(id: number) => requestAction(id, 'retry')"
-              @catch-up-all="catchUpAll"
-              @resend-mail="resendMail"
-              @close-request="closeRequest"
-              @delete-request="deleteRequest"
-              @withdraw-request="withdrawRequest"
-              @set-auto-import="setAutoImport"
-              @notify-user="notifyUser"
-              @promote-requester="promoteRequester"
-              @remove-requester="removeRequester"
-              @approve="(id: number) => requestAction(id, 'approve')"
-              @reject="rejectRequest"
-            />
-
-            <MediaCalendarTab v-else-if="shown === 'calendar'" :events="detail.calendar" />
-
-            <MediaEncodingTab v-else-if="shown === 'encoding' && libraryItemId" :item-id="libraryItemId" />
-
-            <MediaAudioSection
-              v-else-if="shown === 'audio' || shown === 'missing'"
-              :vf-detail="mergedVfDetail"
-              :envelope-error="envelopeError"
-              :availability-error="availabilityError"
-              :vf-status-error="vfStatusError"
-              :source-type="releaseSourceType"
-              :source-id="releaseSourceId"
-              :admin="admin"
-              :media-title="detail.title"
-              :missing-only="shown === 'missing'"
-              @correction="openCorrection"
-              @expand-season="seasons.loadSeason"
-              @aligned="onStreamsAligned"
-            />
-
-            <MediaSummaryTab
-              v-else
-              :detail="detail"
-              :busy="busy"
-              :show-issue-form="showIssueForm"
-              :show-correction-form="showCorrectionForm"
-              :users="users"
-              :correction-options="correctionOptions"
-              :correction-form="correctionForm"
-              :vf-detail="mergedVfDetail"
-              @recheck-plex="recheckPlex"
-              @open-correction="openCorrection"
-              @report-issue="reportIssue"
-              @cancel-issue="showIssueForm = false"
-              @submit-correction="sendCorrection"
-              @cancel-correction="showCorrectionForm = false"
-            />
-            </template>
-          </UiTabs>
-        </template>
-
-        <MediaMusicCatalog
-          v-if="isMusic"
-          :detail="detail"
-          :artist-albums="artistAlbums"
-          :album-tracks="albumTracks"
-          @open-album="openDetail"
-          @listen="openPlexLink"
-        />
-
-        <MediaCast v-if="detail.cast?.length && !isMusic" :items="detail.cast" />
-
-        <MediaSaga v-if="detail.saga && !isMusic" :saga="detail.saga" />
-
-        <MediaRecommendations
-          v-if="!isMusic"
-          title="Recommandés pour vous"
-          :items="detail.recommendations || []"
-          :requesting="recRequesting"
-          @open="openDetail"
-          @request="requestRecMedia"
-        />
-        <MediaRecommendations
-          v-if="!isMusic"
-          title="Titres similaires"
-          :items="detail.similar || []"
-          :requesting="recRequesting"
-          @open="openDetail"
-          @request="requestRecMedia"
-        />
-      </div>
-    </template>
-
     <!-- Sans cette branche, un identifiant qui ne resout plus (favori, lien partage,
          fiche disparue apres un reimport de bibliotheque) laissait la page
          entierement vide : l'erreur etait bien stockee, mais son affichage vivait a
@@ -224,7 +219,6 @@ import MediaSaga from "@/components/media/MediaSaga.vue";
 import MediaMusicCatalog from "@/components/media/MediaMusicCatalog.vue";
 import ConfirmModal from "@/components/ConfirmModal.vue";
 import ReasonPickerModal from "@/components/requests/ReasonPickerModal.vue";
-import UiTabs from "@/components/ui/UiTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiEmptyState from "@/components/ui/UiEmptyState.vue";
 import { useConfirm } from "@/composables/useConfirm";
@@ -283,6 +277,8 @@ const tabs = computed(() => {
     ...(fileflowsConfigured.value && libraryItemId.value ? ['encoding'] : []),
   ];
 });
+/* Les parties dont la page fournit le contenu : celles des onglets, ou la seule du catalogue d'un artiste. */
+const slotTabs = computed(() => (!detail.value ? [] : isMusic.value ? ['main'] : tabs.value));
 const mediaTabItems = computed(() => tabs.value.map((key) => ({ key, label: tabLabel(key) })));
 const admin = ref(false);
 const sessionUserId = ref('');
