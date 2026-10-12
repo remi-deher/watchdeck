@@ -34,73 +34,74 @@
     <template v-else-if="detail">
 
       <div class="media-detail-body">
-        <p v-if="error" class="notice error-text">{{ error }}</p>
-        <UiFeedback v-if="successMessage" type="success" :message="successMessage" dismissible @dismiss="successMessage=''"/>
 
         <template v-if="!isMusic">
-          <AppSubnav v-if="tabs.length > 1" variant="tabs" :items="mediaTabItems" :active="tab" aria-label="Sections du média" @update:active="tab = $event" />
+          <!-- Les parties du média (UiTabs, « consulter ») : une seule, pas de rangée. -->
+          <UiTabs :model-value="tab" :items="mediaTabItems" ariaLabel="Sections du média" @update:model-value="tab = $event">
+            <template #default="{ tab: shown }">
+            <MediaRequestsTab
+              v-if="shown === 'requests'"
+              :requests="detail.requests"
+              :detail="detail"
+              :admin="admin"
+              :busy="busy"
+              :addable-users="addableUsers"
+              v-model:new-requester-id="newRequesterId"
+              @add-requester="addRequester"
+              @open-release="(id: number) => ouvrirReleases(`/releases/${id}`)"
+              @retry="(id: number) => requestAction(id, 'retry')"
+              @catch-up-all="catchUpAll"
+              @resend-mail="resendMail"
+              @close-request="closeRequest"
+              @delete-request="deleteRequest"
+              @withdraw-request="withdrawRequest"
+              @set-auto-import="setAutoImport"
+              @notify-user="notifyUser"
+              @promote-requester="promoteRequester"
+              @remove-requester="removeRequester"
+              @approve="(id: number) => requestAction(id, 'approve')"
+              @reject="rejectRequest"
+            />
 
-          <MediaRequestsTab
-            v-if="tab === 'requests'"
-            :requests="detail.requests"
-            :detail="detail"
-            :admin="admin"
-            :busy="busy"
-            :addable-users="addableUsers"
-            v-model:new-requester-id="newRequesterId"
-            @add-requester="addRequester"
-            @open-release="(id: number) => ouvrirReleases(`/releases/${id}`)"
-            @retry="(id: number) => requestAction(id, 'retry')"
-            @catch-up-all="catchUpAll"
-            @resend-mail="resendMail"
-            @close-request="closeRequest"
-            @delete-request="deleteRequest"
-            @withdraw-request="withdrawRequest"
-            @set-auto-import="setAutoImport"
-            @notify-user="notifyUser"
-            @promote-requester="promoteRequester"
-            @remove-requester="removeRequester"
-            @approve="(id: number) => requestAction(id, 'approve')"
-            @reject="rejectRequest"
-          />
+            <MediaCalendarTab v-else-if="shown === 'calendar'" :events="detail.calendar" />
 
-          <MediaCalendarTab v-else-if="tab === 'calendar'" :events="detail.calendar" />
+            <MediaEncodingTab v-else-if="shown === 'encoding' && libraryItemId" :item-id="libraryItemId" />
 
-          <MediaEncodingTab v-else-if="tab === 'encoding' && libraryItemId" :item-id="libraryItemId" />
+            <MediaAudioSection
+              v-else-if="shown === 'audio' || shown === 'missing'"
+              :vf-detail="mergedVfDetail"
+              :envelope-error="envelopeError"
+              :availability-error="availabilityError"
+              :vf-status-error="vfStatusError"
+              :source-type="releaseSourceType"
+              :source-id="releaseSourceId"
+              :admin="admin"
+              :media-title="detail.title"
+              :missing-only="shown === 'missing'"
+              @correction="openCorrection"
+              @expand-season="seasons.loadSeason"
+              @aligned="onStreamsAligned"
+            />
 
-          <MediaAudioSection
-            v-else-if="tab === 'audio' || tab === 'missing'"
-            :vf-detail="mergedVfDetail"
-            :envelope-error="envelopeError"
-            :availability-error="availabilityError"
-            :vf-status-error="vfStatusError"
-            :source-type="releaseSourceType"
-            :source-id="releaseSourceId"
-            :admin="admin"
-            :media-title="detail.title"
-            :missing-only="tab === 'missing'"
-            @correction="openCorrection"
-            @expand-season="seasons.loadSeason"
-            @aligned="onStreamsAligned"
-          />
-
-          <MediaSummaryTab
-            v-else
-            :detail="detail"
-            :busy="busy"
-            :show-issue-form="showIssueForm"
-            :show-correction-form="showCorrectionForm"
-            :users="users"
-            :correction-options="correctionOptions"
-            :correction-form="correctionForm"
-            :vf-detail="mergedVfDetail"
-            @recheck-plex="recheckPlex"
-            @open-correction="openCorrection"
-            @report-issue="reportIssue"
-            @cancel-issue="showIssueForm = false"
-            @submit-correction="sendCorrection"
-            @cancel-correction="showCorrectionForm = false"
-          />
+            <MediaSummaryTab
+              v-else
+              :detail="detail"
+              :busy="busy"
+              :show-issue-form="showIssueForm"
+              :show-correction-form="showCorrectionForm"
+              :users="users"
+              :correction-options="correctionOptions"
+              :correction-form="correctionForm"
+              :vf-detail="mergedVfDetail"
+              @recheck-plex="recheckPlex"
+              @open-correction="openCorrection"
+              @report-issue="reportIssue"
+              @cancel-issue="showIssueForm = false"
+              @submit-correction="sendCorrection"
+              @cancel-correction="showCorrectionForm = false"
+            />
+            </template>
+          </UiTabs>
         </template>
 
         <MediaMusicCatalog
@@ -223,7 +224,7 @@ import MediaSaga from "@/components/media/MediaSaga.vue";
 import MediaMusicCatalog from "@/components/media/MediaMusicCatalog.vue";
 import ConfirmModal from "@/components/ConfirmModal.vue";
 import ReasonPickerModal from "@/components/requests/ReasonPickerModal.vue";
-import AppSubnav from "@/components/ui/AppSubnav.vue";
+import UiTabs from "@/components/ui/UiTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiEmptyState from "@/components/ui/UiEmptyState.vue";
 import { useConfirm } from "@/composables/useConfirm";
@@ -262,6 +263,9 @@ const {
 });
 
 const busy = ref(false), actionError = ref(''), successMessage = ref(''), tab = ref('summary');
+/* Reussites et echecs d'une action passent par des notifications, pas par un bandeau dans la fiche. */
+watch(successMessage, (message) => { if (message) { addToast({ type: 'success', title: message }); successMessage.value = ''; } });
+watch(actionError, (message) => { if (message) addToast({ type: 'error', title: 'Action impossible', message }); });
 const showRequestOptions = ref(false);
 const requestForm = reactive<{ plex_user_id: string; root_folder: string; seasons: number[] }>({ plex_user_id: '', root_folder: '', seasons: [] });
 const isMusic = computed(() => isMusicType(detail.value?.media_type));
