@@ -28,6 +28,8 @@
           >
           <FocusScope trapped loop as-child>
           <div ref="panelRef" class="media-overlay__panel">
+            <!-- Le titre accessible de la fenetre : la fiche porte le sien, visible. -->
+            <DialogTitle as="div" class="sr-only">{{ ariaLabel }}</DialogTitle>
             <!-- La poignee reste le repere du geste, et son point de depart a la souris.
                  Au doigt, toute la fiche se tire des qu'elle est lue depuis le haut. -->
             <div class="media-overlay__grab" aria-hidden="true">
@@ -48,7 +50,7 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, ref, toRef, watch } from 'vue';
-import { DialogContent, DialogRoot, FocusScope } from 'reka-ui';
+import { DialogContent, DialogRoot, DialogTitle, FocusScope } from 'reka-ui';
 import { useSheetGesture } from '@/composables/useSheetGesture';
 import { resumeAutoHide, suspendAutoHide } from '@/composables/useChromeAutoHide';
 import { retourNatif } from '@/composables/useRetourNatif';

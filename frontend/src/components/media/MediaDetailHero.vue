@@ -6,7 +6,7 @@
     :variant="variant"
     back
     :eyebrow="typeLabel"
-    :title="detail.title"
+    :title="detail.title || ''"
     :icon="isMusic ? Music2 : Film"
     :poster="detail.poster_url"
     :poster-shape="isMusic ? 'square' : 'portrait'"

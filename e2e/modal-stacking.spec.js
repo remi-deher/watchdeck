@@ -40,7 +40,7 @@ test("la modale de demande ouverte depuis la fiche passe devant elle", async ({ 
     if (url.pathname === "/api/session") return route.fulfill({ json: { role: "admin", is_owner: true } });
     if (url.pathname === "/api/events") return route.fulfill({ contentType: "text/event-stream", body: "" });
     if (url.pathname === "/api/discover/detail") return route.fulfill({ json: detail });
-    if (url.pathname === "/api/discover/genres") return route.fulfill({ json: [] });
+    if (["/api/discover/genres", "/api/discover/requesters"].includes(url.pathname) || /\/(folders|profiles)$/.test(url.pathname)) return route.fulfill({ json: [] });
     if (url.pathname.startsWith("/api/discover/")) return route.fulfill({ json: catalog });
     return route.fulfill({ json: {} });
   });
