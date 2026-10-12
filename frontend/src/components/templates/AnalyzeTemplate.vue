@@ -14,7 +14,7 @@
             et « Traiter » quand il y a quelque chose a corriger.
        Des constats, pas des alertes : les alertes relevent de Surveiller. -->
   <div class="analyze">
-    <div class="analyze__scope">
+    <div v-if="periods.length" class="analyze__scope">
       <!-- La periode cadre toute la page : elle vit dans la capsule de recherche. -->
       <PageTools><UiSegmentedControl :model-value="period" :options="periodOptions" ariaLabel="Période" @update:model-value="emit('update:period', $event as AnalyzePeriod)" /></PageTools>
       <small class="analyze__compare">{{ comparable ? `Comparé aux ${periodLabel} précédents` : 'Depuis le début · pas de comparaison' }}</small>
@@ -78,7 +78,8 @@ export type { AnalyzeDrill, AnalyzeDrillRequest, AnalyzeKpi, AnalyzeLead, Analyz
 const props = withDefaults(
   defineProps<{
     period: AnalyzePeriod | string;
-    /** Periodes proposees, quand la page n'a pas celles par defaut (7 jours… Tout). */
+    /** Periodes proposees, quand la page n'a pas celles par defaut (7 jours… Tout) ; vide, pas de
+        periode (l'etat d'un catalogue, sans evolution dans le temps). */
     periods?: Array<{ value: AnalyzePeriod | string | number; label: string }>;
     /** Faux : pas de periode precedente a comparer (« Tout »). Par defaut, tout sauf `all`. */
     comparable?: boolean;

@@ -7,7 +7,7 @@
          - au-dessus des resultats, une ligne : le nombre de resultats en evidence et les
            filtres actifs en pastilles retirables ;
          - les elements (emplacement `item`, une carte commune qui ouvre la fiche), en
-           defilement continu.
+           defilement continu ; ou, pour des lignes de donnees, un tableau (emplacement `table`).
        On y arrive pour affiner : depuis la recherche, les filtres, ou le titre d'un rail du
        gabarit Parcourir, qui y mene deja regle par l'adresse.
        On n'y decide ni n'y corrige rien : c'est la fiche qui porte les actions. -->
@@ -48,6 +48,18 @@
         </template>
       </MediaPosterCollection>
 
+      <!-- Tableau : des lignes de donnees plutot que des affiches (inventaire de fichiers…). La page
+           fournit le tableau (emplacement `table`), dont les en-tetes trient ; le gabarit garde le
+           compteur, les pastilles, les etats et le defilement continu. -->
+      <template v-else-if="view === 'table'">
+        <UiFeedback v-if="error" type="error" :message="error" retry @retry="emit('retry')" />
+        <slot name="table" />
+        <UiEmptyState v-if="!loading && !items.length" :title="chips.length ? 'Aucun résultat' : emptyTitle" :message="chips.length ? 'Aucun élément ne correspond aux filtres actifs.' : emptyMessage" compact>
+          <template v-if="chips.length" #action><UiButton @click="emit('reset')">Réinitialiser les filtres</UiButton></template>
+        </UiEmptyState>
+        <InfiniteScrollTrigger :has-more="hasMore" :loading="loadingMore" @load="emit('load-more')" />
+      </template>
+
       <template v-else>
         <UiFeedback v-if="error" type="error" :message="error" retry @retry="emit('retry')" />
         <UiFeedback v-if="loading && !items.length" type="loading" message="Chargement…" />
@@ -76,7 +88,7 @@ import InfiniteScrollTrigger from '@/components/ui/InfiniteScrollTrigger.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 
-export type ExploreView = 'grid' | 'list';
+export type ExploreView = 'grid' | 'list' | 'table';
 
 
 const props = withDefaults(
