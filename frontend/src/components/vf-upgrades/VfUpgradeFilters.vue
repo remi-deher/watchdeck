@@ -1,5 +1,6 @@
 <template>
-  <FilterSidebar :open="open" :active-count="activeCount" @close="emit('close')" @reset="emit('reset')">
+  <!-- Groupes de filtres de l'onglet « Releases » : poses dans la feuille de PageTemplate. -->
+  <div class="vf-filter-groups">
     <FilterGroup label="Statut">
       <UiChipGroup label="Statut" :options="statusOptions" :model-value="status" @update:model-value="(v) => emit('update:status', v)">
         <template #option="{ option }"><span>{{ option.label }}</span><small v-if="option.count">({{ option.count }})</small></template>
@@ -22,21 +23,18 @@
         </UiButton>
       </div>
     </FilterGroup>
-  </FilterSidebar>
+  </div>
 </template>
 
 <script setup lang="ts">
 import UiButton from '@/components/ui/UiButton.vue';
 import { RotateCcw, Trash2 } from '@lucide/vue';
-import FilterSidebar from '@/components/ui/FilterSidebar.vue';
 import FilterGroup from '@/components/ui/FilterGroup.vue';
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import { computed } from 'vue';
 
-/** Tiroir de filtres de l'onglet « Releases » : statut, type de media, maintenance. */
+/** Filtres de l'onglet « Releases » : statut, type de media, maintenance. */
 const props = defineProps<{
-  open: boolean;
-  activeCount: number;
   status: string;
   mediaType: string;
   counts: {
@@ -52,8 +50,6 @@ const emit = defineEmits<{
   'update:status': [value: string];
   'update:mediaType': [value: string];
   maintenance: [action: 'recompute' | 'purge'];
-  close: [];
-  reset: [];
 }>();
 
 const MEDIA_OPTIONS = [

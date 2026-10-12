@@ -70,7 +70,7 @@ test("l'audit liste les médias et leur diagnostic audio / sous-titres", async (
   await mockApi(page, calls);
   await page.goto("/vf-upgrades");
 
-  await page.getByRole("tab", { name: /Alignement des pistes/ }).click();
+  await page.getByRole("link", { name: /Alignement des pistes/ }).click();
   const cards = page.locator(".audit-card");
   await expect(cards).toHaveCount(2, { timeout: 15000 });
   const first = cards.filter({ hasText: "Film audité" });
@@ -136,11 +136,11 @@ test("les trois onglets s'affichent sans erreur ni avertissement Vue", async ({ 
   await page.goto("/vf-upgrades");
   await expect(page.locator(".upgrade-card").first()).toBeVisible({ timeout: 15000 });
 
-  await page.getByRole("tab", { name: /Alignement des pistes/ }).click();
+  await page.getByRole("link", { name: /Alignement des pistes/ }).click();
   await expect(page.locator(".audit-card").first()).toBeVisible();
-  await page.getByRole("tab", { name: /Historique des scans/ }).click();
+  await page.getByRole("link", { name: /Historique des scans/ }).click();
   await expect.poll(() => calls.some((call) => call.path === "/api/vf-upgrades/scan-runs")).toBe(true);
-  await page.getByRole("tab", { name: /Releases/ }).click();
+  await page.getByRole("link", { name: /Releases/ }).click();
   await expect(page.locator(".upgrade-card").first()).toBeVisible();
 
   expect(problems).toEqual([]);

@@ -1,5 +1,6 @@
 <template>
-  <FilterSidebar :open="open" :active-count="activeCount" @close="emit('close')" @reset="emit('reset')">
+  <!-- Groupes de filtres de l'onglet « Alignement » : poses dans la feuille de PageTemplate. -->
+  <div class="vf-filter-groups">
     <FilterGroup label="Anomalie / Opportunité">
       <UiChipGroup label="Anomalie / Opportunité" :options="issueOptions" :model-value="issue" @update:model-value="(v) => emit('update:issue', v)">
         <!-- Le compteur reste un complement entre parentheses : en `.count`, il ferait passer
@@ -11,20 +12,17 @@
     <FilterGroup label="Type de média">
       <UiChipGroup label="Type de média" :options="MEDIA_OPTIONS" :model-value="mediaType" @update:model-value="(v) => emit('update:mediaType', v)" />
     </FilterGroup>
-  </FilterSidebar>
+  </div>
 </template>
 
 <script setup lang="ts">
-import FilterSidebar from '@/components/ui/FilterSidebar.vue';
 import FilterGroup from '@/components/ui/FilterGroup.vue';
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import { computed } from 'vue';
 import type { AuditCounts } from '@/composables/vf/types';
 
-/** Tiroir de filtres de l'onglet « Alignement des pistes » : anomalie et type de media. */
+/** Filtres de l'onglet « Alignement des pistes » : anomalie et type de media. */
 const props = defineProps<{
-  open: boolean;
-  activeCount: number;
   issue: string;
   mediaType: string;
   counts: AuditCounts;
@@ -34,8 +32,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:issue': [value: string];
   'update:mediaType': [value: string];
-  close: [];
-  reset: [];
 }>();
 
 const MEDIA_OPTIONS = [

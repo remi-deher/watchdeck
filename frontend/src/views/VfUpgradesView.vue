@@ -1,137 +1,114 @@
 <template>
-    <AppPage
-      title="Améliorations VF & Flux"
-      v-model:query="query"
-      :placeholder="activeTab === 'upgrades' ? 'Filtrer par film, série ou release…' : 'Filtrer par film ou série…'"
-      has-filters
-      :active-count="activeFilterCount"
-      :filters-open="filtersOpen"
-      @toggle-filters="toggleFilters" page-class="vf-upgrades-page">
-
-      <template #tools>
-        <UiButton
-          variant="ghost"
-          icon-only
-          title="Réglages des améliorations VF"
-          aria-label="Réglages des améliorations VF"
-          @click="openSettings"
-        >
-          <Settings :size="16" />
-        </UiButton>
-        <template v-if="activeTab === 'upgrades'">
-          <UiButton v-if="selectedKeys.size > 0" variant="primary" :loading="scanning" @click="scanSelected"><template #icon><ScanSearch :size="16" /></template>{{ scanning ? 'Recherche en cours…' : `Rechercher la sélection (${selectedKeys.size})` }}</UiButton>
-        </template>
-        <template v-else>
-          <UiButton
-            v-if="eligibleAuditFixCount > 0"
-            variant="primary"
-            :loading="fixingAll"
-            :disabled="auditLoading"
-            title="Aligner les pistes de tous les médias audités pour tous les profils Plex"
-            @click="fixAllStreams"
-          >
-            <template #icon><SlidersHorizontal :size="16" /></template>{{ fixingAll ? 'Alignement en cours…' : `Tout aligner (${eligibleAuditFixCount})` }}
-          </UiButton>
-          <UiButton :loading="auditLoading" :disabled="fixingAll" @click="() => loadAudit()"><template #icon><RotateCcw :size="16" /></template>Actualiser l'audit</UiButton>
-        </template>
-      </template>
-
-    <!-- Les modes de la page rejoignent la rangee collante, a cote des outils : centres
-         sur l'axe de la recherche et toujours a portee pendant le defilement. -->
-    <template #tabs>
-      <AppSubnav variant="tabs"
-        :active="activeTab"
-        :items="tabs"
-        aria-label="Modes des améliorations VF"
-        @update:active="selectTab"
-      />
-    </template>
-
-    <template v-if="activeTab !== 'history'">
-      <VfUpgradeKpiBanner
-        :audit="activeTab === 'audit'"
-        :active-filter="activeTab === 'audit' ? auditIssueFilter : statusFilter"
-        :audit-counts="auditCounts"
-        :eligible-audit-fix-count="eligibleAuditFixCount"
-        :pending-count="pendingCount"
-        :waiting-release-count="waitingReleaseCount"
-        :in-progress-count="inProgressCount"
-        :failed-count="failedCount"
-        :history-count="historyCount"
-        :ignored-count="ignoredCount"
-        @select="activeTab === 'audit' ? toggleAuditFilter($event) : toggleStatusFilter($event)"
-      />
-    </template>
-
-    <div class="psh-layout">
-      <!-- Tiroir de filtres de l'onglet Releases (et maintenance) -->
+  <!-- Améliorations VF (trois vues dans l'adresse : alignement des pistes, releases, historique des
+       scans) : la recherche et les filtres sont ceux du gabarit de page ; les réglages sont un
+       outil de page, l'action du moment (aligner, rechercher la sélection) celle du contexte. -->
+  <PageTemplate
+    class="vf-upgrades-page"
+    title="Améliorations VF & Flux"
+    :tabs="tabs"
+    :active-tab="activeTab"
+    tabs-label="Modes des améliorations VF"
+    v-model:query="query"
+    :search="{ placeholder: activeTab === 'upgrades' ? 'Filtrer par film, série ou release…' : 'Filtrer par film ou série…', scope: 'Améliorations VF', kind: 'filter' }"
+    :filter-count="activeTab === 'history' ? 0 : activeFilterCount"
+    @reset-filters="activeTab === 'audit' ? resetAuditFilters() : resetUpgradeFilters()"
+  >
+    <template v-if="activeTab !== 'history'" #filters>
       <VfUpgradeFilters
         v-if="activeTab === 'upgrades'"
         v-model:status="statusFilter"
         v-model:media-type="mediaTypeFilter"
-        :open="filtersOpen"
-        :active-count="activeFilterCount"
         :counts="{ pendingCount, waitingReleaseCount, inProgressCount, failedCount, historyCount, ignoredCount }"
         @maintenance="maintenance"
-        @close="closeFilters"
-        @reset="resetUpgradeFilters"
       />
-      <!-- Tiroir de filtres de l'onglet Audit -->
       <VfAuditFilters
-        v-else-if="activeTab === 'audit'"
+        v-else
         v-model:issue="auditIssueFilter"
         v-model:media-type="auditMediaTypeFilter"
-        :open="filtersOpen"
-        :active-count="activeFilterCount"
         :counts="auditCounts"
         :eligible-count="eligibleAuditFixCount"
-        @close="closeFilters"
-        @reset="resetAuditFilters"
       />
-      <!-- Zone principale -->
-      <div class="psh-main">
-        <UiFeedback v-if="feedback" :type="feedbackType" :message="feedback" class="vf-feedback" dismissible @dismiss="clearFeedback" />
+    </template>
 
-        <!-- Onglet 1 : Alignement des pistes (Mode PASTA) -->
-        <VfAuditPanel
-          v-if="activeTab === 'audit'"
-          :items="auditFilteredItems"
-          :loading="auditLoading"
-          :fixing-all="fixingAll"
-          @align="openAlignModal"
-          @refresh="loadAudit({ silent: true })"
-        />
+    <template #tools>
+      <UiButton variant="ghost" icon-only title="Réglages des améliorations VF" aria-label="Réglages des améliorations VF" @click="openSettings">
+        <Settings :size="16" />
+      </UiButton>
+    </template>
 
-        <!-- Onglet 2 : Releases & Remplacements (*arr) -->
-        <VfUpgradesPanel
-          v-else-if="activeTab === 'upgrades'"
-          :groups="groups"
-          :loading="loading"
-          :waiting-truncated="waitingTruncated"
-          :selected-keys="selectedKeys"
-          @toggle-select="toggleGroupSelection"
-          @ignore="ignoreSeries"
-          @dismiss="dismiss"
-          @refresh="load({ silent: true })"
-        />
+    <template #quick-action>
+      <template v-if="activeTab === 'upgrades'">
+        <UiButton v-if="selectedKeys.size > 0" variant="primary" :loading="scanning" @click="scanSelected"><template #icon><ScanSearch :size="16" /></template>{{ scanning ? 'Recherche en cours…' : `Rechercher la sélection (${selectedKeys.size})` }}</UiButton>
+      </template>
+      <template v-else-if="activeTab === 'audit'">
+        <UiButton
+          v-if="eligibleAuditFixCount > 0"
+          variant="primary"
+          :loading="fixingAll"
+          :disabled="auditLoading"
+          title="Aligner les pistes de tous les médias audités pour tous les profils Plex"
+          @click="fixAllStreams"
+        >
+          <template #icon><SlidersHorizontal :size="16" /></template>{{ fixingAll ? 'Alignement en cours…' : `Tout aligner (${eligibleAuditFixCount})` }}
+        </UiButton>
+        <UiButton :loading="auditLoading" :disabled="fixingAll" @click="() => loadAudit()"><template #icon><RotateCcw :size="16" /></template>Actualiser l'audit</UiButton>
+      </template>
+    </template>
 
-        <!-- Onglet 3 : Historique des cycles de scan -->
-        <template v-else-if="activeTab === 'history'">
-          <VfScanHistory
-            :live-scan="liveScan ?? undefined"
-            :runs="scanRuns"
-            :loading="scanRunsLoading"
-            :expanded-run-id="expandedRunId ?? undefined"
-            :items="runItems"
-            :items-loading="runItemsLoading"
-            :format-date="formatDate"
-            :format-duration="formatDuration"
-            :status-label="runStatusLabel"
-            @toggle="toggleRunDetail"
-          />
-        </template>
-      </div>
-    </div>
+    <VfUpgradeKpiBanner
+      v-if="activeTab !== 'history'"
+      :audit="activeTab === 'audit'"
+      :active-filter="activeTab === 'audit' ? auditIssueFilter : statusFilter"
+      :audit-counts="auditCounts"
+      :eligible-audit-fix-count="eligibleAuditFixCount"
+      :pending-count="pendingCount"
+      :waiting-release-count="waitingReleaseCount"
+      :in-progress-count="inProgressCount"
+      :failed-count="failedCount"
+      :history-count="historyCount"
+      :ignored-count="ignoredCount"
+      @select="activeTab === 'audit' ? toggleAuditFilter($event) : toggleStatusFilter($event)"
+    />
+
+    <UiFeedback v-if="feedback" :type="feedbackType" :message="feedback" class="vf-feedback" dismissible @dismiss="clearFeedback" />
+
+    <!-- Alignement des pistes (mode PASTA) -->
+    <VfAuditPanel
+      v-if="activeTab === 'audit'"
+      :items="auditFilteredItems"
+      :loading="auditLoading"
+      :fixing-all="fixingAll"
+      @align="openAlignModal"
+      @refresh="loadAudit({ silent: true })"
+    />
+
+    <!-- Releases & remplacements (*arr) -->
+    <VfUpgradesPanel
+      v-else-if="activeTab === 'upgrades'"
+      :groups="groups"
+      :loading="loading"
+      :waiting-truncated="waitingTruncated"
+      :selected-keys="selectedKeys"
+      @toggle-select="toggleGroupSelection"
+      @ignore="ignoreSeries"
+      @dismiss="dismiss"
+      @refresh="load({ silent: true })"
+    />
+
+    <!-- Historique des cycles de scan -->
+    <VfScanHistory
+      v-else
+      :live-scan="liveScan ?? undefined"
+      :runs="scanRuns"
+      :loading="scanRunsLoading"
+      :expanded-run-id="expandedRunId ?? undefined"
+      :items="runItems"
+      :items-loading="runItemsLoading"
+      :format-date="formatDate"
+      :format-duration="formatDuration"
+      :status-label="runStatusLabel"
+      @toggle="toggleRunDetail"
+    />
 
     <!-- Modale interactive d'alignement des pistes Plex -->
     <AlignStreamsModal
@@ -141,15 +118,14 @@
       @close="alignModalOpen = false"
       @applied="onStreamsAligned"
     />
-
-  </AppPage>
+  </PageTemplate>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { RotateCcw, ScanSearch, Settings, SlidersHorizontal } from '@lucide/vue';
 import { useRealtime } from '@/events';
-import AppSubnav from '@/components/ui/AppSubnav.vue';
+import PageTemplate from '@/components/templates/PageTemplate.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import AlignStreamsModal from '@/components/media/AlignStreamsModal.vue';
@@ -176,7 +152,7 @@ import { useVfUpgrades } from '@/composables/vf/useVfUpgrades';
 import { useRoute, useRouter } from 'vue-router';
 
 type VfTab = 'upgrades' | 'audit' | 'history';
-const activeTab = ref<VfTab>('upgrades'); // *arr | audit des pistes Plex | historique des scans
+
 const { message: feedback, type: feedbackType, show, clear: clearFeedback } = useFeedback();
 const { undoable } = useToast();
 
@@ -188,6 +164,14 @@ const { undoable } = useToast();
 const route = useRoute();
 const router = useRouter();
 const VALID_STATUS_FILTERS = ['pending', 'waiting_release', 'in_progress', 'failed', 'history', 'ignored', 'all'];
+/* La vue est dans l'adresse (?vue=) : partageable, retrouvee au retour. Hors routeur (tests), elle reste locale. */
+const VIEWS: VfTab[] = ['audit', 'upgrades', 'history'];
+const localTab = ref<VfTab>('upgrades');
+const activeTab = computed<VfTab>(() => {
+  if (!route) return localTab.value;
+  const asked = String(route.query.vue || '');
+  return (VIEWS.includes(asked as VfTab) ? asked : 'upgrades') as VfTab;
+});
 const initialStatus = String(route?.query?.status || '');
 const statusFilter = ref<string>(VALID_STATUS_FILTERS.includes(initialStatus) ? initialStatus : 'pending');
 const mediaTypeFilter = ref('');
@@ -229,16 +213,15 @@ const tabs = computed(() => [
   { key: 'audit', label: 'Alignement des pistes (Plex)', count: eligibleAuditFixCount.value || auditTotalCount.value },
   { key: 'upgrades', label: 'Releases & Téléchargements (*arr)', count: pendingCount.value || waitingReleaseCount.value },
   { key: 'history', label: 'Historique des scans' },
-]);
+].map((item) => ({ ...item, to: { path: route?.path || '/vf-upgrades', query: { ...route?.query, vue: item.key } } })));
 
-function selectTab(value: string): void {
-  if (value !== 'upgrades' && value !== 'audit' && value !== 'history') return;
-  activeTab.value = value;
+/* Changer de vue charge ce qu'elle montre : l'audit au premier passage, l'historique des scans a l'ouverture. */
+watch(activeTab, (value) => {
   if (value !== 'upgrades') clearSelection();
   if (value === 'audit' && !auditItems.value.length) loadAudit();
   if (value === 'history') history.activate();
   else history.deactivate();
-}
+}, { immediate: true });
 
 /* Les reglages s'ouvrent dans la feuille, a leur propre adresse (voir VfSettingsView).
    Un reglage enregistre change ce que les cycles retiennent (seuil de confiance,
@@ -249,7 +232,7 @@ function openSettings(): void {
 }
 useEventListener(window, 'watchdeck:vf-settings-saved', () => { void load({ silent: true }); });
 
-const { filtersOpen, toggle: toggleFilters, close: closeFilters } = useFiltersDrawer(
+useFiltersDrawer(
   { statusFilter, mediaTypeFilter },
   { statusFilter: 'pending', mediaTypeFilter: '' },
   { memoriser: 'ameliorations-vf' }
