@@ -189,10 +189,10 @@ import FilterGroup from '@/components/ui/FilterGroup.vue';
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import UiCombobox from '@/components/ui/UiCombobox.vue';
 import UiNumberField from '@/components/ui/UiNumberField.vue';
-import { computed, defineAsyncComponent, reactive, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, reactive, ref } from 'vue';
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { useRoute, useRouter } from 'vue-router';
-import { Captions, Check, ChevronDown, ChevronRight, Columns, EyeOff, FileDown, Lightbulb, SlidersHorizontal, X } from '@lucide/vue';
+import { useRoute } from 'vue-router';
+import { Captions, Check, ChevronDown, ChevronRight, Columns, EyeOff, FileDown, Lightbulb, X } from '@lucide/vue';
 import UiMenu from '@/components/ui/UiMenu.vue';
 import UiMenuItem from '@/components/ui/UiMenuItem.vue';
 import UiMenuSeparator from '@/components/ui/UiMenuSeparator.vue';
@@ -225,7 +225,6 @@ import {
 } from '@/utils/format';
 
 const route=useRoute();
-const router = useRouter();
 const activeTab = computed<'table' | 'insights'>(()=>route.query.view==='insights'?'insights':'table');
 /* Les insights ne sont plus une entree de navigation : ils sont la seconde vue de la page, avec leur
    propre adresse (?view=insights) pour qu'un lien y mene toujours. */

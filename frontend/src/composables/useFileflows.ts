@@ -1,5 +1,4 @@
 import type { WorkRef } from '@/types/generated/mediaAvailability';
-import { formatSeconds as formatSeconds } from '@/utils/format';
 import type { MediaRef } from '@/types';
 /* FileFlows : types, requete d'etat partagee et libelles.
  *

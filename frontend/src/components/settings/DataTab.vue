@@ -60,7 +60,7 @@ import { formatDate } from '@/utils/format';
 import { mediaTypeLabel } from '@/utils/labels';
 import { computed, ref } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { Download, HardDriveDownload, ShieldAlert, Trash2, Upload } from '@lucide/vue';
+import { Download, HardDriveDownload, ShieldAlert, Upload } from '@lucide/vue';
 import { Archive, FileUp, History } from '@lucide/vue';
 import { api } from '@/api';
 import { load, success, fail } from '@/settingsForm';

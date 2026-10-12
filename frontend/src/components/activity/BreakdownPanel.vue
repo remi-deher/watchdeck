@@ -148,8 +148,6 @@ function toggleSort(key: 'label' | 'value'): void {
   // Un libelle se lit de A a Z, une valeur de la plus grande a la plus petite.
   sortDirection.value = key === 'label' ? 'asc' : 'desc';
 }
-const ariaSort = (key: 'label' | 'value') =>
-  sortKey.value === key ? (sortDirection.value === 'asc' ? 'ascending' : 'descending') : 'none';
 function select(x: BreakdownItem): void {
   if (props.interactive && !x.grouped) emit('select', x.rawValue ?? x.label);
 }

@@ -11,13 +11,12 @@
 <script setup lang="ts">
 import StorageCurrentMedia from './StorageCurrentMedia.vue';
 import {computed} from 'vue';
-import {ArrowRight,ArrowUpRight} from '@lucide/vue';
+import { ArrowRight } from '@lucide/vue';
 import UiBadge from '@/components/ui/UiBadge.vue';
 import StorageTransferMetrics from './StorageTransferMetrics.vue';
 import StoragePlexFinalization from './StoragePlexFinalization.vue';
 const props=defineProps<{job:any,instance:string,source:string,destination:string,status:(value:string)=>string,gb:(value:any)=>string,date:(value:any)=>string}>();
 const method=computed(()=>(({arr:'API Sonarr / Radarr',rsync_ssh:'Rsync par SSH',rsync_local:'Rsync local'} as Record<string,string>)[props.job.params?.transfer_mode as string] || 'Rsync'));
-const current=computed(()=>props.job.items.find((i:any)=>i.status==='copying') || props.job.items.find((i:any)=>['prepared','copying','verifying','switching','plex_pending','cleaning','arr_pending'].includes(i.status)));
 const awaiting=computed(()=>props.job.items.filter((i:any)=>['switching','plex_pending','cleaning'].includes(i.status)).reduce((n:number,i:any)=>n+i.size_bytes,0));
 </script>
 <style scoped lang="scss">

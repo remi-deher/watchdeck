@@ -102,7 +102,6 @@ const versionQuery = useQuery({
   queryFn: ({ signal }) => api<VersionInfo>('/api/system/version', { signal }),
 });
 const info = computed(() => versionQuery.data.value ?? null);
-const loading = computed(() => versionQuery.isFetching.value);
 const error = computed(() => (versionQuery.error.value ? humanizeError(versionQuery.error.value) : ''));
 const copied = ref<string | null>(null);
 const queryClient = useQueryClient();

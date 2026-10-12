@@ -29,12 +29,6 @@ const router = useRouter();
 // la sidebar Bibliotheque (spaces.js) qui pilote deja le type de media via route.query.type. Le
 // watcher existant sur route.query se charge ensuite de mettre typeFilters a jour et de
 // recharger.
-function onTypeFiltersChange(types: string[]): void {
-  const q: Record<string, any> = { ...route.query };
-  if (types.length) q.type = types;
-  else delete q.type;
-  router.replace({ path: '/library', query: q });
-}
 
 // L'overview d'une piste porte le titre de son album ("Artiste / Album: {titre}", voir
 // plex_finder._plex_item_to_dict) -- une piste n'a pas de page de fiche dediee (pas de
@@ -392,7 +386,6 @@ watch(
     }
   },
 );
-
 
 const sources = computed(() => requestSummary.value.facets?.sources || []);
 const requesters = computed(() => {

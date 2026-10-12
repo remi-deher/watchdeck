@@ -225,7 +225,6 @@ function dismissOnboarding(): void {
 // exclure les series a jour sur tout ce qui est deja diffuse -- voir matchesStatusFilter
 // dans LibraryView.vue). Ne passer que "sent_to_arr" ici excluait a tort les series
 // comme Face Off/New York police judiciaire (statut partially_available, vrai manque).
-const IN_PROGRESS_STATUSES = ['sent_to_arr', 'partially_available'];
 const failedCount = computed(() => Number(counts.value.failed || 0));
 // Memes regles que la page Telechargements (@/downloads/queueRules) : les trois tuiles
 // ci-dessous partitionnent la file sans double compte, et chaque chiffre correspond au

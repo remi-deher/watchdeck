@@ -108,7 +108,6 @@ const meQuery = useQuery({
   enabled: hasAccount,
 });
 const account = computed(() => meQuery.data.value || null);
-const loading = computed(() => meQuery.isPending.value && hasAccount.value);
 
 // La session arrive apres le premier rendu : l'onglet par defaut suit son chargement,
 // tant que la personne n'en a pas choisi un elle-meme.

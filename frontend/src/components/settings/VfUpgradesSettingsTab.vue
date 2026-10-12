@@ -218,7 +218,7 @@ import VfPresetPicker from './VfPresetPicker.vue';
 import ConfigureTemplate from '@/components/templates/ConfigureTemplate.vue';
 import { useSettingsPage } from '@/composables/useSettingsPage';
 import VfScanSection from './VfScanSection.vue';
-import { Bell, FileSearch, Gauge, Languages, ScanSearch, ShieldCheck, Sparkles, SlidersHorizontal, Timer, CheckCheck, Waypoints } from '@lucide/vue';
+import { Bell, FileSearch, Gauge, Languages, ScanSearch, ShieldCheck, Sparkles, SlidersHorizontal, CheckCheck, Waypoints } from '@lucide/vue';
 
 /* `scan` : l'analyse VF de la bibliotheque, posee ici dans les reglages (elle decide de ce qui doit
    etre ameliore). La fenetre de la page VF n'en a pas besoin. */

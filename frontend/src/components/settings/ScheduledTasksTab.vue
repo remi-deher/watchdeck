@@ -78,7 +78,7 @@ import { useRealtime } from '@/events';
 import { useToast } from '@/composables/useToast';
 import { humanizeError } from '@/utils/apiError';
 import { nextRun, nextRunLabel, sortTasks } from './scheduledTasks';
-import { CalendarClock, History, ListChecks, Play, TriangleAlert } from '@lucide/vue';
+import { History, ListChecks, Play, TriangleAlert } from '@lucide/vue';
 import { api } from '@/api';
 import { form } from '@/settingsForm';
 import { presetsFor } from '@/settingsPresets';

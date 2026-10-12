@@ -226,11 +226,11 @@ import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import UiCombobox from '@/components/ui/UiCombobox.vue';
 import { playbackMethodLabel } from '@/utils/labels';
 import { formatBandwidth, formatDateTimeShort, formatDuration, signedPercent } from '@/utils/format';
-import { computed,onUnmounted,ref,watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { refDebounced, useDebounceFn, useIntervalFn } from '@vueuse/core';
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useRoute,useRouter } from 'vue-router';
-import { Activity, ArrowLeftRight, ArrowRight,CheckCircle2,CircleStop,Clock3,Cpu,Gauge,HardDrive,History,Info,MonitorPlay,PlayCircle,Radio,Repeat2,Search,Timer,Tv,Users,Users as UsersIcon,Zap } from '@lucide/vue';
+import { Activity, ArrowLeftRight, ArrowRight, CheckCircle2, CircleStop, Clock3, Cpu, Gauge, HardDrive, History, Info, MonitorPlay, PlayCircle, Radio, Repeat2, Timer, Tv, Users as UsersIcon, Zap } from '@lucide/vue';
 import { activitySections } from '@/navigation';
 import { api } from '@/api';
 import { readCacheEntry, writeCache } from '@/cache';
@@ -360,14 +360,6 @@ const filterCounts=computed(()=>{
   }
 });
 const viewTitle=computed(()=>({overview:'Vue d’ensemble',live:'Activité en direct',history:'Historique des lectures',quality:'Qualité des flux',users:'Utilisateurs'} as Record<string, string>)[currentView.value]);
-const viewDescription=computed(()=>({
-  overview:'Vue synthétique des lectures, tendances et utilisateurs.',
-  live:'Lectures en cours et diagnostic détaillé des flux.',
-  history:'Recherchez et analysez les dernières lectures.',
-  stats:'Tendances de consommation et engagement sur la période.',
-  quality:'Lecture directe, Direct Stream et transcodage.',
-  users:'Activité et temps de visionnage par utilisateur.',
-} as Record<string, string>)[currentView.value]);
 const averageWatch=computed(()=>summary.value.sessions?Math.round((summary.value.watch_ms||0)/summary.value.sessions):0);
 const relativeUpdate=computed(()=>{const seconds=Math.max(0,Math.floor((clock.value-updatedAt.value)/1000));return seconds<5?'à l’instant':`il y a ${seconds} s`});
 /* L'historique ne vient plus de l'instantane d'activite -- borne a cent lignes toutes

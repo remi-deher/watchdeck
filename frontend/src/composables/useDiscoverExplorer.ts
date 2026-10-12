@@ -121,7 +121,6 @@ const sourceHome = reactive({
 } as Record<string, any>);
 let sourceHomeLoadedFor = '';
 
-
 const mediaTypes = [
   { value: 'all', label: 'Tout' },
   { value: 'movie', label: 'Films' },
@@ -165,16 +164,6 @@ const activeSourceName = computed(() => {
   return 'Diffuseur';
 });
 
-const sourceKindBadge = computed(() => {
-  const kind = sourceKey.value ? sourceKey.value.split(':')[0] : (route.params.kind || '');
-  switch (kind) {
-    case 'provider': return 'Plateforme de streaming';
-    case 'network': return 'Réseau de diffusion';
-    case 'company': return 'Studio de production';
-    default: return 'Diffuseur';
-  }
-});
-
 const availableMediaTypes = computed(() => {
   const kind = sourceKey.value ? sourceKey.value.split(':')[0] : (route.params.kind || '');
   return kind === 'network' ? [{ value: 'show', label: 'Séries' }] : mediaTypes;
@@ -200,13 +189,6 @@ const sections = [
   { value: 'coming-soon', label: 'Bientôt' },
   { value: 'genres', label: 'Par genre' },
 ];
-const sectionLabel = computed(() => sections.find(entry => entry.value === section.value)?.label || 'Catalogue');
-const sectionDescription = computed(() => ({
-  trending: 'Les médias qui attirent le plus l’attention',
-  popular: 'Les incontournables du moment',
-  'coming-soon': 'Les prochaines sorties à surveiller',
-  genres: 'Explorez le catalogue par univers',
-})[section.value]);
 
 /* Ce que les deux longs groupes retiennent, pour le dire sans les deplier. */
 const genreLabel = computed(() => genres.value.find(g => String(g.id) === String(genre.value))?.name || 'Tous');
@@ -220,10 +202,6 @@ const sourceLabel = computed(() => sources.value.find(s => `${s.kind}:${s.id}` =
    parmi les seules fiches deja chargees : annoncer le total du serveur promettait
    « 10 000 resultats » pour une page qui allait en montrer trois, et le chiffre ne
    bougeait jamais d'un filtre a l'autre -- de quoi croire qu'aucun ne s'applique. */
-const filteredCount = computed(() => {
-  if (mode.value !== 'explore' || !displayedItems.value.length) return null;
-  return availability.value ? displayedItems.value.length : totalResults.value;
-});
 
 const { activeCount: activeFilterCount, reset: resetFiltersDrawer } = useFiltersDrawer(
   { mediaType, section, genre, availability, sourceKey, sortBy },
@@ -301,12 +279,6 @@ function sourcePath(source: any) {
     path: `/discover/source/${source.kind}/${source.id}`,
     query: { name: source.name, ...(fixedMediaType.value ? { type: fixedMediaType.value } : {}) },
   };
-}
-function showHome() {
-  abortCatalog();
-  mode.value = 'home';
-  router.push('/discover');
-  if (!homeLoaded.value) loadHome();
 }
 async function showExplorer() {
   mode.value = 'explore';

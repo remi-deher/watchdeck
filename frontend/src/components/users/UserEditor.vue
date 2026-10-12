@@ -201,13 +201,12 @@
 <script setup lang="ts">
 import UiSelect from '@/components/ui/UiSelect.vue';
 import UiRadioCards from '@/components/ui/UiRadioCards.vue';
-import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
 import UiNumberField from '@/components/ui/UiNumberField.vue';
 import MetricCard from '@/components/ui/MetricCard.vue';
-import { formatDate, formatDateTime } from '@/utils/format';
-import { computed, ref, watch } from 'vue';
-import { accountName, resolveSource, roleLabel, seerLinkLabel, sourceLabel } from '@/utils/userLabels';
+import { formatDateTime } from '@/utils/format';
+import { computed, ref } from 'vue';
+import { accountName, resolveSource, seerLinkLabel, sourceLabel } from '@/utils/userLabels';
 import { KeyRound, Languages, Link, Mail, Merge, RefreshCw, Save, Send, TriangleAlert, Unlink } from '@lucide/vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';

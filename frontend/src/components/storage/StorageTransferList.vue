@@ -40,7 +40,7 @@ import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import {computed,ref,toRef} from 'vue';import UiButton from '@/components/ui/UiButton.vue';import UiDataTable,{type UiColumn} from '@/components/ui/UiDataTable.vue';import {useStorageTelemetry} from './useStorageTelemetry';
 const props=defineProps<{jobs:any[],locations:any[],busy:boolean,tab:string,instances?:any[],detailMode?:boolean}>();const tab=toRef(props,'tab');
-const {visibleJobs,gb,date,locationName,status,activeItem,copyPercent,rateLabel,jobStart,jobEnd,elapsed}=useStorageTelemetry(toRef(props,'locations'),toRef(props,'jobs'),tab,ref(null),ref<string[]>([]));
+const {gb,date,locationName,status,activeItem,copyPercent,rateLabel,jobStart,jobEnd,elapsed}=useStorageTelemetry(toRef(props,'locations'),toRef(props,'jobs'),tab,ref(null),ref<string[]>([]));
 const instanceName=(job:any)=>props.instances?.find(i=>i.id===job.params?.arr_instance_id)?.name||`Instance ${job.params?.arr_instance_id || 'non précisée'}`;
 function advice(reason:string){if(/lecture|playing/i.test(reason))return 'Attendre la fin de la lecture, puis reprendre.';if(/espace.*insuffisant|réserve.*insuffisante|capacity.*insufficient/i.test(reason))return 'Libérer de la place à destination avant de réessayer.';if(/connexion|accès|accessible|rsync\/SSH/i.test(reason))return 'Vérifier les services, les chemins et leurs accès avant de réessayer.';return 'Vérifier le motif et les chemins dans les détails avant de réessayer.';}
 const filters=[{key:'all',label:'Toutes'},{key:'draft',label:'À lancer'},{key:'active',label:'En cours'},{key:'issues',label:'En pause / À traiter'},{key:'completed',label:'Terminées'},{key:'cancelled',label:'Annulées'}];const filter=ref('all'),removing=ref<any>(null),cancelling=ref<any>(null),detailItem=ref<any>(null);
@@ -52,8 +52,7 @@ function matchesJob(job:any,key:string){return key==='all'||(key==='draft'?job.s
 const taskPool=computed(()=>props.tab==='history'?props.jobs.filter(j=>['completed','blocked','stopped','paused','failed','cancelled','cancel_blocked'].includes(j.status)):props.jobs);
 const filteredJobs=computed(()=>props.detailMode?props.jobs:taskPool.value.filter(j=>matchesJob(j,filter.value)));
 const countJobs=(key:string)=>taskPool.value.filter(j=>matchesJob(j,key)).length;
-const items=(job:any)=>filter.value==='issues'?issues(job):job.items;const finished=(job:any)=>job.items.filter((i:any)=>i.status==='completed').length;
-const awaitingCleanup=(job:any)=>job.items.filter((i:any)=>['switching','plex_pending','cleaning'].includes(i.status)).reduce((n:number,i:any)=>n+i.size_bytes,0);
+const items=(job:any)=>filter.value==='issues'?issues(job):job.items;
 const columns:UiColumn[]=[{key:'title',label:'Titre',card:'title'},{key:'size',label:'Volume'},{key:'state',label:'Étape / état'},{key:'updated',label:'Dernière activité',card:'hidden'},{key:'details',label:'Détails',card:'actions'}];
 defineEmits<{command:[id:number,action:string],create:[],edit:[job:any],duplicate:[job:any],verify:[job:any],remove:[id:number],relaunch:[job:any]}>();
 defineExpose({confirmRemove:(job:any)=>removing.value=job,confirmCancel:(job:any)=>cancelling.value=job});

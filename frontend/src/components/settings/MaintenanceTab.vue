@@ -22,7 +22,7 @@
     </template>
 
     <template v-for="group in groups" :key="group.key" #[`section-${group.key}`]>
-      <ResourceList :resources="resourcesOf(group.actions)" @action="(resource, key) => run(resource.key, actions[resource.key])" />
+      <ResourceList :resources="resourcesOf(group.actions)" @action="(resource) => run(resource.key, actions[resource.key])" />
     </template>
 
     <UiFeedback v-if="error" type="error" :message="error" retry @retry="load" />

@@ -95,7 +95,7 @@ function showError(message: string): void {
 }
 
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
-const { busy, isBusy, runAction, saveMetadata: saveTorrentMetadata, confirmRemoval } = useTorrentActions({
+const { busy, runAction, saveMetadata: saveTorrentMetadata, confirmRemoval } = useTorrentActions({
   onDone: () => void clientsQuery.refetch(),
   onError: showError,
   askConfirm,

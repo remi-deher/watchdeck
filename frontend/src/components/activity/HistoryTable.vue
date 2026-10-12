@@ -68,7 +68,7 @@ import UiClientIdentity from '@/components/ui/UiClientIdentity.vue';
 import { plexClientName } from '@/utils/plexClient';
 import UiTooltip from '@/components/ui/UiTooltip.vue';
 import { playbackTitle } from '@/playbackToast';
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { useIntersectionObserver } from '@vueuse/core';
 import UiSectionHeader from '@/components/ui/UiSectionHeader.vue';
 import UiButton from '@/components/ui/UiButton.vue';

@@ -159,7 +159,7 @@ const {
   clientId, clientName, selectClient, configured, enabledClients, configurationLoading,
   torrents, rows, scoped, pending, error, reload,
   query, status, category, tracker, ownership, reset, filterCount, facets, asArray,
-  stale, clientErrors, compact, incognito, isBusy, busy, metaTargets, saveMeta, run, openDetails,
+  stale, clientErrors, compact, incognito, isBusy, metaTargets, saveMeta, run, openDetails,
 } = useTorrentClients();
 const speeds = useTorrentSpeeds(clientId);
 
