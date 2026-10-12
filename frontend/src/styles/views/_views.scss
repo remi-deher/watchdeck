@@ -608,17 +608,6 @@ button:disabled {
   align-self: center;
 }
 
-/* Vue maître/détail : la liste reste lisible pendant l'édition sur tablette et PC.
-   Le seuil suit celui du shell (768px) et non plus 821 : entre les deux, le tiroir
-   retombait sur la carte centrée à 90dvh et perdait un sixième de la hauteur de
-   l'écran alors qu'il y avait toute la place d'une feuille latérale pleine hauteur. */
-@include bp.from(tablet) {
-  .drawer-backdrop--detail-drawer {
-    background: linear-gradient(90deg, rgba(0,0,0,.12), rgba(0,0,0,.48));
-    backdrop-filter: none;
-  }
-}
-
 .detail-row > div:first-child,
 .detail-row strong,
 .detail-row span {
