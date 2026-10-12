@@ -5,11 +5,11 @@
   <!-- Chaque type se saisit par une definition du gabarit Creer (fenetre, `creations/`). -->
   <CreateTemplate
     v-if="creation && ready"
-    open
+    :open="opened"
     :definition="creation"
     :mode="id === 'new' ? 'create' : 'edit'"
     :values="existing"
-    @close="close"
+    @close="closeWindow"
   />
   <SheetPage v-else-if="!creation" :eyebrow="kind?.eyebrow || 'Réglages'" :title="title" :error="kind ? '' : 'Ce type de réglage est inconnu.'" />
 </template>
@@ -52,6 +52,7 @@ const title = computed(() => (!kind.value ? 'Réglage' : id.value === 'new' ? ki
 const queryClient = useQueryClient();
 const existing = ref<Record<string, any> | null>(null);
 const ready = ref(false);
+const opened = ref(true);
 
 /* Les types saisis par une definition du gabarit Creer : leur liste, la definition, et la
    facon de presenter une ressource existante a la fenetre (mot de passe vide = conserve). */
@@ -90,6 +91,7 @@ watchEffect(async () => {
   const current = spec.value;
   if (!current) return;
   ready.value = false;
+  opened.value = true;
   existing.value = null;
   if (id.value !== 'new') {
     const list = await api<any[]>(current.path);
@@ -107,6 +109,12 @@ const creation = computed(() => {
     addToast({ type: 'success', title: kind.value?.eyebrow || 'Réglages', message });
   });
 });
+
+/* La fenetre se retire tout de suite ; la surface qui la porte se referme ensuite a son rythme. */
+function closeWindow(): void {
+  opened.value = false;
+  close();
+}
 
 function close(): void {
   if (enSurface.value) fermer();

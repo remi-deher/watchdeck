@@ -1,14 +1,12 @@
 <template>
-  <!-- Serveurs Plex suivis par la Bibliotheque : le principal, dont la connexion vit dans
-       les reglages generaux et s'ouvre dans le volet, puis les serveurs supplementaires
-       (4K, famille...), chacun dans sa feuille. Un media present sur plusieurs serveurs
+  <!-- Serveurs Plex supplementaires suivis par la Bibliotheque (4K, famille...), chacun dans
+       sa fenetre ; le principal a sa propre section. Un media present sur plusieurs serveurs
        reste une seule fiche. -->
-  <SettingsItemList :subtitle="subtitle" :count="serverList.length || null">
+  <SettingsItemList :subtitle="subtitle" :count="extraServers.length || null">
     <template #actions>
       <UiButton @click="openSheet()"><Plus />Ajouter un serveur</UiButton>
     </template>
 
-    <PlexConnectionItem :name="primary?.name || 'Plex'" :summary="primary ? serverSummary(primary) : ''" />
     <SettingsItem
       v-for="server in extraServers"
       :key="server.id"
@@ -41,7 +39,6 @@ import { success, fail } from '@/settingsForm';
 import UiButton from '@/components/ui/UiButton.vue';
 import SettingsItem from '../SettingsItem.vue';
 import SettingsItemList from '../SettingsItemList.vue';
-import PlexConnectionItem from './PlexConnectionItem.vue';
 import ConfirmModal from '../../ConfirmModal.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { useCrudResource } from '@/composables/useCrudResource';
@@ -62,12 +59,12 @@ function serverSummary(server: any): string {
 }
 const subtitle = computed(() => {
   const extra = serverList.value.filter((s: any) => !s.is_primary).length;
-  return extra ? `Principal + ${extra} serveur(s) supplémentaire(s)` : 'Ajoutez un serveur 4K ou familial : ses médias rejoignent la Bibliothèque.';
+  return extra ? `${extra} serveur(s) supplémentaire(s) en plus du principal` : 'Ajoutez un serveur 4K ou familial : ses médias rejoignent la Bibliothèque.';
 });
 
 function guardPrimary(server: any): boolean {
   if (!server.is_primary) return false;
-  fail(new Error('Le serveur principal se configure dans sa ligne, en tête de liste.'));
+  fail(new Error('Le serveur principal se configure dans sa propre section.'));
   return true;
 }
 async function toggleServer(server: any): Promise<void> {

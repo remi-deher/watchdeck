@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * Les formulaires de réglages (instances *arr, clients torrent, fournisseurs d'email)
- * s'ouvrent dans la même feuille que les fiches, à leur propre adresse.
+ * Les ressources de réglages (instances *arr, clients torrent, serveurs Plex, fournisseurs
+ * d'email) se saisissent par le gabarit Créer, dans une fenêtre, à leur propre adresse.
  */
 
 async function mockApi(page, calls) {
@@ -16,12 +16,15 @@ async function mockApi(page, calls) {
     if (url.pathname === "/api/arr-instances" && request.method() === "GET") return route.fulfill({ json: instances });
     if (url.pathname === "/api/arr-instances" && request.method() === "POST") return route.fulfill({ json: { id: 4 } });
     if (/\/api\/arr-instances\/\d+$/.test(url.pathname) && request.method() === "PUT") return route.fulfill({ json: { id: 3 } });
-    if (url.pathname === "/api/download-clients" || url.pathname === "/api/email-providers") return route.fulfill({ json: [] });
+    if (url.pathname === "/api/test/arr-instance") return route.fulfill({ json: { success: true, message: "Connecté" } });
+    if (url.pathname === "/api/download-clients" && request.method() === "GET") return route.fulfill({ json: [{ id: 5, name: "qBit", client_type: "qbittorrent", url: "http://qbit:8080", enabled: true, has_password: true }] });
+    if (/\/api\/download-clients\/\d+$/.test(url.pathname) && request.method() === "PUT") return route.fulfill({ json: { id: 5 } });
+    if (url.pathname === "/api/email-providers") return route.fulfill({ json: [] });
     return route.fulfill({ json: {} });
   });
 }
 
-test("ajouter une instance *arr se fait dans la feuille, puis la referme", async ({ page }) => {
+test("ajouter une instance *arr suit les étapes du gabarit Créer, puis ferme", async ({ page }) => {
   const calls = [];
   await mockApi(page, calls);
   await page.goto("/settings/services/media");
@@ -29,36 +32,65 @@ test("ajouter une instance *arr se fait dans la feuille, puis la referme", async
   await expect(card).toContainText("Radarr maison", { timeout: 15000 });
 
   await card.getByRole("button", { name: "Ajouter" }).first().click();
-  const sheet = page.locator(".media-overlay__panel");
-  await expect(sheet).toBeVisible();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
   await expect(page).toHaveURL(/\/settings\/resource\/arr\/new$/);
-  await expect(sheet.getByRole("heading", { level: 1 })).toHaveText("Ajouter une instance");
+  await expect(dialog).toContainText("Ajouter un service");
 
-  await sheet.getByLabel("Nom").fill("Sonarr 4K");
-  await sheet.getByLabel("URL").fill("http://sonarr:8989");
-  await sheet.getByLabel("Clé API").fill("secret");
-  await sheet.getByRole("button", { name: "Ajouter" }).click();
+  await dialog.getByRole("button", { name: "Continuer" }).click();
+  await dialog.getByLabel("Nom").fill("Radarr 4K");
+  await dialog.getByLabel("Adresse").fill("http://radarr4k:7878");
+  await dialog.getByLabel("Clé API").fill("secret");
+  await dialog.getByRole("button", { name: "Tester" }).click();
+  await expect(dialog).toContainText("Connecté");
+  await dialog.getByRole("button", { name: "Continuer" }).click();
+  await dialog.getByLabel("Dossier racine").fill("/media/4K");
+  await dialog.getByRole("button", { name: "Continuer" }).click();
+  await dialog.getByRole("button", { name: "Créer" }).click();
 
   await expect.poll(() => calls.includes("POST /api/arr-instances")).toBe(true);
-  await expect(sheet).toHaveCount(0);
-  await expect(page).toHaveURL(/\/settings\/services\/media$/);
+  await expect(dialog).toContainText("Radarr 4K");
 });
 
-test("modifier une instance ouvre sa fiche préremplie, à son adresse", async ({ page }) => {
+test("modifier une instance ouvre la fenêtre sur ses valeurs, à son adresse", async ({ page }) => {
   const calls = [];
   await mockApi(page, calls);
   await page.goto("/settings/services/media");
   const card = page.locator("#configure-instances");
   await expect(card).toContainText("Radarr maison", { timeout: 15000 });
 
-  // La ligne de l'instance ouvre sa fiche.
   await card.getByRole("button", { name: /Radarr maison/ }).click();
-  const sheet = page.locator(".media-overlay__panel");
+  const dialog = page.getByRole("dialog");
   await expect(page).toHaveURL(/\/settings\/resource\/arr\/3$/);
-  await expect(sheet.getByLabel("Nom")).toHaveValue("Radarr maison");
+  await expect(dialog).toContainText("Modifier le service");
 
-  // Annuler referme sans rien envoyer.
-  await sheet.getByRole("button", { name: "Annuler" }).click();
-  await expect(sheet).toHaveCount(0);
+  // Fermer sans rien changer n'envoie rien.
+  await dialog.getByRole("button", { name: "Fermer" }).first().click();
+  await expect(dialog).toHaveCount(0);
   expect(calls.some((call) => call.startsWith("PUT "))).toBe(false);
+});
+
+test("modifier un client de téléchargement : valeurs préremplies, mot de passe conservé", async ({ page }) => {
+  const calls = [];
+  await mockApi(page, calls);
+  await page.goto("/settings/resource/download-client/5");
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("Modifier le client");
+  await dialog.getByRole("button", { name: "Continuer" }).click();
+  await expect(dialog.getByLabel("Nom")).toHaveValue("qBit");
+  await expect(dialog.getByLabel("Adresse")).toHaveValue("http://qbit:8080");
+});
+
+test("les connexions se règlent dans des sections, sans volet", async ({ page }) => {
+  const calls = [];
+  await mockApi(page, calls);
+  await page.goto("/settings/services");
+  for (const id of ["plex", "servers", "tracearr", "tautulli"]) await expect(page.locator(`#configure-${id}`)).toBeVisible({ timeout: 15000 });
+  await expect(page.locator("#configure-plex").getByLabel("URL", { exact: true })).toBeVisible();
+  await expect(page.locator("#configure-tautulli")).toContainText("Aucun import automatique");
+
+  await page.goto("/settings/services/integrations");
+  for (const id of ["tmdb", "seer"]) await expect(page.locator(`#configure-${id}`)).toBeVisible({ timeout: 15000 });
+  await expect(page.locator("#configure-tmdb").getByLabel("Région de découverte")).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 });
