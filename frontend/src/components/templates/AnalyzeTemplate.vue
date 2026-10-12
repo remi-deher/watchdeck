@@ -16,8 +16,8 @@
   <div class="analyze">
     <div class="analyze__scope">
       <!-- La periode cadre toute la page : elle vit dans la capsule de recherche. -->
-      <PageTools><UiSegmentedControl :model-value="period" :options="PERIODS" ariaLabel="Période" @update:model-value="emit('update:period', $event as AnalyzePeriod)" /></PageTools>
-      <small class="analyze__compare">{{ period === 'all' ? 'Depuis le début · pas de comparaison' : `Comparé aux ${periodLabel} précédents` }}</small>
+      <PageTools><UiSegmentedControl :model-value="period" :options="periodOptions" ariaLabel="Période" @update:model-value="emit('update:period', $event as AnalyzePeriod)" /></PageTools>
+      <small class="analyze__compare">{{ comparable ? `Comparé aux ${periodLabel} précédents` : 'Depuis le début · pas de comparaison' }}</small>
     </div>
 
     <MetricGrid v-if="kpis.length" class="analyze__kpis" aria-label="Chiffres clés">
@@ -28,7 +28,7 @@
         :value="kpi.value"
         :detail="kpi.detail"
         :loading="loading"
-        :trend="period === 'all' || kpi.change == null ? null : trendOf(kpi)"
+        :trend="!comparable || kpi.change == null ? null : trendOf(kpi)"
       />
     </MetricGrid>
 
@@ -70,13 +70,18 @@ import MetricGrid from '@/components/ui/MetricGrid.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import PageTools from '@/components/ui/PageTools.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
+import { ANALYZE_PERIODS } from './analyze/periods';
 import type { AnalyzeDrill, AnalyzeKpi, AnalyzeLead, AnalyzePeriod } from './analyze/types';
 
 export type { AnalyzeDrill, AnalyzeDrillRequest, AnalyzeKpi, AnalyzeLead, AnalyzePeriod } from './analyze/types';
 
 const props = withDefaults(
   defineProps<{
-    period: AnalyzePeriod;
+    period: AnalyzePeriod | string;
+    /** Periodes proposees, quand la page n'a pas celles par defaut (7 jours… Tout). */
+    periods?: Array<{ value: AnalyzePeriod | string | number; label: string }>;
+    /** Faux : pas de periode precedente a comparer (« Tout »). Par defaut, tout sauf `all`. */
+    comparable?: boolean;
     kpis?: AnalyzeKpi[];
     /** Constats du serveur, deja tries par impact. */
     leads?: AnalyzeLead[];
@@ -84,7 +89,7 @@ const props = withDefaults(
     drill?: AnalyzeDrill | null;
     loading?: boolean;
   }>(),
-  { kpis: () => [], leads: () => [], drill: null, loading: false },
+  { periods: () => ANALYZE_PERIODS, comparable: undefined, kpis: () => [], leads: () => [], drill: null, loading: false },
 );
 const emit = defineEmits<{
   'update:period': [period: AnalyzePeriod];
@@ -93,15 +98,9 @@ const emit = defineEmits<{
   'close-drill': [];
 }>();
 
-const PERIODS: Array<{ value: AnalyzePeriod; label: string }> = [
-  { value: '7d', label: '7 jours' },
-  { value: '30d', label: '30 jours' },
-  { value: '1y', label: '1 an' },
-  { value: '5y', label: '5 ans' },
-  { value: '10y', label: '10 ans' },
-  { value: 'all', label: 'Tout' },
-];
-const periodLabel = computed(() => PERIODS.find((entry) => entry.value === props.period)?.label || '');
+const periodOptions = computed(() => props.periods);
+const comparable = computed(() => props.comparable ?? props.period !== 'all');
+const periodLabel = computed(() => props.periods.find((entry) => String(entry.value) === String(props.period))?.label || '');
 
 const LEADS_SHOWN = 5;
 const allLeads = ref(false);

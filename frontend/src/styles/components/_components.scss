@@ -17,16 +17,6 @@
   transition: transform var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
-/* Variante « avec icone » de .metric-card (Activite Plex) : l'icone et le bloc de texte
-   sont deux colonnes. Le tableau de bord obtient la meme forme via .dashboard-metrics. */
-.activity-metric-card { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--space-3); }
-.activity-metric-card > svg { width: 22px; color: var(--muted); }
-.activity-metric-card.accent > svg { color: var(--muted); }
-.activity-metric-card > div { display: grid; min-width: 0; }
-.activity-metric-card span,
-.activity-metric-card small { overflow: hidden; color: var(--muted); font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
-.activity-metric-card strong { font-size: var(--fs-2xl); line-height: 1.2; }
-
 .primary,
 .secondary {
   min-height: 38px;
