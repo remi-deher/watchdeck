@@ -16,7 +16,7 @@
       <template v-if="$slots.overlay" #overlay><slot name="overlay" /></template>
       <template #poster>
         <div class="detail__cover" :class="{ 'is-square': posterShape === 'square' }">
-          <img v-if="poster && !posterFailed" :src="proxyUrl(poster, { width: 780 })" :srcset="srcSetFor(poster, { width: 780 })" sizes="(max-width: 767px) 140px, 220px" alt="" loading="eager" fetchpriority="high" decoding="async" @error="posterFailed = true" />
+          <img v-if="poster && !posterFailed" :src="posterSrc" :srcset="posterSrcset" sizes="(max-width: 767px) 140px, 220px" alt="" loading="eager" fetchpriority="high" decoding="async" @error="posterFailed = true" />
           <component :is="icon || FileQuestion" v-else aria-hidden="true" />
         </div>
       </template>
@@ -146,6 +146,18 @@ const props = withDefaults(
 const emit = defineEmits<{ action: [key: string]; 'update:tab': [key: string]; back: [] }>();
 
 const router = useRouter();
+/* `/api/playback/thumb` est servie par l'application : proxyUrl la laisse telle quelle, il faut lui demander la
+   largeur voulue (sinon la capture Plex entiere, reduite par le navigateur). */
+const posterSrc = computed(() => {
+  const url = props.poster || '';
+  if (url.startsWith('/api/playback/thumb')) {
+    const parsed = new URL(url, window.location.origin);
+    parsed.searchParams.set('width', '660');
+    return parsed.pathname + parsed.search;
+  }
+  return proxyUrl(url, { width: 780 });
+});
+const posterSrcset = computed(() => ((props.poster || '').startsWith('/api/playback/thumb') ? undefined : srcSetFor(props.poster || '', { width: 780 })));
 const posterFailed = ref(false);
 watch(() => props.poster, () => { posterFailed.value = false; });
 /* Trois actions visibles au plus ; celles qui se declarent `menu`, et le reste au-dela, vont dans « … ». */
