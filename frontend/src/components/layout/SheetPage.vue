@@ -3,9 +3,9 @@
        le meme en surface et en pleine page, pour qu'un lien direct montre exactement ce
        que montrait la feuille. La feuille fournit la poignee ; on la ferme en la tirant, par Echap ou a cote. -->
   <article class="sheet-page" :class="{ 'is-standalone': !enSurface, 'is-headless': headless && !loading && !error }" :aria-busy="loading || undefined">
-    <!-- `headless` : la fiche porte son propre en-tete (banniere d'une session). Le titre
-         reste dans le document pour les lecteurs d'ecran, et reapparait tant que le
-         contenu charge ou echoue, faute de quoi la feuille n'aurait plus de titre. -->
+    <!-- `headless` : la fiche porte son propre en-tete (gabarit Fiche, avec son titre). Celui du
+         cadre n'apparait que tant que le contenu charge ou echoue, faute de quoi la feuille
+         n'aurait plus de titre. -->
     <!-- Fiche ouverte depuis une liste : precedent / suivant dans cette liste (j / k). Au bout de la
          liste le bouton reste actif pour le lecteur d'ecran (`aria-disabled`) : un bouton `disabled`
          perd le focus, ce que le dialogue de la feuille prend pour un appui a l'exterieur. -->
@@ -15,7 +15,7 @@
       <UiButton size="sm" variant="ghost" icon-only title="Suivant (j)" aria-label="Suivant" :aria-disabled="pager.index >= pager.total - 1" :class="{ 'is-edge': pager.index >= pager.total - 1 }" @click="pager.index < pager.total - 1 && emit('navigate', 1)"><ChevronRight /></UiButton>
     </nav>
 
-    <header class="sheet-page__head" :class="{ 'sr-only': headless && !loading && !error }">
+    <header v-if="!(headless && !loading && !error)" class="sheet-page__head">
       <div class="sheet-page__titles">
         <span v-if="eyebrow" class="sheet-page__eyebrow">{{ eyebrow }}</span>
         <h1 class="sheet-page__title">{{ title }}</h1>

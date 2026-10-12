@@ -9,118 +9,100 @@
       @terminated="onTerminated"
     />
 
-    <!-- L'oeuvre d'abord, avec l'en-tete commun des fiches (SheetHero), comme un media
-         dans Decouvrir ou la Bibliotheque : image seule dans la banniere, bord a bord dans
-         la feuille, affiche qui en chevauche le bas et mene a la fiche de la
-         bibliotheque, titre et resume dessous. -->
-    <SheetHero
-      class="session-banner"
-      :image-url="artUrl || null"
+    <!-- Fiche (gabarit Fiche) : l'oeuvre et l'etat de la lecture en en-tete, les actions avec, puis
+         trois parties -- la lecture, ses pistes, ses details. -->
+    <DetailTemplate
       :variant="enSurface ? 'sheet' : 'card'"
-      min-height="clamp(150px, 24vw, 230px)"
-      bleed
+      :eyebrow="headingEyebrow"
+      :title="session.title || 'Lecture Plex'"
+      :icon="MonitorPlay"
+      :poster="session.media?.poster_url || session.thumb_url || null"
+      :backdrop="artUrl || null"
+      :meta="meta"
+      :badges="badges"
+      :summary="summary"
+      :actions="actions"
+      :alert="alert"
+      :tabs="TABS"
+      :tab="tab"
+      @update:tab="tab = $event"
+      @action="onAction"
     >
-      <template #poster>
-        <component
-          :is="mediaPath ? 'button' : 'div'"
-          class="session-poster"
-          :type="mediaPath ? 'button' : undefined"
-          :title="mediaPath ? 'Ouvrir la fiche dans la bibliothèque' : undefined"
-          :aria-label="mediaPath ? `Ouvrir ${session.grandparent_title || session.title} dans la bibliothèque` : undefined"
-          @click="openMedia"
-        >
-          <MediaArtwork :src="session.media?.poster_url || session.thumb_url" :alt="displayTitle(session)" :type="session.media_type" size="large"/>
-        </component>
+      <template #tab-playback>
+        <div class="session-part">
+      <ConsecutivePlaybacks v-if="run.length > 1" :run="run" :current-id="session.id" @open="emitParent('open-run', $event)"/>
+
+      <div class="session-progress">
+        <div><span>Progression</span><strong>{{ Math.round(percentPlayed) }} %</strong></div>
+        <!-- La position avance d'elle-meme entre deux releves de Plex (voir playbackClock).
+             En conversion, la barre montre aussi le tampon : la zone deja preparee par le
+             transcodeur devant la tete de lecture. Le curseur marque la position. -->
+        <div class="progress-track" :class="{ buffered: buffer }" role="progressbar" :aria-valuenow="Math.round(percentPlayed)" aria-valuemin="0" aria-valuemax="100" :aria-valuetext="`${timecode(positionMs)} sur ${timecode(session.duration_ms)}`">
+          <b v-if="buffer" class="buffer-zone" :style="{ left: `${percentPlayed}%`, width: `${Math.max(0, buffer.buffered - percentPlayed)}%` }"></b>
+          <i :style="{width:`${percentPlayed}%`}"></i>
+          <span v-if="session.duration_ms" class="progress-cursor" :class="{ paused: !advancing && !session.ended_at }" :style="{ left: `${percentPlayed}%` }"></span>
+        </div>
+        <!-- Comme un lecteur : ecoule a gauche, restant a droite ; au milieu, la fin du tampon. -->
+        <div class="progress-times">
+          <time>{{ timecode(positionMs) }}</time>
+          <span v-if="buffer && bufferEndMs != null" class="buffer-end">prêt jusqu’à {{ timecode(bufferEndMs) }}</span>
+          <span v-if="!session.ended_at && !advancing" class="paused-label">En pause</span>
+          <time v-else-if="session.duration_ms">-{{ timecode(remainingMs) }}</time>
+        </div>
+        <!-- Reperes de temps : quand la lecture finira, ce qu'elle dure, depuis quand elle tourne. -->
+        <dl class="progress-markers">
+          <div v-if="!session.ended_at"><dt><Flag/>Fin prévue</dt><dd>{{ etaLabel }}</dd></div>
+          <div v-else><dt><Flag/>Terminée</dt><dd>{{ formatTime(session.ended_at) }}</dd></div>
+          <div v-if="session.duration_ms"><dt><Clock3/>Durée</dt><dd>{{ timecode(session.duration_ms) }}</dd></div>
+          <div v-if="session.started_at"><dt><Play/>Commencée</dt><dd>{{ formatTime(session.started_at) }}</dd></div>
+        </dl>
+        <p v-if="buffer" class="buffer-legend" :class="transcoder.tone">
+          <span><Timer/>Avance du transcodeur <strong>{{ formatBuffer(session.transcode_buffer_ms) }}</strong></span>
+          <span class="transcoder-state"><Cpu/>{{ transcoder.label }}</span>
+        </p>
+        <SessionTimelineBar :session="session"/>
+      </div>
+
+      <div v-balanced-grid="{ min: 170 }" class="session-kpis">
+        <article><Clock3/><span>Temps restant</span><strong>{{ session.duration_ms ? formatDuration(remainingMs) : 'Inconnu' }}</strong><small>{{ session.ended_at ? 'Lecture terminée' : advancing ? `Fin vers ${etaLabel}` : 'En pause : fin suspendue' }}</small></article>
+        <!-- Un tiret se lit comme un zero : quand Plex ne communique pas le debit, on le
+             dit plutot que d'afficher une valeur vide qui passerait pour une mesure. -->
+        <article><Gauge/><span>Débit envoyé</span><strong>{{ session.bandwidth_kbps ? formatBandwidth(session.bandwidth_kbps) : 'Non mesuré' }}</strong><small>{{ bitrateHint }}</small></article>
+        <article :class="['network-kpi', isRemoteConnection(session) ? 'remote' : 'local']"><Network/><span>Connexion</span><strong>{{ connectionLabel(session) }}</strong><small>{{ stream.relayed ? 'via le relais Plex, débit bridé' : connectionHint(session) }}</small></article>
+      </div>
+
+      <SessionLocationMap :session="session"/>
+
+      <section v-if="!details" class="stream-route">
+        <span class="eyebrow">Chemin du flux</span>
+        <div>
+          <article><Server/><span><small>Source</small><strong>{{ session.quality || 'Auto' }}<template v-if="session.video_codec"> · {{ session.video_codec.toUpperCase() }}</template></strong></span></article>
+          <i :class="{warning:session.playback_method==='transcode'}"></i>
+          <article><Workflow/><span><small>Traitement</small><strong>{{ methodLabel(session.playback_method) }}</strong></span></article>
+          <i></i>
+          <article><MonitorPlay/><span><small>Destination</small><strong>{{ session.player || session.platform || 'Plex' }}</strong></span></article>
+        </div>
+      </section>
+
+        </div>
       </template>
-      <div class="session-heading">
-        <span>{{ headingEyebrow }}</span>
-        <h2>{{ session.title || 'Lecture Plex' }}</h2>
-      </div>
-    </SheetHero>
 
-    <SheetSummary v-if="summary" class="session-summary" :text="summary" />
+      <template #tab-streams>
+        <div class="session-part">
+          <StreamTracksPanel :session="session"/>
+          <ConversionPanel :session="session"/>
+        </div>
+      </template>
 
-    <div class="session-who">
-      <PlaybackMethodBadge :playback="session"/>
-      <!-- Un telechargement (synchro hors ligne) reste dans l'historique, mais ne se
-           confond pas avec une lecture. -->
-      <span v-if="session.is_download" class="session-flag download"><Download/>Téléchargement</span>
-      <UiTooltip v-if="stream.relayed" text="Débit limité par le relais Plex (~2 Mb/s) : souvent la cause d'une qualité réduite"><span class="session-flag relay"><RadioTower/>Relais Plex</span></UiTooltip>
-      <UiTooltip v-if="dynamicRange" :text="toneMapping ? 'HDR converti en SDR : le transcodage le plus coûteux' : undefined"><span class="session-flag hdr" :class="{ tonemap: toneMapping }">{{ dynamicRange }}</span></UiTooltip>
-      <span><User/>{{ session.user_name || 'Utilisateur Plex' }}</span>
-      <UiClientIdentity :client="session" />
-      <UiTooltip v-if="stream.secure != null" :text="stream.secure ? 'Connexion chiffrée (HTTPS)' : 'Connexion non chiffrée (HTTP)'"><span class="session-secure" :class="{ insecure: !stream.secure }"><Lock v-if="stream.secure"/><LockOpen v-else/>{{ stream.secure ? 'Chiffrée' : 'Non chiffrée' }}</span></UiTooltip>
-            <div class="session-toolbar" role="toolbar" aria-label="Actions sur la session">
-        <UiButton variant="ghost" icon-only title="Copier le diagnostic" aria-label="Copier le diagnostic" @click="copyDiagnostic"><ClipboardCopy /></UiButton>
-        <UiButton v-if="canTerminate" class="terminate-button" variant="danger" size="sm" @click="terminateOpen = true"><CircleStop />Arrêter</UiButton>
-      </div>
-    </div>
-
-    <ConsecutivePlaybacks v-if="run.length > 1" :run="run" :current-id="session.id" @open="emitParent('open-run', $event)"/>
-
-    <div class="session-progress">
-      <div><span>Progression</span><strong>{{ Math.round(percentPlayed) }} %</strong></div>
-      <!-- La position avance d'elle-meme entre deux releves de Plex (voir playbackClock).
-           En conversion, la barre montre aussi le tampon : la zone deja preparee par le
-           transcodeur devant la tete de lecture. Le curseur marque la position. -->
-      <div class="progress-track" :class="{ buffered: buffer }" role="progressbar" :aria-valuenow="Math.round(percentPlayed)" aria-valuemin="0" aria-valuemax="100" :aria-valuetext="`${timecode(positionMs)} sur ${timecode(session.duration_ms)}`">
-        <b v-if="buffer" class="buffer-zone" :style="{ left: `${percentPlayed}%`, width: `${Math.max(0, buffer.buffered - percentPlayed)}%` }"></b>
-        <i :style="{width:`${percentPlayed}%`}"></i>
-        <span v-if="session.duration_ms" class="progress-cursor" :class="{ paused: !advancing && !session.ended_at }" :style="{ left: `${percentPlayed}%` }"></span>
-      </div>
-      <!-- Comme un lecteur : ecoule a gauche, restant a droite ; au milieu, la fin du tampon. -->
-      <div class="progress-times">
-        <time>{{ timecode(positionMs) }}</time>
-        <span v-if="buffer && bufferEndMs != null" class="buffer-end">prêt jusqu’à {{ timecode(bufferEndMs) }}</span>
-        <span v-if="!session.ended_at && !advancing" class="paused-label">En pause</span>
-        <time v-else-if="session.duration_ms">-{{ timecode(remainingMs) }}</time>
-      </div>
-      <!-- Reperes de temps : quand la lecture finira, ce qu'elle dure, depuis quand elle tourne. -->
-      <dl class="progress-markers">
-        <div v-if="!session.ended_at"><dt><Flag/>Fin prévue</dt><dd>{{ etaLabel }}</dd></div>
-        <div v-else><dt><Flag/>Terminée</dt><dd>{{ formatTime(session.ended_at) }}</dd></div>
-        <div v-if="session.duration_ms"><dt><Clock3/>Durée</dt><dd>{{ timecode(session.duration_ms) }}</dd></div>
-        <div v-if="session.started_at"><dt><Play/>Commencée</dt><dd>{{ formatTime(session.started_at) }}</dd></div>
-      </dl>
-      <p v-if="buffer" class="buffer-legend" :class="transcoder.tone">
-        <span><Timer/>Avance du transcodeur <strong>{{ formatBuffer(session.transcode_buffer_ms) }}</strong></span>
-        <span class="transcoder-state"><Cpu/>{{ transcoder.label }}</span>
-      </p>
-      <SessionTimelineBar :session="session"/>
-    </div>
-
-    <div v-balanced-grid="{ min: 170 }" class="session-kpis">
-      <article><Clock3/><span>Temps restant</span><strong>{{ session.duration_ms ? formatDuration(remainingMs) : 'Inconnu' }}</strong><small>{{ session.ended_at ? 'Lecture terminée' : advancing ? `Fin vers ${etaLabel}` : 'En pause : fin suspendue' }}</small></article>
-      <!-- Un tiret se lit comme un zero : quand Plex ne communique pas le debit, on le
-           dit plutot que d'afficher une valeur vide qui passerait pour une mesure. -->
-      <article><Gauge/><span>Débit envoyé</span><strong>{{ session.bandwidth_kbps ? formatBandwidth(session.bandwidth_kbps) : 'Non mesuré' }}</strong><small>{{ bitrateHint }}</small></article>
-      <article :class="['network-kpi', isRemoteConnection(session) ? 'remote' : 'local']"><Network/><span>Connexion</span><strong>{{ connectionLabel(session) }}</strong><small>{{ stream.relayed ? 'via le relais Plex, débit bridé' : connectionHint(session) }}</small></article>
-    </div>
-
-    <SessionLocationMap :session="session"/>
-
-    <section v-if="!details" class="stream-route">
-      <span class="eyebrow">Chemin du flux</span>
-      <div>
-        <article><Server/><span><small>Source</small><strong>{{ session.quality || 'Auto' }}<template v-if="session.video_codec"> · {{ session.video_codec.toUpperCase() }}</template></strong></span></article>
-        <i :class="{warning:session.playback_method==='transcode'}"></i>
-        <article><Workflow/><span><small>Traitement</small><strong>{{ methodLabel(session.playback_method) }}</strong></span></article>
-        <i></i>
-        <article><MonitorPlay/><span><small>Destination</small><strong>{{ session.player || session.platform || 'Plex' }}</strong></span></article>
-      </div>
-    </section>
-
-    <StreamTracksPanel :session="session"/>
-
-    <ConversionPanel :session="session"/>
-
-    <SessionFacts :session="session"/>
+      <template #tab-details>
+        <SessionFacts :session="session"/>
+      </template>
+    </DetailTemplate>
   </div>
 </template>
 
 <script setup lang="ts">
-import UiClientIdentity from '@/components/ui/UiClientIdentity.vue';
-import UiTooltip from '@/components/ui/UiTooltip.vue';
+import DetailTemplate from '@/components/templates/DetailTemplate.vue';
 import ConversionPanel from './ConversionPanel.vue';
 import ConsecutivePlaybacks from './ConsecutivePlaybacks.vue';
 import type { LectureDeSerie } from '@/composables/useMediaOverlay';
@@ -132,17 +114,13 @@ import { bufferSpan, formatBuffer, hasTranscodeBuffer, transcoderState } from '@
 import { formatDurationExact as formatDuration, formatBandwidth, formatDateTime, formatTime } from '@/utils/format';
 import { computed, ref } from 'vue';
 import { useIntervalFn } from '@vueuse/core';
-import { ArrowRight, CircleStop, ClipboardCopy, Clock3, Copy, Cpu, Download, Flag, Gauge, Lock, LockOpen, MonitorPlay, Network, Pause, Play, RadioTower, Server, Timer, User, Workflow } from '@lucide/vue';
+import { ArrowRight, CircleStop, ClipboardCopy, Clock3, Copy, Cpu, Flag, Gauge, MonitorPlay, Network, Pause, Play, Server, Timer, Workflow } from '@lucide/vue';
 import { timecode } from '@/utils/format';
 import { estimateProgressMs, estimatedEnd, isAdvancing } from '@/utils/playbackClock';
 import UiButton from '@/components/ui/UiButton.vue';
-import SheetHero from '@/components/ui/SheetHero.vue';
-import SheetSummary from '@/components/ui/SheetSummary.vue';
 import { useToast } from '@/composables/useToast';
 import { mediaDetailPath } from '@/mediaUrl';
 import { useMediaOverlay, useOuvrirFiche } from '@/composables/useMediaOverlay';
-import MediaArtwork from './MediaArtwork.vue';
-import PlaybackMethodBadge from './PlaybackMethodBadge.vue';
 import SessionLocationMap from './SessionLocationMap.vue';
 import SessionTimelineBar from './SessionTimelineBar.vue';
 
@@ -197,6 +175,38 @@ async function copyDiagnostic(): Promise<void> {
   } catch {
     addToast({ type: 'error', message: 'Copie impossible : le presse-papier est refusé par le navigateur.' });
   }
+}
+
+const TABS = [
+  { key: 'playback', label: 'Lecture' },
+  { key: 'streams', label: 'Pistes' },
+  { key: 'details', label: 'Détails' },
+];
+const tab = ref('playback');
+const meta = computed(() => [props.session.user_name || 'Utilisateur Plex', props.session.player || props.session.platform || props.session.product].filter(Boolean) as string[]);
+/* L'etat de la lecture en badges : comment elle est servie, puis ce qui la distingue. */
+const badges = computed(() => {
+  const list: Array<{ key: string; label: string; tone: 'success' | 'warning' | 'danger' | 'info' | 'neutral' }> = [
+    { key: 'method', label: methodLabel(props.session.playback_method), tone: props.session.playback_method === 'transcode' ? 'warning' : 'success' },
+  ];
+  if (props.session.is_download) list.push({ key: 'download', label: 'Téléchargement', tone: 'info' });
+  if (stream.value.relayed) list.push({ key: 'relay', label: 'Relais Plex', tone: 'warning' });
+  if (dynamicRange.value) list.push({ key: 'hdr', label: dynamicRange.value, tone: toneMapping.value ? 'warning' : 'info' });
+  if (stream.value.secure != null) list.push({ key: 'secure', label: stream.value.secure ? 'Chiffrée' : 'Non chiffrée', tone: stream.value.secure ? 'neutral' : 'warning' });
+  return list;
+});
+const alert = computed(() => (stream.value.relayed
+  ? { tone: 'warning' as const, message: 'Cette lecture passe par le relais Plex, plafonné à environ 2 Mb/s.' }
+  : toneMapping.value ? { tone: 'info' as const, message: 'HDR converti en SDR : le transcodage le plus coûteux.' } : null));
+const actions = computed(() => [
+  ...(mediaPath.value ? [{ key: 'open-media', label: 'Ouvrir dans la bibliothèque', icon: ArrowRight }] : []),
+  { key: 'copy', label: 'Copier le diagnostic', icon: ClipboardCopy },
+  ...(canTerminate.value ? [{ key: 'terminate', label: 'Arrêter', icon: CircleStop, danger: true }] : []),
+]);
+function onAction(key: string): void {
+  if (key === 'open-media') openMedia();
+  else if (key === 'copy') void copyDiagnostic();
+  else if (key === 'terminate') terminateOpen.value = true;
 }
 
 const artUrl = computed(() => props.session.media?.art_url || '');
@@ -348,24 +358,6 @@ function networkLabel(item: any): string {
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
 
-.session-poster{flex:none;padding:0;border:0;border-radius:var(--radius-sm);background:none;cursor:default}
-button.session-poster{cursor:pointer;transition:transform .15s}
-button.session-poster:hover,button.session-poster:focus-visible{transform:translateY(-2px)}
-button.session-poster:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-.session-heading{display:grid;gap:4px;min-width:0}
-.session-heading span{color:color-mix(in srgb,var(--text) 72%,transparent);font-size:var(--fs-sm)}
-.session-heading h2{margin:0;font-size:var(--fs-xl);line-height:1.2;overflow-wrap:anywhere}
-.session-summary{margin-top:12px}
-.session-who{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:12px 0 16px;color:color-mix(in srgb,var(--text) 78%,transparent);font-size:var(--fs-sm)}
-.session-flag{padding:3px 8px;border-radius:var(--radius-pill);font-size:var(--fs-xs);font-weight:700}
-.session-flag.download{background:color-mix(in srgb,var(--slate,var(--muted)) 14%,transparent);color:var(--text)}
-.session-flag.relay{background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber-text)}
-.session-flag.relay svg{color:var(--amber-text)}
-.session-flag.hdr{background:color-mix(in srgb,var(--blue) 12%,transparent);color:var(--blue-text)}
-.session-flag.hdr.tonemap{background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber-text)}
-.session-secure.insecure,.session-secure.insecure svg{color:var(--amber-text)}
-.session-who span{display:inline-flex;align-items:center;gap:6px;min-width:0}
-.session-who svg{width:15px;height:15px;color:var(--muted)}
 .progress-track{position:relative}
 .progress-track .buffer-zone{position:absolute;top:0;bottom:0;border-radius:inherit;background:color-mix(in srgb,var(--accent) 35%,transparent)}
 .progress-track i{position:relative}
@@ -398,7 +390,6 @@ button.session-poster:focus-visible{outline:2px solid var(--accent);outline-offs
 .conversion-treatment.remuxed{color:var(--blue-text)}
 .conversion-treatment.converted{color:var(--amber-text)}
 @container sheet (max-width: 520px){
-  .session-poster :deep(.media-artwork),.session-poster :deep(img){max-width:76px}
   .conversion-head{display:none}
   .conversion-row{grid-template-columns:minmax(0,1fr) auto;gap:2px 10px}
   .conversion-label{grid-column:1;font-weight:600;color:var(--text)}
@@ -408,7 +399,7 @@ button.session-poster:focus-visible{outline:2px solid var(--accent);outline-offs
   .conversion-row span:nth-child(3){grid-row:3}
   .conversion-arrow{display:inline-block}
 }
-.session-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-1);margin-left:auto}
+.session-part{display:grid;gap:var(--space-4);min-width:0}
 .session-progress{display:grid;gap: var(--space-2);padding:14px 16px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface-2)}.session-progress>div:first-child{display:flex;justify-content:space-between}.session-progress span,.session-progress small{color:color-mix(in srgb,var(--text) 70%,transparent);font-size:var(--fs-xs)}.progress-track{height:6px;overflow:hidden;border-radius:var(--radius-pill);background:rgb(var(--ink) / .1)}.progress-track i{display:block;height:100%;border-radius:inherit;background:var(--accent)}.session-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;margin-top:10px;overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--border-subtle)}.session-kpis article{display:grid;gap: var(--space-1);padding:12px 14px;background:var(--surface-2)}.session-kpis span,.session-kpis small{color:color-mix(in srgb,var(--text) 68%,transparent);font-size:var(--fs-xs)}.session-kpis strong{font-size:var(--fs-md)}.stream-route{margin-top:22px}.stream-route>div{display:grid;grid-template-columns:minmax(0,1fr) 28px minmax(0,1fr) 28px minmax(0,1fr);align-items:center;margin-top:8px}.stream-route article{display:flex;align-items:center;gap: var(--space-2);min-width:0;padding:10px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface-2)}.stream-route article>svg{width:17px;color:var(--muted)}.stream-route article span{display:grid;min-width:0}.stream-route small{color:color-mix(in srgb,var(--text) 64%,transparent);font-size:var(--fs-xs);}.stream-route strong{overflow:hidden;font-size:var(--fs-xs);text-overflow:ellipsis;white-space:nowrap}.stream-route i{height:2px;background:var(--border)}.stream-route i.warning{background:var(--amber)}.session-detail-columns{display:grid;gap:0}@container sheet (min-width: 862px) {.session-detail-columns{grid-template-columns:1fr 1fr;gap:var(--space-4);align-items:start}.session-detail-columns>.session-detail-section{margin-top:22px}}.session-detail-section{margin-top:22px}.session-detail-section dl{display:grid;grid-template-columns:1fr 1fr;margin:8px 0 0;overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-lg)}.session-detail-section dl>div{display:grid;gap: var(--space-1);padding:13px;border-bottom:1px solid var(--border-subtle)}.session-detail-section dl>div:nth-child(odd){border-right:1px solid var(--border-subtle)}.session-detail-section dl>div:nth-last-child(-n+2){border-bottom:0}.session-detail-section dt{color:color-mix(in srgb,var(--text) 66%,transparent);font-size:var(--fs-xs);}.session-detail-section dd{margin:0;font-size:var(--fs-sm);line-height:1.4}.session-id{overflow:hidden;color:var(--muted);font-family: var(--font-mono);text-overflow:ellipsis;white-space:nowrap}.session-address{font-variant-numeric:tabular-nums}.session-id-row{display:flex;align-items:center;gap:6px;min-width:0}.session-id-row .session-id{min-width:0}.copy-id{flex:none;margin:-6px 0}@include bp.until(phablet) {.session-kpis{grid-template-columns:1fr}.stream-route>div{grid-template-columns:1fr}.stream-route i{width:2px;height:14px;margin:auto}.stream-route article{width:100%}}@container sheet (max-width: 482px) {.session-detail-section dl{grid-template-columns:1fr}.session-detail-section dl>div,.session-detail-section dl>div:nth-child(odd){border-right:0;border-bottom:1px solid var(--border-subtle)}.session-detail-section dl>div:last-child{border-bottom:0}}
 .session-kpis article{grid-template-columns:20px minmax(0,1fr);gap:3px 9px}.session-kpis article>svg{grid-row:1/4;width:18px;height:18px;color:var(--accent)}.session-kpis article>*:not(svg){grid-column:2}.session-kpis .network-kpi.remote>svg{color:var(--amber-text)}.session-kpis .network-kpi.local>svg{color: var(--green-text)}
 .session-detail-section dl>div{position:relative;padding-left:16px}.session-detail-section dl>div::before{position:absolute;top:15px;bottom:15px;left:0;width:3px;border-radius: var(--radius-xs);background:color-mix(in srgb,var(--accent) 70%,transparent);content:""}.session-detail-section dd{color:var(--text);font-weight:600}
