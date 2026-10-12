@@ -50,11 +50,7 @@
       <span><User/>{{ session.user_name || 'Utilisateur Plex' }}</span>
       <UiClientIdentity :client="session" />
       <UiTooltip v-if="stream.secure != null" :text="stream.secure ? 'Connexion chiffrée (HTTPS)' : 'Connexion non chiffrée (HTTP)'"><span class="session-secure" :class="{ insecure: !stream.secure }"><Lock v-if="stream.secure"/><LockOpen v-else/>{{ stream.secure ? 'Chiffrée' : 'Non chiffrée' }}</span></UiTooltip>
-      <!-- Comparer deux lectures est le geste dominant : sans ces fleches il fallait
-           fermer, retrouver la ligne voisine et rouvrir. `j` / `k` font de meme. -->
-      <div class="session-toolbar" role="toolbar" aria-label="Actions sur la session">
-        <UiButton v-if="hasSiblings" variant="ghost" icon-only title="Session précédente (k)" aria-label="Session precedente" :disabled="!hasPrevious" @click="emitParent('navigate', -1)"><ChevronLeft /></UiButton>
-        <UiButton v-if="hasSiblings" variant="ghost" icon-only title="Session suivante (j)" aria-label="Session suivante" :disabled="!hasNext" @click="emitParent('navigate', 1)"><ChevronRight /></UiButton>
+            <div class="session-toolbar" role="toolbar" aria-label="Actions sur la session">
         <UiButton variant="ghost" icon-only title="Copier le diagnostic" aria-label="Copier le diagnostic" @click="copyDiagnostic"><ClipboardCopy /></UiButton>
         <UiButton v-if="canTerminate" class="terminate-button" variant="danger" size="sm" @click="terminateOpen = true"><CircleStop />Arrêter</UiButton>
       </div>
@@ -136,7 +132,7 @@ import { bufferSpan, formatBuffer, hasTranscodeBuffer, transcoderState } from '@
 import { formatDurationExact as formatDuration, formatBandwidth, formatDateTime, formatTime } from '@/utils/format';
 import { computed, ref } from 'vue';
 import { useIntervalFn } from '@vueuse/core';
-import { ArrowRight, ChevronLeft, ChevronRight, CircleStop, ClipboardCopy, Clock3, Copy, Cpu, Download, Flag, Gauge, Lock, LockOpen, MonitorPlay, Network, Pause, Play, RadioTower, Server, Timer, User, Workflow } from '@lucide/vue';
+import { ArrowRight, CircleStop, ClipboardCopy, Clock3, Copy, Cpu, Download, Flag, Gauge, Lock, LockOpen, MonitorPlay, Network, Pause, Play, RadioTower, Server, Timer, User, Workflow } from '@lucide/vue';
 import { timecode } from '@/utils/format';
 import { estimateProgressMs, estimatedEnd, isAdvancing } from '@/utils/playbackClock';
 import UiButton from '@/components/ui/UiButton.vue';
@@ -153,17 +149,14 @@ import SessionTimelineBar from './SessionTimelineBar.vue';
 const props = withDefaults(
   defineProps<{
     session: Record<string, any>;
-    hasPrevious?: boolean;
-    hasNext?: boolean;
     /** Lectures consecutives de la ligne d'historique ouverte, dans l'ordre chronologique. */
     run?: LectureDeSerie[];
   }>(),
-  { hasPrevious: false, hasNext: false, run: () => [] }
+  { run: () => [] }
 );
 
 
 const { addToast } = useToast();
-const hasSiblings = computed(() => props.hasPrevious || props.hasNext);
 
 /* Le rebond vers la fiche n'a de sens que si l'on sait quoi ouvrir : une session Plex ne
    porte pas toujours de demande associee. */
@@ -219,7 +212,7 @@ const details = computed<Record<string, any> | null>(() => props.session.transco
 const stream = computed<Record<string, any>>(() => props.session.stream_details || {});
 
 /* Arreter une lecture : seulement tant qu'elle est en cours, et pas un telechargement. */
-const emitParent = defineEmits<{ (e: 'navigate', direction: number): void; (e: 'open-run', id: string): void; (e: 'terminated'): void }>();
+const emitParent = defineEmits<{ (e: 'open-run', id: string): void; (e: 'terminated'): void }>();
 const terminateOpen = ref(false);
 const canTerminate = computed(() => !props.session.ended_at && props.session.source !== 'tautulli' && Boolean(props.session.id));
 function onTerminated(): void {

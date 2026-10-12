@@ -38,8 +38,6 @@
     </SheetHero>
 
     <div class="item-toolbar" role="toolbar" aria-label="Actions sur le fichier">
-      <UiButton v-if="hasPrevious || hasNext" variant="ghost" icon-only title="Fichier précédent (k)" aria-label="Fichier précédent" :disabled="!hasPrevious" @click="emit('navigate', -1)"><ChevronLeft /></UiButton>
-      <UiButton v-if="hasPrevious || hasNext" variant="ghost" icon-only title="Fichier suivant (j)" aria-label="Fichier suivant" :disabled="!hasNext" @click="emit('navigate', 1)"><ChevronRight /></UiButton>
       <UiButton variant="ghost" size="sm" @click="copy(itemLink, 'Lien du fichier copié.')"><Link2 />Copier le lien</UiButton>
     </div>
 
@@ -134,7 +132,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Captions, ChevronLeft, ChevronRight, Copy, FolderOpen, Link2, MonitorSmartphone, Volume2 } from '@lucide/vue';
+import { Captions, ChevronRight, Copy, FolderOpen, Link2, MonitorSmartphone, Volume2 } from '@lucide/vue';
 import MediaArtwork from '@/components/activity/MediaArtwork.vue';
 import SheetHero from '@/components/ui/SheetHero.vue';
 import UiAvatar from '@/components/ui/UiAvatar.vue';
@@ -167,11 +165,8 @@ const props = withDefaults(defineProps<{
   technical?: Record<string, any> | null;
   technicalLoading?: boolean;
   technicalError?: boolean;
-  hasPrevious?: boolean;
-  hasNext?: boolean;
-}>(), { technical: null, technicalLoading: false, technicalError: false, hasPrevious: false, hasNext: false });
+}>(), { technical: null, technicalLoading: false, technicalError: false });
 
-const emit = defineEmits<{ navigate: [direction: number] }>();
 
 const route = useRoute();
 const router = useRouter();

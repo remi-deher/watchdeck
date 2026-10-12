@@ -462,7 +462,7 @@ test("une session s'ouvre dans la feuille, avec son adresse, et retour la referm
   await expect(page.locator(".history-table")).toBeAttached();
 
   // Suivant : la session voisine de la liste, sans nouvelle entree d'historique.
-  await sheet.getByRole("button", { name: "Session suivante" }).click();
+  await sheet.getByRole("button", { name: "Suivant", exact: true }).click();
   await expect(page).toHaveURL(/\/activity\/session\/2$/);
   await expect(sheet.getByRole("heading", { level: 1 })).toHaveText("Princesse Mononoké");
 
