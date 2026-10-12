@@ -1,18 +1,19 @@
 <template>
-    <AppPage
+    <!-- Activité : cinq vues (vue d'ensemble, direct, historique, qualité, utilisateurs) qui sont les
+         sections de l'entrée du menu ; la recherche et les filtres de l'historique passent par la
+         barre du haut. La période cadre toute la page : c'est un outil de page. -->
+    <PageTemplate
       :title="viewTitle"
+      class="activity-page"
       v-model:query="historySearch"
-      search-scope="Activité"
-      :placeholder="searchPlaceholder"
-      search-kind="filter"
+      :search="{ placeholder: searchPlaceholder, scope: 'Activité', kind: 'filter' }"
       :match-count="filterCounts.matched"
       :total-count="filterCounts.total"
-      :has-filters="currentView === 'history'"
-      :active-count="historyFilterCount"
-      :filters-open="filtersOpen"
+      :filter-count="currentView === 'history' ? historyFilterCount : 0"
       :sections="sections"
       :active-section="currentView"
-      @toggle-filters="filtersOpen = !filtersOpen" page-class="activity-page">
+      @reset-filters="resetActivityFilters"
+    >
 
     <!-- La periode n'est pas un filtre : c'est le cadre de lecture de toute la page, et
          l'enfermer derriere le bouton « Filtres » donnait un tiroir a une seule entree,
@@ -26,8 +27,7 @@
     <UiFeedback v-if="loading && !loaded" type="loading" message="Chargement de l'activité Plex…" />
     <UiFeedback v-if="error" type="error" :message="error" retry @retry="load" />
 
-    <div class="psh-layout">
-      <FilterSidebar v-if="currentView === 'history'" :open="filtersOpen" :active-count="historyFilterCount" @close="filtersOpen=false" @reset="resetActivityFilters">
+    <template v-if="currentView === 'history'" #filters>
         <FilterGroup label="Lecture">
           <UiChipGroup label="Mode de lecture" :options="[{ value: '', label: 'Tous les modes' }, { value: 'direct_play', label: 'Lecture directe' }, { value: 'direct_stream', label: 'Conversion légère' }, { value: 'transcode', label: 'Transcodage' }]" v-model="methodFilter" />
         </FilterGroup>
@@ -43,8 +43,8 @@
         <FilterGroup v-if="historyServers.length > 1" label="Serveur">
           <UiChipGroup label="Serveur Plex" :options="[{ value: '', label: 'Tous les serveurs' }, ...historyServers.map((server: any) => ({ value: String(server.id), label: server.name }))]" v-model="serverFilter" />
         </FilterGroup>
-      </FilterSidebar>
-      <div class="psh-main">
+    </template>
+
     <template v-if="loaded">
       <template v-if="currentView==='overview'">
         <!-- Vue d’ensemble et Statistiques etaient deux pages dont la premiere etait le
@@ -216,13 +216,12 @@
       </template>
     </template>
 
-      </div><!-- .psh-main -->
-    </div><!-- .psh-layout -->
-  </AppPage>
+  </PageTemplate>
 </template>
 
 <script setup lang="ts">
 import UiAvatar from '@/components/ui/UiAvatar.vue';
+import PageTemplate from '@/components/templates/PageTemplate.vue';
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import UiCombobox from '@/components/ui/UiCombobox.vue';
 import { playbackMethodLabel } from '@/utils/labels';
@@ -295,7 +294,6 @@ const periodLabel = computed(() => {
   return `${value} jours`;
 });
 const historySearch=ref(''),methodFilter=ref(''),typeFilter=ref(''),userFilter=ref(''),deviceFilter=ref(''),serverFilter=ref(''),clock=ref(Date.now());
-const filtersOpen=ref(false);
 const summary=computed(()=>data.value.summary||{});
 const analytics=computed(()=>data.value.analytics||{});
 const analyticsUsers=computed((): any[] =>analytics.value.users||[]);
