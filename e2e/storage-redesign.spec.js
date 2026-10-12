@@ -13,13 +13,13 @@ test('storage redesign keeps history context and configures reserve and SSH prio
  await expect(page.getByText('Persona4 the ANIMATION',{exact:true})).toBeVisible();
  await expect(page.getByText('8 épisode(s) à finir')).toBeVisible();
  await page.screenshot({path:`.codex/redesign-transfers-${test.info().project.name}.png`,fullPage:true});
- await page.getByRole('tab',{name:'Historique',exact:true}).click();
+ await page.getByRole('link',{name:'Historique',exact:true}).click();
  await expect(page.getByText('20 Mo/s',{exact:true})).toBeVisible();
  await expect(page.getByText('25 épisodes · 1 saisons')).toBeVisible();
  await page.getByRole('button',{name:'Détails',exact:true}).click();
- await expect(page.getByRole('tab',{name:'Historique',exact:true})).toHaveAttribute('aria-selected','true');
+ await expect(page.getByRole('link',{name:'Historique',exact:true})).toHaveAttribute('aria-current','page');
  await page.getByRole('button',{name:'← Historique',exact:true}).click();
- await page.getByRole('tab',{name:'Stockages',exact:true}).click();
+ await page.getByRole('link',{name:'Stockages',exact:true}).click();
  await page.getByRole('button',{name:'Configurer',exact:true}).first().click();
  await page.getByText('Options avancées',{exact:true}).click();
  await page.getByLabel('Réserve d’espace libre',{exact:true}).check();

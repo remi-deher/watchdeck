@@ -1,8 +1,20 @@
 <template>
-  <AppPage class="storage-page" title="Stockage et transferts" v-model:query="query" :placeholder="tab==='settings'?'Rechercher un stockage…':'Rechercher une tâche…'">
-    <template #tabs><AppSubnav :active="tab==='prepare'?'transfers':tab" :items="tabs" variant="tabs" aria-label="Sections du stockage" @update:active="tab=$event" /></template>
-    <template #tools><UiButton v-if="tab==='settings'" variant="primary" @click="addLocation">Ajouter un stockage</UiButton><UiButton v-else variant="primary" @click="createTask">Nouveau transfert</UiButton></template>
-    <UiFeedback v-if="error" type="error" :message="error" /><UiFeedback v-if="savedMessage" type="success" :message="savedMessage" />
+  <!-- Stockage et transferts : trois vues (transferts, stockages, historique) dans le gabarit de
+       page ; l'ajout ou le nouveau transfert est l'action du contexte, les erreurs et les
+       confirmations passent par des notifications. Les panneaux gardent leur contenu. -->
+  <PageTemplate
+    class="storage-page"
+    title="Stockage et transferts"
+    :tabs="tabs"
+    :active-tab="tab === 'prepare' ? 'transfers' : tab"
+    tabs-label="Sections du stockage"
+    v-model:query="query"
+    :search="{ placeholder: tab === 'settings' ? 'Rechercher un stockage…' : 'Rechercher une tâche…', scope: 'Stockage', kind: 'filter' }"
+  >
+    <template #quick-action>
+      <UiButton v-if="tab === 'settings'" variant="primary" @click="addLocation">Ajouter un stockage</UiButton>
+      <UiButton v-else variant="primary" @click="createTask">Nouveau transfert</UiButton>
+    </template>
     <UiFeedback v-if="previewProgress" type="info" :message="previewProgress" role="status" aria-live="polite" />
     <StoragePreparePanel v-if="tab==='prepare'" v-model="form" :roots="prepareRoots" :accesses="accesses" :locations="locations" :protected-titles="protectedTitles" :editing="Boolean(editingTaskId)" :busy="busy" @save="saveTaskSettings" @unprotect="unprotectTitle" @configure="tab='settings'" @preview="preview" />
 
@@ -26,12 +38,14 @@
       <UiButton v-if="!busy && error" @click="previewOpening=false;tab='prepare'">Modifier les réglages</UiButton>
     </ModalShell>
     <StoragePreviewDialog v-if="plan" v-model="selected" :plan="plan" :busy="busy" :error="error" :gb="gb" @close="plan=null;previewOpening=false" @launch="launch(true)" @save="launch(false)"  @protect="protectTitle"/>
-  </AppPage>
+  </PageTemplate>
 </template>
 
 <script setup lang="ts">
 import {readCache, writeCache} from '@/cache';
-import AppSubnav from '@/components/ui/AppSubnav.vue';
+import PageTemplate from '@/components/templates/PageTemplate.vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useToast } from '@/composables/useToast';
 import {newAssociationMapping, rootMapping as mappingFromPair, suggestedPlex} from '@/components/storage/storageAssociations';
 import {useStorageTelemetry} from '@/components/storage/useStorageTelemetry';
 import StorageSettingsList from '@/components/storage/StorageSettingsList.vue';
@@ -54,9 +68,15 @@ import UiButton from '@/components/ui/UiButton.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 const query=ref('');
-const tabs=[{key:'transfers',label:'Transferts'},{key:'settings',label:'Stockages'},{key:'history',label:'Historique'}];
+const route=useRoute(),router=useRouter(),toast=useToast();
+/* La vue est dans l'adresse (?vue=) : partageable, retrouvee au retour. `prepare` (la fenetre de
+   preparation d'un transfert) reste un etat local, rattache a « Transferts ». */
+const VIEWS=['transfers','settings','history'];
+const prepareOpen=ref(false);
+const tabs=computed(()=>[{key:'transfers',label:'Transferts'},{key:'settings',label:'Stockages'},{key:'history',label:'Historique'}].map(item=>({...item,to:{path:route.path,query:{...route.query,vue:item.key}}})));
 const settingsTab=ref('roots');
-const tab=ref('transfers'),locations=ref<any[]>([]),jobs=ref<any[]>([]),instances=ref<any[]>([]),discoveredRoots=ref<any[]>([]),loading=ref(false),busy=ref(false),error=ref(''),plan=ref<any>(null),selected=ref<string[]>([]),editId=ref<number|null>(null);
+const tab=computed<string>({get:()=>prepareOpen.value?'prepare':(VIEWS.includes(String(route.query.vue))?String(route.query.vue):'transfers'),set:(value)=>{if(value==='prepare'){prepareOpen.value=true;return;}prepareOpen.value=false;void router.replace({query:{...route.query,vue:value}});}});
+const locations=ref<any[]>([]),jobs=ref<any[]>([]),instances=ref<any[]>([]),discoveredRoots=ref<any[]>([]),loading=ref(false),busy=ref(false),error=ref(''),plan=ref<any>(null),selected=ref<string[]>([]),editId=ref<number|null>(null);
 const rootsLoading=ref(false);
 const rootPairs=ref<Record<string,string>>({});
 const locationDialog=ref(false),savedMessage=ref('');
@@ -140,6 +160,9 @@ const STORAGE_CACHE_KEY='storage-overview';
 async function load(silent=false){if(loading.value)return;loading.value=true;try{const [nextLocations,nextJobs,nextAccesses,nextConnections,nextInstances]=await Promise.all([api<any[]>('/api/storage/locations'),api<any[]>('/api/storage/transfers'),api<any[]>('/api/storage/accesses'),api<any[]>('/api/storage/connections'),api<any[]>('/api/storage/instances')]);if(JSON.stringify(connections.value)!==JSON.stringify(nextConnections))connections.value=nextConnections;if(JSON.stringify(accesses.value)!==JSON.stringify(nextAccesses))accesses.value=nextAccesses;if(JSON.stringify(instances.value)!==JSON.stringify(nextInstances))instances.value=nextInstances;if(JSON.stringify(locations.value)!==JSON.stringify(nextLocations))locations.value=nextLocations;if(JSON.stringify(jobs.value)!==JSON.stringify(nextJobs))jobs.value=nextJobs;writeCache(STORAGE_CACHE_KEY,{locations:nextLocations,jobs:nextJobs,accesses:nextAccesses,connections:nextConnections,instances:nextInstances});}catch(e:any){if(!silent)error.value=e.message;}finally{loading.value=false;}}
 async function act(fn:()=>Promise<void>){busy.value=true;error.value='';try{await fn();}catch(e:any){error.value=e.message;}finally{busy.value=false;previewProgress.value="";}}
 const previewProgress=ref('');
+/* Hors d'une fenetre (qui montre elle-meme l'erreur), les echecs et confirmations passent par des notifications. */
+watch(error,(value)=>{if(value&&!plan.value&&!previewOpening.value&&!locationDialog.value)toast.error('Stockage',value);});
+watch(savedMessage,(value)=>{if(value){toast.success(value);savedMessage.value='';}});
 const previewOpening=ref(false);
 const preview=()=>act(async()=>{
  await loadProtections();

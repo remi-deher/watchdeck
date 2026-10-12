@@ -14,7 +14,6 @@ test('background Plex finalization is readable and pausable', async ({page})=>{
   await page.route('**/vue/**',route=>{const path=new URL(route.request().url()).pathname;return route.fulfill({contentType:path.endsWith('.js')?'text/javascript':path.endsWith('.css')?'text/css':'application/octet-stream',body:readFileSync('app/static'+path)});});
  }
  await page.goto('/storage',{waitUntil:'domcontentloaded',timeout:120_000});
- await page.getByRole('tab',{name:'Transferts',exact:true}).click();
  await page.getByRole('button',{name:'Voir le détail',exact:true}).click();
  await expect(page.getByText('Copie terminée · Finalisation Plex en arrière-plan',{exact:true})).toBeVisible();
  await expect(page.getByText('1 titre(s) à confirmer · 3 Go conservés à la source.')).toBeVisible();
