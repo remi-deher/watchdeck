@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <section class="panel email-studio">
     <div class="panel-head studio-head">
       <div><h2>Modeles d'emails</h2><p>Declencheurs, contenu et simulation des destinataires.</p></div>
@@ -8,9 +8,6 @@
         <UiButton variant="primary" :disabled="busy||!isDirty" @click="save"><Save/>Enregistrer</UiButton>
       </div>
     </div>
-
-    <UiFeedback v-if="error" type="error" :message="error" />
-    <UiFeedback v-if="message" type="success" :message="message" dismissible @dismiss="message=''" />
 
     <div class="simulation-bar">
       <label>Utilisateur simule
@@ -86,6 +83,7 @@ import EmailSharedSettings from './email/EmailSharedSettings.vue';
 import EmailPreviewPanel from './email/EmailPreviewPanel.vue';
 import ConfirmModal from './ConfirmModal.vue';
 import { useConfirm } from '@/composables/useConfirm';
+import { useToast } from '@/composables/useToast';
 
 const seriesEventTypes=['episode_available','season_started','season_partial','season_complete','series_partial','series_complete'];
 const eventGroups=[
@@ -127,7 +125,11 @@ const variableTags={request:['{titre}','{type}','{annee}','{nom_utilisateur}','{
 const viewModes=[{key:'edit',label:'Édition'},{key:'split',label:'Partagée'},{key:'preview',label:'Aperçu'}];
 const viewModeOptions=viewModes.map(mode=>({value:mode.key,label:mode.label}));
 const eventType=ref('request'),showAppearance=ref(false),viewMode=ref('split'),deviceMode=ref('desktop'),users=ref<any[]>([]),previewHtml=ref(''),previewVariant=ref('default'),previewUser=ref('');
+/* Reussites et echecs passent par des notifications, pas par des bandeaux dans l'editeur. */
+const toast=useToast();
 const error=ref(''),message=ref(''),previewing=ref(false),hasPrevious=ref(false),simulationSettings=ref<Record<string, any>>({});
+watch(error,(value)=>{if(value)toast.error('Modèles d’emails',value)});
+watch(message,(value)=>{if(value){toast.success(value);message.value=''}});
 const savedSnapshot=ref('');
 let timer: ReturnType<typeof setTimeout> | undefined;
 const models=reactive<Record<string, any>>(Object.fromEntries(eventTypes.map(entry=>[entry.key,{template:'',subject:'',accent_color:'#e5a00d',badge_text:'',headline_text:'',show_synopsis:true,initialTemplate:'',initialSubject:''}])));
