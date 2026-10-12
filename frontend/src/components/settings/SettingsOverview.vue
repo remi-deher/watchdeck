@@ -1,23 +1,22 @@
 <template>
-  <!-- Le poste de pilotage de l'instance : un verdict, ce qui demande une action, l'activité,
-       l'état des services et des tâches, puis la carte des zones. Sur téléphone, la carte
-       passe devant et sert de menu (voir l'ordre des zones plus bas). -->
-  <div class="admin-overview">
-    <OverviewVerdict
-      v-if="attention.loading.value || attention.urgent.value"
-      class="ov-verdict"
-      :urgent="attention.urgent.value"
-      :errors="severityCount('error')"
-      :warnings="severityCount('warn')"
-      :loading="attention.loading.value"
-    />
-    <OverviewKpis class="ov-kpis" :kpis="kpis" />
-    <OverviewTodo class="ov-todo" :items="attention.items.value" :loading="attention.loading.value" :icons="AREA_ICONS" />
-    <OverviewQuickActions class="ov-actions" :maintenance="attention.overview.value?.maintenance" @started="refresh" />
-    <OverviewServices v-if="serviceRows.length" class="ov-services" :rows="serviceRows" />
-    <OverviewTasks v-if="attention.tasks.value.length" class="ov-tasks" :tasks="attention.tasks.value" />
-    <OverviewZoneMap class="ov-zones" :groups="zoneGroups" />
-  </div>
+  <!-- Vue d'ensemble de l'administration (gabarit Surveiller) : un verdict, les chiffres d'activité, ce qui
+       demande une action, puis la carte des zones. Les actions rapides, l'état des services et celui des
+       tâches sont les panneaux complémentaires du gabarit. -->
+  <MonitorTemplate
+    :items="attention.items.value"
+    :kpis="kpis"
+    :zones="zoneGroups"
+    :icons="AREA_ICONS"
+    :loading="attention.loading.value"
+  >
+    <template #details>
+      <div class="overview-details">
+        <OverviewQuickActions :maintenance="attention.overview.value?.maintenance" @started="refresh" />
+        <OverviewServices v-if="serviceRows.length" :rows="serviceRows" />
+        <OverviewTasks v-if="attention.tasks.value.length" :tasks="attention.tasks.value" />
+      </div>
+    </template>
+  </MonitorTemplate>
 </template>
 
 <script setup lang="ts">
@@ -26,19 +25,16 @@ import { useQueryClient } from '@tanstack/vue-query';
 import { useIntervalFn } from '@vueuse/core';
 import { form, secretsPresent } from '@/settingsForm';
 import { adminAreasFor } from '@/navigation';
-import { HEALTH_SERVICES, type AttentionSeverity } from '@/adminAttention';
+import { HEALTH_SERVICES } from '@/adminAttention';
 import { zoneStates } from '@/adminZoneStates';
 import { queryKeys } from '@/queryKeys';
 import { useAdminAttention } from '@/composables/useAdminAttention';
 import { useSession } from '@/composables/useSession';
 import { formatFileSize, formatRelativeDate, parseApiDate } from '@/utils/format';
-import OverviewKpis from '@/components/templates/monitor/MonitorKpis.vue';
+import MonitorTemplate from '@/components/templates/MonitorTemplate.vue';
 import OverviewQuickActions from './overview/OverviewQuickActions.vue';
 import OverviewServices, { type ServiceRow } from './overview/OverviewServices.vue';
 import OverviewTasks from './overview/OverviewTasks.vue';
-import OverviewTodo from '@/components/templates/monitor/MonitorAttention.vue';
-import OverviewVerdict from '@/components/templates/monitor/MonitorVerdict.vue';
-import OverviewZoneMap from '@/components/templates/monitor/MonitorZones.vue';
 import type { MonitorKpi as OverviewKpi, MonitorZone as ZoneCard } from '@/components/templates/monitor/types';
 
 // Les icônes des zones viennent du modèle de navigation : une seule source, qui suit
@@ -70,7 +66,6 @@ const attention = useAdminAttention({
       : null,
 });
 
-const severityCount = (severity: AttentionSeverity) => attention.items.value.filter((item) => item.severity === severity).length;
 
 
 const serviceRows = computed<ServiceRow[]>(() =>
@@ -190,57 +185,5 @@ useIntervalFn(() => { now.value = new Date(); }, 30_000);
 </script>
 
 <style scoped lang="scss">
-@use '@/styles/foundations/breakpoints' as bp;
-
-/* Bureau : le verdict et les chiffres en tête, ce qui demande une action à côté des actions
-   rapides, l'état des services et des tâches, puis la carte des zones. */
-.admin-overview {
-  display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-  grid-template-areas:
-    'verdict verdict'
-    'kpis kpis'
-    'todo actions'
-    'services tasks'
-    'zones zones';
-  gap: var(--space-5) var(--space-4);
-  min-width: 0;
-}
-.ov-verdict { grid-area: verdict; }
-.ov-kpis { grid-area: kpis; }
-.ov-todo { grid-area: todo; }
-.ov-actions { grid-area: actions; }
-.ov-services { grid-area: services; }
-.ov-tasks { grid-area: tasks; }
-.ov-zones { grid-area: zones; }
-
-@include bp.until(desktop) {
-  .admin-overview {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      'verdict'
-      'kpis'
-      'todo'
-      'actions'
-      'services'
-      'tasks'
-      'zones';
-  }
-}
-
-/* Téléphone : pas de barre latérale, la carte des zones est le menu. Le verdict et ce qui
-   demande une action passent d'abord ; les chiffres et le détail viennent après. */
-@include bp.until(shell-medium) {
-  .admin-overview {
-    grid-template-areas:
-      'verdict'
-      'todo'
-      'zones'
-      'kpis'
-      'actions'
-      'services'
-      'tasks';
-    gap: var(--space-4);
-  }
-}
+.overview-details { display: grid; gap: var(--space-4); min-width: 0; }
 </style>
