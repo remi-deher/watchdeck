@@ -25,7 +25,7 @@ interface DashboardResponse {
  * evenements temps reel y deposent une NOUVELLE liste, jamais un element modifie en
  * place (voir useRealtimeQuery).
  */
-export const VF_UPGRADES_KEY = ['vf-upgrades', 'dashboard'] as const;
+const VF_UPGRADES_KEY = ['vf-upgrades', 'dashboard'] as const;
 
 export function useVfUpgrades(notify: Notify, undoable: (message: string, label: string, undo: () => void | Promise<void>) => unknown) {
   const queryClient = useQueryClient();

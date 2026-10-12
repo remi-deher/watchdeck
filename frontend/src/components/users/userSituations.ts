@@ -19,7 +19,7 @@ export interface Situation {
   tone: 'warn' | 'error';
 }
 
-export function hasNoContact(user: SituationUser): boolean {
+function hasNoContact(user: SituationUser): boolean {
   return !user.notification_email && !user.plex_email && !user.notify_admin;
 }
 

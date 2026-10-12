@@ -233,13 +233,6 @@ export function formatPreciseBytes(bytes: number): string {
   return `${(bytes / Math.pow(1024, i)).toFixed(i > 1 ? 2 : 0)} ${units[i]}`;
 }
 
-export function formatByteRate(bytesPerSec: number): string {
-  if (!bytesPerSec) return '0 o/s';
-  const units = ['o/s', 'Ko/s', 'Mo/s', 'Go/s'];
-  const i = Math.min(Math.floor(Math.log(bytesPerSec) / Math.log(1024)), units.length - 1);
-  return `${(bytesPerSec / Math.pow(1024, i)).toFixed(i > 1 ? 1 : 0)} ${units[i]}`;
-}
-
 export function formatImportSize(bytes: number | null | undefined): string {
   if (!bytes || bytes <= 0) return '';
   const units = ['o', 'Ko', 'Mo', 'Go', 'To'];
@@ -307,7 +300,6 @@ export function formatNextRun(next: Date, now: Date): string {
   const time = formatTime(next);
   return minutes < 48 * 60 ? `demain ${time}` : formatLongDay(next, { day: 'numeric', month: 'short' }) + ` ${time}`;
 }
-
 
 export function formatInterval(seconds: number): string {
   if (!seconds) return '-';

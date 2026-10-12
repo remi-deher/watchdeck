@@ -10,7 +10,7 @@ const CLIENTS = [
 ];
 const labelOf = (type: string) => CLIENTS.find((c) => c.value === type)?.label || 'client';
 
-export const DOWNLOAD_CLIENT_DEFAULTS = {
+const DOWNLOAD_CLIENT_DEFAULTS = {
   name: '', client_type: 'qbittorrent', url: '', username: '', password: '', category: '', tags: '', is_default: false, enabled: true,
 };
 

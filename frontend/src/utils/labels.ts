@@ -15,7 +15,7 @@ export type RequestStatus = (typeof REQUEST_STATUSES)[number];
 
 /** Pseudo-statuts propres à la page Bibliothèque fusionnée : un média déjà dans Plex,
  *  ou suivi par Sonarr/Radarr sans demande associée. Pas des `MediaRequest.status`. */
-export const KIND_STATUSES = ['library', 'orphan'] as const;
+const KIND_STATUSES = ['library', 'orphan'] as const;
 export type KindStatus = (typeof KIND_STATUSES)[number];
 
 export const REQUEST_STATUS_LABELS: Record<string, string> = {
@@ -39,7 +39,7 @@ export function requestStatusLabel(value?: string | null, fallback?: string): st
 }
 
 /** Libellés courts, pour les badges épinglés sur une affiche. */
-export const REQUEST_STATUS_SHORT_LABELS: Record<string, string> = {
+const REQUEST_STATUS_SHORT_LABELS: Record<string, string> = {
   partially_available: 'Partiel',
   orphan: 'Suivi *arr',
 };
@@ -50,7 +50,7 @@ export function requestStatusShortLabel(value?: string | null, fallback?: string
 }
 
 /** Types musicaux de `LibraryItem.media_type` : une seule liste pour toute l'interface. */
-export const MUSIC_MEDIA_TYPES = ['artist', 'album', 'track'] as const;
+const MUSIC_MEDIA_TYPES = ['artist', 'album', 'track'] as const;
 
 export function isMusicType(value?: string | null): boolean {
   return (MUSIC_MEDIA_TYPES as readonly string[]).includes(value || '');
@@ -108,7 +108,7 @@ export function vfLanguageState(item: {
 /* « Direct Stream » est le terme de Plex : le flux est reemballe (conteneur change)
    sans etre reencode. « Conversion legere » le dit en francais ; le terme de Plex reste
    en info-bulle de la pastille. */
-export const PLAYBACK_METHOD_LABELS: Record<string, string> = {
+const PLAYBACK_METHOD_LABELS: Record<string, string> = {
   direct_play: 'Lecture directe',
   direct_stream: 'Conversion légère',
   transcode: 'Transcodage',

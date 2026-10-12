@@ -1,6 +1,6 @@
 import { onMounted, onUnmounted } from 'vue';
 
-export const REALTIME_EVENT_TYPES = [
+const REALTIME_EVENT_TYPES = [
   'storage.updated',
   'request.updated',
   'download.updated',

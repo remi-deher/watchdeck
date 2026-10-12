@@ -9,7 +9,7 @@ import type { LiveItem } from '@/components/ui/LiveStrip.vue';
 import { queueCounts, queueDetailPath, requiresIntervention } from '@/downloads/queueRules';
 
 /** Au-delà de ce taux d'occupation, un import peut échouer (même seuil que le panneau des disques). */
-export const FULL_DISK_RATIO = 0.9;
+const FULL_DISK_RATIO = 0.9;
 
 const QUEUE = '/downloads?view=queue';
 const CLIENTS = '/downloads?view=clients&sub=instances';

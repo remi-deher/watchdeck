@@ -8,7 +8,7 @@ import { mediaTypeLabel } from '@/utils/labels';
 
 export type RequestTab = 'suivi' | 'disponibles' | 'manquants';
 
-export function trackingOf(request: any): any {
+function trackingOf(request: any): any {
   return request.journey ? request.journey.tracking : request.tracking;
 }
 

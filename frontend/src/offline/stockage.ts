@@ -20,7 +20,7 @@ import { clearCache } from '@/cache';
  *   connecte, tout est efface, affiches comprises.
  */
 
-export const DUREE_CONSERVATION_MS = 24 * 60 * 60 * 1000;
+const DUREE_CONSERVATION_MS = 24 * 60 * 60 * 1000;
 
 /** Racines de cle dont les donnees peuvent vivre sur l'appareil. */
 const RACINES_CONSERVEES = new Set([
@@ -28,7 +28,7 @@ const RACINES_CONSERVEES = new Set([
 ]);
 
 /** Le cache des affiches, tenu par le service worker (`public/sw.js`). */
-export const CACHE_AFFICHES = 'watchdeck-images-v1';
+const CACHE_AFFICHES = 'watchdeck-images-v1';
 
 const CLE_PROPRIETAIRE = 'watchdeck:stockage-proprietaire';
 /** Change a chaque evolution incompatible de la forme des donnees conservees. */

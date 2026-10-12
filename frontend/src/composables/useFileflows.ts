@@ -74,7 +74,7 @@ export interface FileflowsStatus {
 
 export const FILEFLOWS_STATUS = { queued: 0, processed: 1, processing: 2, failed: 4 } as const;
 
-export function fileflowsStatusQuery() {
+function fileflowsStatusQuery() {
   return {
     queryKey: queryKeys.fileflows.status,
     queryFn: ({ signal }: { signal?: AbortSignal }) => api<FileflowsStatus>('/api/fileflows/status', { signal }),
