@@ -1,13 +1,12 @@
 <template>
-  <AppPage hide-search
+  <!-- Accueil : pas de recherche ; le chargement initial est un état de page, une actualisation
+       partielle (une source en échec) une notification qui propose de réessayer. -->
+  <PageTemplate
     title="Accueil"
     page-class="dashboard-home"
-    :error="error"
-    error-title="Actualisation partielle"
-    retry
-    :loading="loading && !updatedAt"
+    :state="loading && !updatedAt ? 'loading' : 'ready'"
+    skeleton="cards"
     loading-message="Chargement du tableau de bord…"
-    @retry="load(true)"
   >
 
     <DashboardGreeting :name="userName" :attention-count="attentionCount" :syncing="syncingAll" @sync-all="syncAll" />
@@ -87,11 +86,13 @@
       <RequestsBreakdownPanel :counts="counts"/>
       <TopRequestedPanel :items="topRequested"/>
     </UiDisclosure>
-  </AppPage>
+  </PageTemplate>
 </template>
 
 <script setup lang="ts">
 import { formatCountdown } from '@/utils/format';
+import PageTemplate from '@/components/templates/PageTemplate.vue';
+import { useToast } from '@/composables/useToast';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useElementVisibility } from '@vueuse/core';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
@@ -151,6 +152,11 @@ const onboarding = ref<Record<string, any>>({});
 const nextPoll = ref<Record<string, any>>({});
 const loading = ref(false);
 const error = ref('');
+/* Une source en echec n'efface pas la page : elle se signale, avec de quoi reessayer. */
+const toast = useToast();
+watch(error, (message) => {
+  if (message) toast.addToast({ type: 'error', title: 'Actualisation partielle', message, action: { label: 'Réessayer', run: () => load(true) } });
+});
 const seconds = ref<number | null>(null);
 const topRequested = ref<any[]>([]);
 const recentlyAvailable = ref<any[]>([]);
