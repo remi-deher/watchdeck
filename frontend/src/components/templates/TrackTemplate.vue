@@ -7,6 +7,8 @@
        Pas de reglage ni d'analyse : ce sont les besoins des gabarits Configurer et
        Comprendre. La page fournit les elements et reagit aux actions (`action`). -->
   <div class="track">
+    <!-- Un bloc complémentaire au-dessus du suivi (tâches du serveur, état d'un service…). -->
+    <slot name="before" />
     <!-- Pas de filtre d'etat : chaque groupe porte deja son titre et son nombre. -->
     <small v-if="updated" class="track__updated" aria-live="polite">{{ updated }}</small>
 

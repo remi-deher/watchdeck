@@ -5,6 +5,12 @@ import type { MediaRef } from '@/types';
 
 export type UnderstandOutcome = 'success' | 'failed' | 'warning' | 'info';
 
+/** Une donnée courte d'une ligne : « Durée 1 h 12 », « Qualité 4K · HEVC »… */
+export interface UnderstandFact {
+  label: string;
+  value: string;
+}
+
 export interface UnderstandEvent {
   key: string;
   /** Date de l'evenement (ISO) : groupe par jour, ordonne. */
@@ -20,6 +26,10 @@ export interface UnderstandEvent {
   /** Le média concerné : sa couverture s'affiche d'office ; `poster` pour une image hors bibliothèque. */
   media?: MediaRef | null;
   poster?: string | null;
+  /** Données complémentaires, une pastille chacune sous le texte de la ligne. */
+  facts?: UnderstandFact[];
+  /** Avancement en pourcentage (lecture regardée, traitement fait) : une barre fine sous la ligne. */
+  progress?: number | null;
 }
 
 /** Un chiffre du bilan de la periode (« 142 traites », « 3 echecs »). Facultatif. */

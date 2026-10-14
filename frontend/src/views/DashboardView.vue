@@ -81,7 +81,7 @@
         >
           <RecentJobsPanel :polls="polls" :next-poll="nextPoll" :countdown="countdown" />
           <RequestsBreakdownPanel :counts="counts"/>
-          <TopRequestedPanel :items="topRequested"/>
+          <TopRequestedPanel class="supervision-wide" :items="topRequested"/>
         </UiDisclosure>
       </template>
     </MonitorTemplate>
@@ -528,6 +528,7 @@ onMounted(async () => {
 .dashboard-bento :deep(.panel-card) { display: flex; flex-direction: column; }
 .dashboard-bento :deep(.panel-card > .ui-empty-state) { flex: 1; align-content: center; }
 :deep(.dashboard-supervision) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); align-items: start; }
+:deep(.dashboard-supervision > .supervision-wide) { grid-column: 1 / -1; }
 
 @container page (max-width: 957px) {
   .dashboard-bento > .bento-wide,

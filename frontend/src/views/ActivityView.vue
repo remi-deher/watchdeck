@@ -142,16 +142,14 @@
       <TrackTemplate
         v-else-if="currentView === 'live'"
         :items="[]"
-        :recent="liveRecent"
         :updated="`Actualisé ${relativeUpdate}`"
-        :history-to="{ path: '/activity', query: { view: 'history' } }"
-        :labels="{ items: 'lectures', empty: data.liveEnabled ? 'Aucune lecture en cours' : 'Collecte en direct désactivée', emptyDetail: data.liveEnabled ? 'Les lectures Plex s’afficheront ici dès qu’elles démarrent.' : 'Aucune lecture Plex ne peut apparaître tant que ce réglage est désactivé.', history: 'Historique des lectures' }"
+        :labels="{ items: 'lectures', empty: data.liveEnabled ? 'Aucune lecture en cours' : 'Collecte en direct désactivée', emptyDetail: data.liveEnabled ? 'Les lectures Plex s’afficheront ici dès qu’elles démarrent.' : 'Aucune lecture Plex ne peut apparaître tant que ce réglage est désactivé.' }"
       >
-        <!-- Les lectures : le même bandeau que sur l'Accueil. -->
+        <!-- Les tâches du serveur Plex d'abord, puis les lectures : le même bandeau que sur l'Accueil. -->
+        <template #before><PlexServerTasks v-if="data.liveEnabled"/></template>
         <template #live>
           <DashboardLiveStrip :sessions="liveSessions" :collection-enabled="data.liveEnabled !== false" :show-link="false" @select="openSession($event)" />
         </template>
-        <template #after><PlexServerTasks v-if="data.liveEnabled"/></template>
       </TrackTemplate>
 
       <UnderstandTemplate
@@ -245,7 +243,6 @@ const {
   historyServers,
   historySummary,
   historyUsers,
-  liveRecent,
   liveSessions,
   load,
   loadHistory,
