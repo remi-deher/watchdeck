@@ -8,7 +8,7 @@
     :title="headline"
     :summary="summary"
     live-extra="sur Plex"
-    :link="{ label: 'Voir l’activité', to: { path: '/activity', query: { view: 'live' } } }"
+    :link="showLink ? { label: 'Voir l’activité', to: { path: '/activity', query: { view: 'live' } } } : undefined"
     :idle="idle"
     :loading="loading"
     @select="(item) => $emit('select', item.session)"
@@ -34,8 +34,10 @@ const props = withDefaults(
     collectionEnabled?: boolean;
     loading?: boolean;
     failed?: boolean;
+    /** Faux sur la page Activité elle-même : le lien vers l'activité n'y mène nulle part. */
+    showLink?: boolean;
   }>(),
-  { sessions: () => [], collectionEnabled: true, loading: false, failed: false }
+  { sessions: () => [], collectionEnabled: true, loading: false, failed: false, showLink: true }
 );
 defineEmits<{ (e: 'select', session: LiveSession): void }>();
 
@@ -65,7 +67,7 @@ const idle = computed<LiveIdle>(() => {
   if (props.loading) return { title: 'Lectures en direct', message: 'Récupération des lectures Plex…', icon: MonitorPlay };
   if (props.failed) return { title: 'Lectures momentanément indisponibles', message: 'La connexion sera réessayée automatiquement.', icon: MonitorPlay };
   if (!props.collectionEnabled) return { title: 'Lectures en direct non suivies', message: 'La collecte des lectures en direct est désactivée.', icon: PowerOff, warn: true, action: { label: 'Activer la collecte', to: '/settings/services/integrations', primary: true } };
-  return { title: 'Aucune lecture en cours', message: 'Les lectures Plex s’afficheront ici dès qu’elles démarrent.', icon: MonitorPlay, action: { label: 'Voir l’activité', to: { path: '/activity', query: { view: 'live' } } } };
+  return { title: 'Aucune lecture en cours', message: 'Les lectures Plex s’afficheront ici dès qu’elles démarrent.', icon: MonitorPlay, ...(props.showLink ? { action: { label: 'Voir l’activité', to: { path: '/activity', query: { view: 'live' } } } } : {}) };
 });
 
 const summary = computed(() => [

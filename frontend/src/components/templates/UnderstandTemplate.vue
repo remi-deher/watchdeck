@@ -30,6 +30,7 @@
             <li v-for="event in day.events" :key="event.key">
               <button type="button" class="understand-row" :class="[`is-${event.outcome}`, { 'is-open': event.key === openKey }]" :aria-pressed="event.key === openKey" @click="emit('open', event)">
                 <time :datetime="event.at">{{ timeOf(event.at) }}</time>
+                <MediaCover v-if="event.media || event.poster" :media="event.media" :src="event.poster" />
                 <component :is="ICONS[event.outcome]" class="understand-row__icon" aria-hidden="true" />
                 <span class="sr-only">{{ OUTCOME_LABELS[event.outcome] }} :</span>
                 <span class="understand-row__text">
@@ -61,6 +62,7 @@ import { formatLongDay, formatTime } from '@/utils/format';
 import { computed } from 'vue';
 import { AlertTriangle, CheckCircle2, Download, History, Info, XCircle } from '@lucide/vue';
 import InfiniteScrollTrigger from '@/components/ui/InfiniteScrollTrigger.vue';
+import MediaCover from '@/components/ui/MediaCover.vue';
 import UiBadge from '@/components/ui/UiBadge.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';

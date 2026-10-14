@@ -141,12 +141,16 @@
 
       <TrackTemplate
         v-else-if="currentView === 'live'"
-        :items="liveTrackItems"
+        :items="[]"
         :recent="liveRecent"
         :updated="`Actualisé ${relativeUpdate}`"
         :history-to="{ path: '/activity', query: { view: 'history' } }"
         :labels="{ items: 'lectures', empty: data.liveEnabled ? 'Aucune lecture en cours' : 'Collecte en direct désactivée', emptyDetail: data.liveEnabled ? 'Les lectures Plex s’afficheront ici dès qu’elles démarrent.' : 'Aucune lecture Plex ne peut apparaître tant que ce réglage est désactivé.', history: 'Historique des lectures' }"
       >
+        <!-- Les lectures : le même bandeau que sur l'Accueil. -->
+        <template #live>
+          <DashboardLiveStrip :sessions="liveSessions" :collection-enabled="data.liveEnabled !== false" :show-link="false" @select="openSession($event)" />
+        </template>
         <template #after><PlexServerTasks v-if="data.liveEnabled"/></template>
       </TrackTemplate>
 
@@ -194,6 +198,7 @@ import BreakdownPanel from '@/components/activity/BreakdownPanel.vue';
 import CompletionPanel from '@/components/activity/CompletionPanel.vue';
 import ConcurrencyPanel from '@/components/activity/ConcurrencyPanel.vue';
 import DailyActivityChart from '@/components/activity/DailyActivityChart.vue';
+import DashboardLiveStrip from '@/components/dashboard/DashboardLiveStrip.vue';
 import LiveSessionsPanel from '@/components/activity/LiveSessionsPanel.vue';
 import MediaArtwork from '@/components/activity/MediaArtwork.vue';
 import PlaybackMethodBadge from '@/components/activity/PlaybackMethodBadge.vue';
@@ -242,7 +247,6 @@ const {
   historyUsers,
   liveRecent,
   liveSessions,
-  liveTrackItems,
   load,
   loadHistory,
   loaded,

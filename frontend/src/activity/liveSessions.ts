@@ -32,7 +32,7 @@ function posterUrl(session: LiveSession): string {
   return proxyUrl(src, { width: 300 }) ?? src;
 }
 
-export function isPaused(session: LiveSession): boolean {
+function isPaused(session: LiveSession): boolean {
   return ['paused', 'buffering'].includes(String(session.state || '').toLowerCase());
 }
 function elapsedMs(session: LiveSession, clock: LiveClock): number {
