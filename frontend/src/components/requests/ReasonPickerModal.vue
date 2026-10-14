@@ -1,37 +1,16 @@
 <template>
-  <ModalShell :open="open" :title="title" :subtitle="subtitle" @close="$emit('cancel')">
-    <!-- Le motif etait saisi a la main a chaque fois : le meme refus se formulait
-         differemment d'une fois a l'autre, et les tournures utiles se perdaient. -->
-    <UiChipGroup
-      v-if="reasons.length"
-      class="reason-choices"
-      label="Motif"
-      :options="[...reasons.map((reason) => ({ value: reason.id, label: reason.label })), { value: null, label: 'Message libre' }]"
-      :model-value="selectedId"
-      @update:model-value="(id) => choose(reasons.find((reason) => reason.id === id) ?? null)"
-    />
-
-    <label class="reason-message">
-      <span>Message envoyé au demandeur</span>
-      <textarea v-model="message" rows="5" :placeholder="placeholder"></textarea>
-      <small>Laissé vide, l’annulation part sans explication.</small>
-    </label>
-
-    <UiToolbar class="form-actions" align="end" role="group" aria-label="Confirmation">
-      <UiButton @click="$emit('cancel')">Annuler</UiButton>
-      <UiButton variant="danger" :loading="busy" @click="$emit('confirm', message.trim())">{{ confirmLabel }}</UiButton>
-    </UiToolbar>
-  </ModalShell>
+  <!-- Le motif etait saisi a la main a chaque fois : le meme refus se formulait differemment
+       d'une fois a l'autre, et les tournures utiles se perdaient. Le choix et le message
+       passent par le gabarit Creer. -->
+  <CreateTemplate :open="open" :definition="definition" mode="edit" @close="dismiss" />
 </template>
 
 <script setup lang="ts">
-import UiChipGroup from '@/components/ui/UiChipGroup.vue';
-import { computed, ref, watch } from 'vue';
+import { computed, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { api } from '@/api';
-import ModalShell from '@/components/ui/ModalShell.vue';
-import UiButton from '@/components/ui/UiButton.vue';
-import UiToolbar from '@/components/ui/UiToolbar.vue';
+import CreateTemplate from '@/components/templates/CreateTemplate.vue';
+import { reasonPickerForm } from '@/creations/reasonPicker';
 
 interface Reason {
   id: number;
@@ -48,7 +27,6 @@ const props = withDefaults(
     title?: string;
     subtitle?: string;
     confirmLabel?: string;
-    busy?: boolean;
     /** Message pré-rempli, par exemple la cause technique de l'échec. */
     initial?: string;
   }>(),
@@ -58,12 +36,11 @@ const props = withDefaults(
     title: 'Annuler cette demande ?',
     subtitle: '',
     confirmLabel: 'Annuler la demande',
-    busy: false,
     initial: '',
   }
 );
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'cancel'): void;
   (e: 'confirm', message: string): void;
 }>();
@@ -78,30 +55,21 @@ const reasonsQuery = useQuery({
   retry: 0,
 });
 const reasons = computed(() => (reasonsQuery.data.value?.items || []).filter((reason) => reason.enabled));
-const message = ref('');
-const selectedId = ref<number | null>(null);
-const placeholder = 'Expliquez au demandeur ce qui a été décidé, et pourquoi.';
 
-function choose(reason: Reason | null): void {
-  selectedId.value = reason?.id ?? null;
-  if (reason) message.value = reason.message;
+/* Fermer apres avoir valide n'est pas annuler : le parent regle la suite dans `confirm`. */
+let confirmed = false;
+watch(() => props.open, (open) => { if (open) confirmed = false; });
+const definition = computed(() => reasonPickerForm({
+  title: props.title,
+  subtitle: props.subtitle,
+  confirmLabel: props.confirmLabel,
+  placeholder: 'Expliquez au demandeur ce qui a été décidé, et pourquoi.',
+  reasons: () => reasons.value,
+  initial: () => props.initial,
+  onConfirm: (message) => { confirmed = true; emit('confirm', message); },
+}));
+function dismiss(): void {
+  if (!confirmed) emit('cancel');
+  confirmed = false;
 }
-
-watch(
-  () => props.open,
-  (open) => {
-    if (!open) return;
-    message.value = props.initial || '';
-    selectedId.value = null;
-  },
-  { immediate: true }
-);
 </script>
-
-<style scoped lang="scss">
-.reason-choices { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-4); }
-.reason-message { display: grid; gap: 4px; }
-.reason-message > span { color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
-.reason-message small { color: var(--muted); font-size: var(--fs-xs); }
-.reason-message textarea { width: 100%; resize: vertical; }
-</style>
