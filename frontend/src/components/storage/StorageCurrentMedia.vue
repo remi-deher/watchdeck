@@ -44,5 +44,53 @@ const live=computed(()=>({
 
 </script>
 <style scoped>
-.current-media{display:grid;grid-template-columns:68px minmax(0,1fr);gap:16px;border-top:1px solid var(--border);padding-top:16px;margin-top:16px;min-width:0}.current-poster{width:68px;aspect-ratio:2/3;border-radius:var(--radius-md);overflow:hidden}.current-body{min-width:0}.current-body h3{font-size:var(--fs-base);margin:4px 0 8px}.current-body small{color:var(--muted);font-size:var(--fs-xs)}.current-file{font-size:var(--fs-sm);overflow-wrap:anywhere;margin:4px 0 10px;color:var(--muted)}.current-counts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0 6px;font-size:var(--fs-xs)}.current-counts>span{color:var(--accent)}.hero{background:linear-gradient(90deg,var(--surface),transparent),var(--media-art,none) center/cover;padding:20px;border:1px solid var(--border);border-radius:var(--panel-radius)}
+.current-media {
+  display: grid;
+  grid-template-columns: 68px minmax(0,1fr);
+  gap: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+  margin-top: 16px;
+  min-width: 0
+}
+.current-poster {
+  width: 68px;
+  aspect-ratio: 2/3;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.current-body {
+  min-width: 0
+}
+.current-body h3 {
+  font-size: var(--fs-base);
+  margin: 4px 0 8px;
+}
+.current-body small {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+.current-file {
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+  margin: 4px 0 10px;
+  color: var(--muted);
+}
+.current-counts {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 12px 0 6px;
+  font-size: var(--fs-xs);
+}
+.current-counts>span {
+  color: var(--accent);
+}
+.hero {
+  background: linear-gradient(90deg,var(--surface),transparent),var(--media-art,none) center/cover;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+}
 </style>

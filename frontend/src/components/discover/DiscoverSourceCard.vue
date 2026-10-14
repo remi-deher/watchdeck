@@ -103,7 +103,7 @@ const fallbackStyle = computed(() => {
   width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: var(--radius-md, 12px);
-  background: #131419;
+  background: var(--logo-tile);
   border: 1px solid rgba(255, 255, 255, 0.1);
   overflow: hidden;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
@@ -126,7 +126,7 @@ const fallbackStyle = computed(() => {
 .logo-wrapper.kind-company,
 .logo-wrapper.kind-network {
   padding: 12px;
-  background: radial-gradient(circle at center, #1c1e26 0%, #101115 100%);
+  background: radial-gradient(circle at center, var(--logo-tile-from) 0%, var(--logo-tile-to) 100%);
 }
 
 .logo-wrapper.kind-company img,
@@ -178,7 +178,7 @@ const fallbackStyle = computed(() => {
   font-size: clamp(1.1rem, 2.2vw, 1.4rem);
   font-weight: 900;
   letter-spacing: 0.04em;
-  color: #ffffff;
+  color: var(--logo-ink);
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
   line-height: 1;
 }

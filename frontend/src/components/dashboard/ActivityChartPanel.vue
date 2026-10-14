@@ -102,9 +102,9 @@ const activeSeries = ref('requests');
 const period = ref(30);
 
 const seriesOptions = [
-  { key: 'requests', label: 'Demandes', unit: 'demandes', indicatorColor: '#fbbf24', color: 'linear-gradient(180deg, #fbbf24, #f59e0b)' },
-  { key: 'availability', label: 'Disponibilités', unit: 'médias', indicatorColor: '#4ade80', color: 'linear-gradient(180deg, #4ade80, #22c55e)' },
-  { key: 'notifications', label: 'Notifications', unit: 'envois', indicatorColor: '#a78bfa', color: 'linear-gradient(180deg, #a78bfa, #8b5cf6)' },
+  { key: 'requests', label: 'Demandes', unit: 'demandes', indicatorColor: 'var(--amber)', color: 'linear-gradient(180deg, var(--amber-text), var(--amber))' },
+  { key: 'availability', label: 'Disponibilités', unit: 'médias', indicatorColor: 'var(--green)', color: 'linear-gradient(180deg, var(--green-text), var(--green))' },
+  { key: 'notifications', label: 'Notifications', unit: 'envois', indicatorColor: 'var(--violet)', color: 'linear-gradient(180deg, var(--violet-text), var(--violet))' },
 ];
 
 const activeOption = computed(() => seriesOptions.find((item) => item.key === activeSeries.value) || seriesOptions[0]);

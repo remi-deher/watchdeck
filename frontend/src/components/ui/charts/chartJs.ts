@@ -31,7 +31,7 @@ export function chartColor(value: string | undefined, fallback = '#e5a00d'): str
   return getComputedStyle(document.documentElement).getPropertyValue(match[1]).trim() || fallback;
 }
 
-export const chartPalette = ['var(--accent)', '#38bdf8', '#4ade80', '#c084fc', '#fb7185', '#facc15', '#2dd4bf', '#f97316', '#a3a3a3'];
+export const chartPalette = ['var(--accent)', 'var(--blue)', 'var(--green)', 'var(--violet)', 'var(--red)', 'var(--amber)', 'var(--blue-text)', 'var(--green-text)', 'var(--slate)'];
 
 /** Couleur des libelles d'axes : le texte secondaire du theme. */
 export function chartMuted(): string {

@@ -3,9 +3,8 @@
        utilisent, etapes depliables. L'edition reste dans l'editeur graphique de FileFlows ;
        pour essayer un flow sur un fichier, « Relancer avec un autre flow » depuis l'onglet
        Encodage d'une fiche media. -->
-  <EncodingShell title="Flows" v-model:query="query" :search="{ placeholder: 'Rechercher un flow…', kind: 'filter', scope: 'Flows de l’encodage' }">
-    <UiFeedback v-if="flowsQuery.isError.value" type="error" :message="humanizeError(flowsQuery.error.value)" />
-    <ConfigureTemplate v-else :sections="sections" :query="query">
+  <EncodingShell :error="flowsQuery.isError.value ? humanizeError(flowsQuery.error.value) : ''" title="Flows" @retry="flowsQuery.refetch()" v-model:query="query" :search="{ placeholder: 'Rechercher un flow…', kind: 'filter', scope: 'Flows de l’encodage' }">
+    <ConfigureTemplate :sections="sections" :query="query">
       <template #section-used>
         <p v-if="flowsQuery.isPending.value" class="flows-muted">Chargement des flows…</p>
         <ResourceList v-else :resources="used" empty-text="Aucun flow n’est utilisé par une bibliothèque.">
@@ -30,7 +29,6 @@ import { useFileflowsStatus } from '@/composables/useFileflows';
 import { queryKeys } from '@/queryKeys';
 import { humanizeError } from '@/utils/apiError';
 import { formatRelativeDate } from '@/utils/format';
-import UiFeedback from '@/components/ui/UiFeedback.vue';
 import ConfigureTemplate, { type ConfigureResource } from '@/components/templates/ConfigureTemplate.vue';
 import ResourceList from '@/components/templates/configure/ResourceList.vue';
 import EncodingShell from '@/components/encoding/EncodingShell.vue';
