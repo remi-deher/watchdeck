@@ -8,9 +8,8 @@
     :eyebrow="typeLabel"
     :title="detail.title || ''"
     :icon="isMusic ? Music2 : Film"
-    :poster="detail.poster_url"
+    :media="detail"
     :poster-shape="isMusic ? 'square' : 'portrait'"
-    :backdrop="backdropUrl"
     :meta="factsLine ? [factsLine] : []"
     :summary="preview && !detail.overview ? '' : overviewText"
     :loading="preview"
@@ -53,10 +52,9 @@
 
 <script setup lang="ts">
 import { isInPlex, mediaAvailabilityBadge } from "@/utils/mediaAvailability";
-import { proxyUrl } from '@/utils/mediaImage';
 import { mediaTypeLabel, isMusicType } from '@/utils/labels';
 import MediaLanguageBadge from './MediaLanguageBadge.vue';
-import { computed, onMounted, ref, useSlots, watch } from 'vue';
+import { computed, onMounted, ref, useSlots } from 'vue';
 import { Download, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, RefreshCw } from '@lucide/vue';
 import { formatPlexWebUrl, openPlexLink } from '@/mediaUrl';
 import { formatDateLong } from '@/utils/format';
@@ -101,17 +99,6 @@ const props = withDefaults(
     tab: '',
   }
 );
-
-/* Fond du hero : l'URL du serveur est une vignette de 600 px, floue une fois etiree sur
-   toute la largeur. On demande une variante assez large pour l'ecran. */
-const backdropUrl = computed(() => (props.detail?.backdrop_url ? proxyUrl(props.detail.backdrop_url, { kind: 'backdrop' }) : null));
-
-/* Affiche introuvable (Plex a change son chemin, source disparue) : le repli plutot
-   qu'une image cassee. */
-const posterFailed = ref(false);
-watch(() => props.detail?.poster_url, () => { posterFailed.value = false; });
-
-
 
 const isMusic = computed(() => isMusicType(props.detail?.media_type));
 const isShow = computed(() => props.detail?.media_type === 'show');

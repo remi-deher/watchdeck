@@ -49,7 +49,6 @@
       <!-- Les envois sans confirmation restent bloqués : ce suivi sert à les vérifier. -->
       <template #after>
         <UiDisclosure title="Suivi des envois" description="Les envois sans confirmation restent bloqués pour vérification. Un Message-ID SMTP ne garantit pas à lui seul l'absence de doublon." @open="deliveries.open()">
-          <UiFeedback v-if="deliveries.error.value" type="error" :message="deliveries.error.value" />
           <UiDataTable label="Suivi des envois" :rows="deliveries.rows.value" :columns="DELIVERY_COLUMNS" :row-key="(delivery: any) => delivery.send_key">
             <template #empty>Aucun envoi enregistré dans le nouveau suivi.</template>
             <template #cell-request="{ row: delivery }">#{{ delivery.req_id }}</template>
@@ -108,7 +107,7 @@ import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import UiCombobox from '@/components/ui/UiCombobox.vue';
 import UiDataTable from '@/components/ui/UiDataTable.vue';
 import UiDisclosure from '@/components/ui/UiDisclosure.vue';
-import UiFeedback from '@/components/ui/UiFeedback.vue';
+import { useErrorToast } from '@/composables/useErrorToast';
 import NotificationsCommandBar from '@/components/notifications/NotificationsCommandBar.vue';
 import {
   DELIVERY_COLUMNS, DELIVERY_STATE_LABELS, HISTORY_OUTCOMES, NOTIFICATION_TYPES, PENDING_BULK_ACTIONS, PENDING_COLUMNS, PENDING_GLOBAL_ACTIONS,
@@ -124,6 +123,7 @@ const invalidate = useInvalidateNotifications();
 const queue = useNotificationQueue(invalidate, computed(() => !isHistory.value));
 const history = useNotificationHistory(invalidate, isHistory);
 const deliveries = useNotificationDeliveries();
+useErrorToast(() => deliveries.error.value, { title: 'Suivi des envois indisponible' });
 const { pendingCount } = useNotificationHold();
 
 /* L'état filtre le journal au-dessus de la liste ; « Tout » est la valeur vide du filtre. */
