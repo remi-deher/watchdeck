@@ -1,11 +1,27 @@
 # Changelog
 
+## 1.90.6 — 2026-10-14
+
+
+### 🔧 Maintenance
+
+- bump uvicorn from 0.53.0 to 0.54.0 (#836) ([7d7fad2](https://github.com/remi-deher/watchdeck/commit/7d7fad297cf6fe4c05a52b15d3f7775e7ccf6826))
+- bump jsdom from 30.1.1 to 30.1.2 (#839) ([fbf440b](https://github.com/remi-deher/watchdeck/commit/fbf440b778679a6895cd3c7fee15305efd2e1d04))
+- bump @tanstack/vue-table from 9.2.4 to 9.2.6 (#841) ([3821656](https://github.com/remi-deher/watchdeck/commit/3821656743745ea0e7bc029039d3de801eed0fbd))
+- bump vue-tsc from 3.3.11 to 3.3.12 (#845) ([9bc5bf2](https://github.com/remi-deher/watchdeck/commit/9bc5bf2170d6a111525beb04fd0cf44523a6a585))
+- bump sass from 1.105.0 to 1.105.1 (#840) ([00f03f9](https://github.com/remi-deher/watchdeck/commit/00f03f98f0bc85620ad0e4a54e937ed77dcdebf5))
+- bump @tanstack/vue-query from 5.103.2 to 5.104.1 (#846) ([dc77011](https://github.com/remi-deher/watchdeck/commit/dc770119b4a567dccc910ecc7fed71b477c238e9))
+- bump @tanstack/query-persist-client-core from 5.104.0 to 5.104.1 (#844) ([74308ae](https://github.com/remi-deher/watchdeck/commit/74308ae3d787181e8bf15b024fc4edcbbbb4bed4))
 ## 1.90.5 — 2026-10-11
 
 
 ### 🐛 Corrections
 
 - serialize lifecycle transitions against stale polls ([e4b25f3](https://github.com/remi-deher/watchdeck/commit/e4b25f3cef73c11d7484abc192f4816dc8383ecf))
+
+### 🔧 Maintenance
+
+- v1.90.5 (#835) ([5a24969](https://github.com/remi-deher/watchdeck/commit/5a24969cc5efe9d7ebcb5887221043b0d924757f))
 ## 1.90.4 — 2026-10-11
 
 
