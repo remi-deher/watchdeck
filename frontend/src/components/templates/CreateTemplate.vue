@@ -12,14 +12,7 @@
          5. le resultat et ses suites, ou « Creer un autre ».
        Pas de brouillon : fermer en cours de saisie demande confirmation. -->
   <ModalShell :open="open" :title="mode === 'edit' ? (definition.editTitle || `Modifier ${definition.noun}`) : `Ajouter ${definition.noun}`" :subtitle="definition.subtitle" :error="error" :busy="busy" panel-class="create-modal" @close="requestClose">
-    <ol v-if="showStepper" class="create__steps" aria-label="Étapes">
-      <li v-for="(entry, index) in allSteps" :key="entry.key" :class="{ 'is-current': index === stepIndex && !result, 'is-done': index < furthest || result }">
-        <button type="button" :disabled="index >= furthest || Boolean(result)" :aria-current="index === stepIndex ? 'step' : undefined" @click="goTo(index)">
-          <span class="create__dot"><Check v-if="index < furthest || result" aria-hidden="true" /><template v-else>{{ index + 1 }}</template></span>
-          <span>{{ entry.label }}</span>
-        </button>
-      </li>
-    </ol>
+    <UiStepper v-if="showStepper" :steps="allSteps" :current="stepIndex" :furthest="furthest" :complete="Boolean(result)" @select="goTo" />
 
     <div v-if="result" class="create__result" role="status">
       <CheckCircle2 aria-hidden="true" />
@@ -105,7 +98,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
-import { Check, CheckCircle2, PlugZap, XCircle } from '@lucide/vue';
+import { CheckCircle2, PlugZap, XCircle } from '@lucide/vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import SecretField from '@/components/ui/SecretField.vue';
@@ -117,6 +110,7 @@ import UiFileDrop from '@/components/ui/UiFileDrop.vue';
 import UiLookupField from '@/components/ui/UiLookupField.vue';
 import UiRadioCards from '@/components/ui/UiRadioCards.vue';
 import UiSelect from '@/components/ui/UiSelect.vue';
+import UiStepper from '@/components/ui/UiStepper.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { humanizeError } from '@/utils/apiError';
 import type { CreateDefinition, CreateField, CreateResult, CreateStep, CreateTestResult, CreateValues } from './create/types';
@@ -313,14 +307,6 @@ function close(): void {
 </script>
 
 <style scoped lang="scss">
-.create__steps { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: 0 0 var(--space-4); padding: 0; list-style: none; }
-.create__steps button { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
-.create__steps button:disabled { cursor: default; }
-.create__steps .is-current button { color: var(--text); font-weight: 700; }
-.create__dot { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--border); border-radius: 50%; font-size: var(--fs-xs); }
-.create__dot svg { width: 13px; height: 13px; }
-.create__steps .is-current .create__dot { border-color: transparent; background: var(--accent); color: var(--on-accent); }
-.create__steps .is-done .create__dot { border-color: transparent; background: color-mix(in srgb, var(--green) 18%, var(--surface)); color: var(--green-text, var(--green)); }
 .create__step, .create__summary { display: grid; gap: var(--space-3); }
 .create__step h3, .create__summary h3 { margin: 0; font-size: var(--fs-md); }
 .create__description { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
