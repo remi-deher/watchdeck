@@ -16,9 +16,10 @@ vi.mock('@/api', () => ({ api: (...args) => { calls.push(args); return reply(...
 import TerminatePlaybackModal from './TerminatePlaybackModal.vue';
 
 const ModalStub = { props: ['open', 'error'], template: '<div><slot /><slot name="actions" /><p class="err">{{ error }}</p></div>' };
+const ConfirmStub = { template: '<div />' };
 
 function factory() {
-  return mount(TerminatePlaybackModal, { props: { open: true, sessionId: 12 }, global: { stubs: { ModalShell: ModalStub } } });
+  return mount(TerminatePlaybackModal, { props: { open: true, sessionId: 12 }, global: { stubs: { ModalShell: ModalStub, ConfirmModal: ConfirmStub } } });
 }
 
 describe('TerminatePlaybackModal', () => {

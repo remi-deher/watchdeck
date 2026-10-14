@@ -56,86 +56,30 @@
       </div>
     </div>
 
-    <!-- Mot de passe -->
-    <ModalShell :open="passwordOpen" :title="account.has_local_password ? 'Changer le mot de passe' : 'Définir un mot de passe'" :error="modalError" :busy="busy" @close="passwordOpen = false">
-      <form class="profile-form" @submit.prevent="changePassword">
-        <UiField v-if="account.has_local_password" label="Mot de passe actuel" v-slot="field">
-          <input :id="field.id" v-model="currentPassword" type="password" autocomplete="current-password">
-        </UiField>
-        <UiField v-else-if="account.totp_enabled" label="Code à 6 chiffres" hint="Pour confirmer qu'il s'agit bien de vous." v-slot="field">
-          <input :id="field.id" v-model="passwordOtp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="123456" :aria-describedby="field.describedBy">
-        </UiField>
-        <UiField label="Nouveau mot de passe" hint="Au moins 8 caractères. Vos autres appareils seront déconnectés." v-slot="field">
-          <input :id="field.id" v-model="newPassword" type="password" minlength="8" autocomplete="new-password" :aria-describedby="field.describedBy">
-        </UiField>
-      </form>
-      <template #actions>
-        <UiButton :disabled="busy" @click="passwordOpen = false">Annuler</UiButton>
-        <UiButton variant="primary" :loading="passwordMutation.isPending.value" :disabled="newPassword.length < 8" @click="changePassword">Enregistrer</UiButton>
-      </template>
-    </ModalShell>
+    <!-- Les saisies passent par le gabarit Creer (definitions de creations/accountSecurity). -->
+    <CreateTemplate :open="passwordOpen" :definition="passwordDefinition" mode="edit" @created="notifyDone" @close="passwordOpen = false" />
+    <CreateTemplate :open="totpSetupOpen" :definition="totpSetupDefinition" mode="edit" @created="notifyDone" @close="totpSetupOpen = false" />
+    <CreateTemplate :open="totpDisableOpen" :definition="totpDisableDefinition" mode="edit" @created="notifyDone" @close="totpDisableOpen = false" />
+    <CreateTemplate :open="passkeyOpen" :definition="passkeyDefinition" mode="edit" @created="notifyDone" @close="passkeyOpen = false" />
 
-    <!-- Activation de la 2FA -->
-    <ModalShell :open="totpSetupOpen" title="Activer la double authentification" subtitle="Trois étapes, environ une minute." :error="modalError" :busy="busy" @close="closeTotpSetup">
-      <ol class="profile-steps">
-        <li>Ouvrez votre application d'authentification (Google Authenticator, Bitwarden, 1Password…).</li>
-        <li>Scannez ce QR code.</li>
-        <li>Saisissez le code à 6 chiffres qu'elle affiche.</li>
-      </ol>
-      <img v-if="totpQr" :src="totpQr" class="profile-qr" alt="QR code de double authentification">
-      <UiDisclosure v-if="totpSecret" title="Impossible de scanner ? Afficher la clé à saisir">
-        <code class="profile-secret">{{ totpSecret }}</code>
-      </UiDisclosure>
-      <UiField label="Code à 6 chiffres" v-slot="field">
-        <input :id="field.id" v-model="totpCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="123456">
-      </UiField>
-      <template #actions>
-        <UiButton :disabled="busy" @click="closeTotpSetup">Annuler</UiButton>
-        <UiButton variant="primary" :loading="enableTotpMutation.isPending.value" :disabled="totpCode.length !== 6" @click="enableTotp">Activer</UiButton>
-      </template>
-    </ModalShell>
-
-    <!-- Desactivation de la 2FA -->
-    <ModalShell :open="totpDisableOpen" title="Désactiver la double authentification" subtitle="Le mot de passe suffira de nouveau pour se connecter." :error="modalError" :busy="busy" @close="totpDisableOpen = false">
-      <UiField label="Code à 6 chiffres" hint="Un code actuel de votre application, pour confirmer." v-slot="field">
-        <input :id="field.id" v-model="totpDisableCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="123456" :aria-describedby="field.describedBy">
-      </UiField>
-      <template #actions>
-        <UiButton :disabled="busy" @click="totpDisableOpen = false">Annuler</UiButton>
-        <UiButton variant="danger" :loading="disableTotpMutation.isPending.value" :disabled="totpDisableCode.length !== 6" @click="disableTotp">Désactiver</UiButton>
-      </template>
-    </ModalShell>
-
-    <!-- Nouvelle passkey -->
-    <ModalShell :open="passkeyOpen" title="Ajouter une passkey" subtitle="Votre navigateur va demander votre empreinte, votre visage ou votre clé de sécurité." :error="modalError" :busy="busy" @close="passkeyOpen = false">
-      <UiField label="Nom" hint="Pour la reconnaître dans la liste : « iPhone », « 1Password »…" v-slot="field">
-        <input :id="field.id" v-model="passkeyName" maxlength="60" :aria-describedby="field.describedBy" @keydown.enter.prevent="registerPasskey">
-      </UiField>
-      <template #actions>
-        <UiButton :disabled="busy" @click="passkeyOpen = false">Annuler</UiButton>
-        <UiButton variant="primary" :loading="registerPasskeyMutation.isPending.value" @click="registerPasskey"><template #icon><Fingerprint /></template>Continuer</UiButton>
-      </template>
-    </ModalShell>
-
-    <ConfirmModal v-bind="confirmDialog" :busy="busy" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
+    <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { Check, Fingerprint, KeyRound, MonitorSmartphone, Plus } from '@lucide/vue';
+import { Check, KeyRound, MonitorSmartphone, Plus } from '@lucide/vue';
 import QRCode from 'qrcode';
 import { api } from '@/api';
 import { formatDate } from '@/utils/format';
 import { base64UrlToBuffer, bufferToBase64Url } from '@/utils/webauthn';
 import { useConfirm } from '@/composables/useConfirm';
 import ConfirmModal from '@/components/ConfirmModal.vue';
-import ModalShell from '@/components/ui/ModalShell.vue';
+import CreateTemplate from '@/components/templates/CreateTemplate.vue';
 import UiButton from '@/components/ui/UiButton.vue';
-import UiDisclosure from '@/components/ui/UiDisclosure.vue';
-import UiField from '@/components/ui/UiField.vue';
 import UiProgress from '@/components/ui/UiProgress.vue';
+import { passkeyForm, passwordForm, totpDisableForm, totpSetupForm, type PasswordDraft } from '@/creations/accountSecurity';
 import { securityChecks, securityScore, type ProfileAccount } from './profileSecurity';
 
 interface Passkey { credential_id: string; name: string; created_at?: string | null }
@@ -156,19 +100,10 @@ const passkeysQuery = useQuery({
 });
 const passkeys = computed(() => passkeysQuery.data.value || []);
 
-const modalError = ref('');
 const passwordOpen = ref(false);
-const currentPassword = ref('');
-const passwordOtp = ref('');
-const newPassword = ref('');
 const totpSetupOpen = ref(false);
-const totpSecret = ref('');
-const totpQr = ref('');
-const totpCode = ref('');
 const totpDisableOpen = ref(false);
-const totpDisableCode = ref('');
 const passkeyOpen = ref(false);
-const passkeyName = ref('');
 
 const refreshAccount = () => queryClient.invalidateQueries({ queryKey: ['me'] });
 const refreshPasskeys = () => Promise.all([
@@ -178,21 +113,21 @@ const refreshPasskeys = () => Promise.all([
 
 const passwordMutation = useMutation({
   retry: 0,
-  mutationFn: () => api(`/api/users/${props.account.id}/password`, {
+  mutationFn: (draft: PasswordDraft) => api(`/api/users/${props.account.id}/password`, {
     method: 'POST',
-    body: JSON.stringify({ password: newPassword.value, current_password: currentPassword.value, otp_code: passwordOtp.value }),
+    body: JSON.stringify({ password: draft.newPassword, current_password: draft.currentPassword, otp_code: draft.otpCode }),
   }),
   onSuccess: refreshAccount,
 });
 const setupTotpMutation = useMutation({ retry: 0, gcTime: 0, mutationFn: () => api<{ secret: string; uri: string }>(`/api/users/${props.account.id}/totp/setup`, { method: 'POST' }) });
 const enableTotpMutation = useMutation({
   retry: 0,
-  mutationFn: () => api(`/api/users/${props.account.id}/totp/enable`, { method: 'POST', body: JSON.stringify({ code: totpCode.value }) }),
+  mutationFn: (code: string) => api(`/api/users/${props.account.id}/totp/enable`, { method: 'POST', body: JSON.stringify({ code }) }),
   onSuccess: refreshAccount,
 });
 const disableTotpMutation = useMutation({
   retry: 0,
-  mutationFn: () => api(`/api/users/${props.account.id}/totp`, { method: 'DELETE', body: JSON.stringify({ code: totpDisableCode.value }) }),
+  mutationFn: (code: string) => api(`/api/users/${props.account.id}/totp`, { method: 'DELETE', body: JSON.stringify({ code }) }),
   onSuccess: refreshAccount,
 });
 const deletePasskeyMutation = useMutation({
@@ -203,7 +138,7 @@ const deletePasskeyMutation = useMutation({
 const revokeMutation = useMutation({ retry: 0, mutationFn: () => api('/api/me/sessions/revoke-others', { method: 'POST' }) });
 const registerPasskeyMutation = useMutation({
   retry: 0,
-  mutationFn: async () => {
+  mutationFn: async (name: string) => {
     const options = await api<any>('/api/users/webauthn/register/options', { method: 'POST', body: JSON.stringify({ user_id: props.account.id }) });
     options.challenge = base64UrlToBuffer(options.challenge);
     options.user.id = base64UrlToBuffer(options.user.id);
@@ -221,86 +156,34 @@ const registerPasskeyMutation = useMutation({
     };
     await api('/api/users/webauthn/register/verify', {
       method: 'POST',
-      body: JSON.stringify({ user_id: props.account.id, credential: payload, name: passkeyName.value.trim() || 'Passkey' }),
+      body: JSON.stringify({ user_id: props.account.id, credential: payload, name }),
     });
   },
   onSuccess: refreshPasskeys,
 });
 
-const busy = computed(() => [passwordMutation, setupTotpMutation, enableTotpMutation, disableTotpMutation, deletePasskeyMutation, registerPasskeyMutation, revokeMutation]
-  .some((m) => m.isPending.value));
-
 function message(e: unknown): string { return e instanceof Error ? e.message : String(e); }
 
-function openPassword() {
-  modalError.value = '';
-  currentPassword.value = '';
-  passwordOtp.value = '';
-  newPassword.value = '';
-  passwordOpen.value = true;
-}
+const passwordDefinition = computed(() => passwordForm(
+  { hasPassword: Boolean(props.account.has_local_password), totpEnabled: Boolean(props.account.totp_enabled) },
+  (draft) => passwordMutation.mutateAsync(draft).then(() => undefined),
+));
+const totpSetupDefinition = totpSetupForm(
+  async () => {
+    try {
+      const data = await setupTotpMutation.mutateAsync();
+      return { secret: data.secret, qr: await QRCode.toDataURL(data.uri, { width: 220, margin: 1 }) };
+    } finally { setupTotpMutation.reset(); }
+  },
+  (code) => enableTotpMutation.mutateAsync(code).then(() => undefined),
+);
+const totpDisableDefinition = totpDisableForm((code) => disableTotpMutation.mutateAsync(code).then(() => undefined));
+const passkeyDefinition = passkeyForm((name) => registerPasskeyMutation.mutateAsync(name).then(() => undefined));
 
-async function changePassword() {
-  if (newPassword.value.length < 8) return;
-  modalError.value = '';
-  try {
-    await passwordMutation.mutateAsync();
-    passwordOpen.value = false;
-    emit('notify', 'Mot de passe enregistré. Vos autres appareils ont été déconnectés.');
-  } catch (e) { modalError.value = message(e); }
-}
-
-async function openTotpSetup() {
-  modalError.value = '';
-  totpCode.value = '';
-  totpSetupOpen.value = true;
-  try {
-    const data = await setupTotpMutation.mutateAsync();
-    totpSecret.value = data.secret;
-    totpQr.value = await QRCode.toDataURL(data.uri, { width: 220, margin: 1 });
-  } catch (e) { modalError.value = message(e); } finally { setupTotpMutation.reset(); }
-}
-
-function closeTotpSetup() {
-  totpSetupOpen.value = false;
-  totpSecret.value = '';
-  totpQr.value = '';
-  totpCode.value = '';
-}
-
-async function enableTotp() {
-  modalError.value = '';
-  try {
-    await enableTotpMutation.mutateAsync();
-    closeTotpSetup();
-    emit('notify', 'Double authentification activée.');
-  } catch (e) { modalError.value = message(e); }
-}
-
-async function disableTotp() {
-  modalError.value = '';
-  try {
-    await disableTotpMutation.mutateAsync();
-    totpDisableOpen.value = false;
-    totpDisableCode.value = '';
-    emit('notify', 'Double authentification désactivée.');
-  } catch (e) { modalError.value = message(e); }
-}
-
-function openPasskey() {
-  modalError.value = '';
-  passkeyName.value = '';
-  passkeyOpen.value = true;
-}
-
-async function registerPasskey() {
-  modalError.value = '';
-  try {
-    await registerPasskeyMutation.mutateAsync();
-    passkeyOpen.value = false;
-    emit('notify', 'Passkey enregistrée.');
-  } catch (e) { modalError.value = message(e); }
-}
+const openPassword = () => { passwordOpen.value = true; };
+const openTotpSetup = () => { totpSetupOpen.value = true; };
+const openPasskey = () => { passkeyOpen.value = true; };
+const notifyDone = (result: { message: string }) => emit('notify', result.message);
 
 async function askDeletePasskey(key: Passkey) {
   const ok = await askConfirm({
@@ -355,10 +238,6 @@ async function askRevokeOthers() {
 .profile-passkeys strong { display: block; font-size: var(--fs-sm); }
 .profile-passkeys small { color: var(--muted); font-size: var(--fs-xs); }
 .profile-subtitle { margin: var(--space-5) 0 0; padding-bottom: var(--space-2); border-bottom: 1px solid var(--border); color: var(--muted); font-size: var(--fs-xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.profile-form { display: grid; gap: var(--space-3); }
-.profile-steps { margin: var(--space-3) 0; padding-left: 1.2em; display: grid; gap: 6px; font-size: var(--fs-sm); line-height: 1.45; }
-.profile-qr { display: block; width: 180px; height: 180px; margin: 0 0 var(--space-3); border-radius: var(--radius-sm); background: #fff; }
-.profile-secret { word-break: break-all; }
 
 @include bp.until(phablet) {
   .profile-check { grid-template-columns: 28px minmax(0, 1fr); }
