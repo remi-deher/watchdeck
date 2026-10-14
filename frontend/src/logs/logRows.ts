@@ -20,9 +20,9 @@ const STATUS_LABELS: Record<string, string> = {
   pending: 'En attente', skipped: 'Ignoré', ignored: 'Ignoré', started: 'Démarré', info: 'Information',
 };
 
-export const rawDate = (row: any): string | undefined => row.created_at || row.time || row.started_at;
+const rawDate = (row: any): string | undefined => row.created_at || row.time || row.started_at;
 export function timeOf(row: any): number { const value = rawDate(row); return value ? parseApiDate(String(value)).getTime() || 0 : 0; }
-export const isoOf = (row: any): string => { const value = rawDate(row); return value ? String(value).replace(' ', 'T') : ''; };
+const isoOf = (row: any): string => { const value = rawDate(row); return value ? String(value).replace(' ', 'T') : ''; };
 export const dateOf = (row: any): string => formatDateTimeSeconds(isoOf(row) || undefined);
 export const keyOf = (type: LogType, row: any): string => `${type}-${row.id || row.time || row.created_at}-${row.message || row.action || row.job}`;
 
@@ -53,7 +53,7 @@ export function outcomeOf(type: LogType, row: any): UnderstandOutcome {
   if (type === 'app' && (!row.level || row.level === 'INFO')) return 'info';
   return 'success';
 }
-export function payloadOf(type: LogType, row: any): string {
+function payloadOf(type: LogType, row: any): string {
   if (type !== 'diagnostic' || !row.details) return '';
   try { return JSON.stringify(row.details, null, 2); } catch { return String(row.details); }
 }
