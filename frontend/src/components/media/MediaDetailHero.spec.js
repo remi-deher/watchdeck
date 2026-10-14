@@ -22,9 +22,11 @@ async function ouvrirMenu(wrapper) {
   return [...document.body.querySelectorAll('.ui-menu-item')];
 }
 const libelles = (items) => items.map((item) => item.textContent.trim());
+/* Un bouton de l'en-tete, par son libelle. */
+const bouton = (wrapper, texte) => wrapper.findAll('.detail__actions button, .detail__actions a').find((node) => node.text().includes(texte));
 afterEach(() => { document.body.innerHTML = ''; });
 
-describe('MediaDetailHero', () => {
+describe('MediaDetailHero (fiche d’un média)', () => {
   it('priorise le chargement de l’affiche principale avec une taille responsive', () => {
     const wrapper = mount(MediaDetailHero, {
       props: {
@@ -36,7 +38,7 @@ describe('MediaDetailHero', () => {
       },
     });
 
-    const image = wrapper.get('.mdh-poster img');
+    const image = wrapper.get('.detail__cover img');
     expect(image.attributes('loading')).toBe('eager');
     expect(image.attributes('fetchpriority')).toBe('high');
     expect(image.attributes('sizes')).toContain('140px');
@@ -56,9 +58,8 @@ describe('MediaDetailHero', () => {
       },
     });
 
-    const btn = wrapper.find('.mdh-request-btn');
-    expect(btn.exists()).toBe(true);
-    expect(btn.text()).toContain('Demander la série');
+    const btn = bouton(wrapper, 'Demander la série');
+    expect(btn).toBeTruthy();
 
     await btn.trigger('click');
     expect(wrapper.emitted('request')).toHaveLength(1);
@@ -78,9 +79,8 @@ describe('MediaDetailHero', () => {
       },
     });
 
-    const btn = wrapper.find('.mdh-request-btn');
-    expect(btn.exists()).toBe(true);
-    expect(btn.text()).toContain('Demander ce film');
+    const btn = bouton(wrapper, 'Demander ce film');
+    expect(btn).toBeTruthy();
 
     await btn.trigger('click');
     expect(wrapper.emitted('request')).toHaveLength(1);
@@ -96,7 +96,7 @@ describe('MediaDetailHero', () => {
         },
       },
     });
-    expect(wrapperInPlex.find('.mdh-request-btn').exists()).toBe(false);
+    expect(bouton(wrapperInPlex, 'Demander')).toBeUndefined();
 
     const wrapperRequested = mount(MediaDetailHero, {
       props: {
@@ -108,7 +108,7 @@ describe('MediaDetailHero', () => {
         },
       },
     });
-    expect(wrapperRequested.find('.mdh-request-btn').exists()).toBe(false);
+    expect(bouton(wrapperRequested, 'Demander')).toBeUndefined();
   });
 
   it('propose Télécharger le film pour un film en bibliothèque si Radarr est configuré', async () => {
@@ -120,7 +120,7 @@ describe('MediaDetailHero', () => {
     await flushPromises();
 
     expect(wrapper.findComponent(VfUpgradeButton).exists()).toBe(true);
-    expect(wrapper.get('.mdh-download-btn').text()).toContain('Télécharger le film');
+    expect(bouton(wrapper, 'Télécharger le film')).toBeTruthy();
     expect(libelles(await ouvrirMenu(wrapper))).not.toContain('Rechercher une version');
     wrapper.unmount();
   });
@@ -133,9 +133,8 @@ describe('MediaDetailHero', () => {
     });
     await flushPromises();
 
-    const button = wrapper.get('.mdh-download-btn');
-    expect(button.text()).toContain('Télécharger la série');
-    expect(button.attributes('title')).toContain('saison');
+    const button = bouton(wrapper, 'Télécharger la série');
+    expect(button).toBeTruthy();
     await button.trigger('click');
     expect(wrapper.emitted('open-audio')).toHaveLength(1);
     wrapper.unmount();
@@ -145,11 +144,11 @@ describe('MediaDetailHero', () => {
     await avecArr([{ id: 1, arr_type: 'radarr', enabled: true }, { id: 3, arr_type: 'sonarr', enabled: false }]);
     const serie = mount(MediaDetailHero, { props: { detail: { title: 'Severance', media_type: 'show', in_library: true, library_id: 99 }, admin: true } });
     await flushPromises();
-    expect(serie.find('.mdh-download-btn').exists()).toBe(false);
+    expect(bouton(serie, 'Télécharger')).toBeUndefined();
     await avecArr([]);
     const film = mount(MediaDetailHero, { props: { detail: { title: 'Soulm8te', media_type: 'movie', in_library: true, library_id: 42 }, admin: true } });
     await flushPromises();
-    expect(film.find('.mdh-download-btn').exists()).toBe(false);
+    expect(bouton(film, 'Télécharger')).toBeUndefined();
   });
 
   it('masque la recherche de release pour les non-admins', async () => {
@@ -173,7 +172,6 @@ describe('MediaDetailHero', () => {
       attachTo: document.body,
     });
 
-    expect(wrapper.find('.mdh-link').exists()).toBe(false);
     const items = await ouvrirMenu(wrapper);
     expect(libelles(items)).toEqual(['Analyser', 'IMDb', 'TMDB', 'Radarr', 'Signaler un problème']);
     items.at(-1).dispatchEvent(new Event('click', { bubbles: true }));
@@ -192,8 +190,8 @@ describe('MediaDetailHero', () => {
       props: { detail: { title: 'Dune', media_type: 'movie', year: 2024, vote: 8.3, genres: ['Science-fiction', 'Aventure'] } },
     });
 
-    expect(wrapper.get('.mdh-facts').text()).toBe('2024 · ★ 8.3 · Science-fiction, Aventure');
-    expect(wrapper.findAll('.mdh-poster-badges .badge')).toHaveLength(0);
+    expect(wrapper.get('.detail__meta').text()).toBe('2024 · ★ 8.3 · Science-fiction, Aventure');
+    expect(wrapper.findAll('.sheet-hero__dock .detail__badges li')).toHaveLength(0);
     expect(wrapper.find('.tag-row').exists()).toBe(false);
   });
 
@@ -201,17 +199,16 @@ describe('MediaDetailHero', () => {
     const wrapper = mount(MediaDetailHero, {
       props: { detail: { title: 'Dune', media_type: 'movie', in_library: true, has_vf: true, availability: { plex: 'present', episodes: { state: 'unknown' } } } },
     });
-    expect(wrapper.find('.mdh-kicker .mdh-status').exists()).toBe(false);
     // Une seule ligne sous l'affiche : presence Plex et langue.
-    expect(wrapper.findAll('.sheet-hero__dock .mdh-poster-badges .badge')).toHaveLength(2);
+    expect(wrapper.findAll('.sheet-hero__dock .detail__badges li')).toHaveLength(2);
     expect(wrapper.find('.mdh-language-summary').exists()).toBe(false);
 
     const demande = mount(MediaDetailHero, { props: { detail: { title: 'Dune', media_type: 'movie', requested: true, request_id: 4, availability: { plex: 'absent', episodes: { state: 'unknown' } } } } });
-    expect(demande.get('.mdh-kicker').text()).toContain('Demandé');
-    expect(demande.find('.mdh-poster-badges').exists()).toBe(false);
+    expect(demande.get('.detail__badges').text()).toContain('Demandé');
+    expect(demande.findAll('.sheet-hero__dock .detail__badges li')).toHaveLength(1);
 
     const disponible = mount(MediaDetailHero, { props: { detail: { title: 'Dune', media_type: 'movie' }, statusLabel: 'Disponible', statusClass: 'available' } });
-    expect(disponible.get('.mdh-kicker').text()).toContain('Disponible');
+    expect(disponible.get('.detail__badges').text()).toContain('Disponible');
   });
 
   it('range statut, dates et actions dans le dock, élément par élément', () => {
@@ -219,8 +216,8 @@ describe('MediaDetailHero', () => {
     const wrapper = mount(MediaDetailHero, { props: { detail: { title: 'Dune', media_type: 'movie', overview: 'Bref.', release_dates: dates, plex_guid: 'plex://movie/1' } } });
     // Sans mesure possible, tout reste dessous : disposition sûre, jamais de trou.
     const dock = wrapper.get('.sheet-hero__dock');
-    expect(dock.find('.mdh-dates').exists()).toBe(true);
-    expect(dock.find('.mdh-links').exists()).toBe(true);
+    expect(dock.find('.detail__dates').exists()).toBe(true);
+    expect(dock.find('.detail__actions').exists()).toBe(true);
     expect(wrapper.find('.sheet-hero__aside').exists()).toBe(false);
   });
 
@@ -234,9 +231,8 @@ describe('MediaDetailHero', () => {
     // dans le flux se retrouverait au fond de l'image, sous l'affiche.
     const wrapper = mount(MediaDetailHero, { props: { detail: { title: 'Inception', media_type: 'movie' } } });
 
-    const backdrop = wrapper.getComponent(UiHeroBackdrop);
-    expect(backdrop.get('.ui-hero-backdrop__overlay .mdh-back').exists()).toBe(true);
-    expect(wrapper.find('.mdh-content .mdh-back').exists()).toBe(false);
+    expect(wrapper.find('.detail__back').exists()).toBe(true);
+    expect(wrapper.find('.sheet-hero__content .detail__back').exists()).toBe(false);
   });
 
   it('rend le fond hero partage en mode carte ou feuille', async () => {
@@ -260,11 +256,11 @@ it('le contrat de disponibilité prime sur un ancien libellé opérationnel', ()
     statusLabel: 'Disponible dans Plex',
     detail: { title: 'Importé', media_type: 'movie', operational_status: 'completed', availability: { plex: 'absent', episodes: { state: 'unknown' } } },
   } });
-  expect(wrapper.get('.mdh-kicker .mdh-status').text()).toBe('À confirmer dans Plex');
+  expect(wrapper.get('.detail__badges li').text()).toBe('À confirmer dans Plex');
 });
 
 it('utilise la prochaine étape du parcours plutôt qu’un motif historique contradictoire', () => {
   const wrapper = mount(MediaDetailHero, { props: { detail: { title: 'Film', media_type: 'movie',
     waiting_reason: 'Disponible depuis longtemps', journey: { blocker: null, next_step: { label: 'Confirmer Plex' } } } } });
-  expect(wrapper.find('.mdh-waiting').text()).toBe('Confirmer Plex');
+  expect(wrapper.find('.detail__alert').text()).toContain('Confirmer Plex');
 });

@@ -1,32 +1,28 @@
 <template>
-  <SettingsSection
-    title="Activité Plex"
-    subtitle="Collecte des lectures directement depuis Plex. Elle ne dépend pas de Tautulli."
-    :status="form.live_activity_enabled ? 'active' : 'inactive'"
-  >
-    <SettingsRow
+  <div class="plex-collection">
+    <ConfigureField
       label="Activité Plex en direct"
-      :description="form.live_activity_enabled
+      :help="form.live_activity_enabled
         ? 'Watchdeck collecte directement les lectures Plex et les affiche sur le tableau de bord et dans Activité Plex.'
         : 'Aucune lecture en cours ne sera collectée ni affichée.'"
     >
       <ToggleSwitch v-model="form.live_activity_enabled" title="Activité Plex en direct" />
-    </SettingsRow>
-    <SettingsRow
+    </ConfigureField>
+    <ConfigureField
       label="Anonymiser les adresses IP"
-      :description="form.activity_anonymize_ips
+      :help="form.activity_anonymize_ips
         ? 'Le dernier segment de l’IP est remplacé par 0 avant stockage : la géolocalisation reste approximative.'
         : 'L’adresse IP complète de chaque lecture est conservée dans l’historique.'"
     >
       <ToggleSwitch v-model="form.activity_anonymize_ips" title="Anonymiser les adresses IP" />
-    </SettingsRow>
-    <SettingsRow label="Historique à conserver" description="En jours : les sessions plus anciennes sont supprimées automatiquement.">
+    </ConfigureField>
+    <ConfigureField label="Historique à conserver" help="En jours : les sessions plus anciennes sont supprimées automatiquement.">
       <RetentionDaysInput v-model="form.activity_retention_days" :default-days="365" placeholder="365"/>
-    </SettingsRow>
-    <SettingsRow label="Lieux des lectures" :description="status || 'Complète les sessions sans lieu à partir de leur IP, sans toucher aux lieux déjà enregistrés.'">
+    </ConfigureField>
+    <ConfigureField label="Lieux des lectures" :help="status || 'Complète les sessions sans lieu à partir de leur IP, sans toucher aux lieux déjà enregistrés.'">
       <UiButton :disabled="busy" @click="recalculateLocations"><MapPinned/>Recalculer les lieux</UiButton>
-    </SettingsRow>
-  </SettingsSection>
+    </ConfigureField>
+  </div>
   <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)"/>
 </template>
 
@@ -39,8 +35,7 @@ import { api } from '@/api';
 import { form, save } from '@/settingsForm';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import { useConfirm } from '@/composables/useConfirm';
-import SettingsSection from '../SettingsSection.vue';
-import SettingsRow from '../SettingsRow.vue';
+import ConfigureField from '@/components/templates/configure/ConfigureField.vue';
 import RetentionDaysInput from '../RetentionDaysInput.vue';
 
 const busy=ref(false),status=ref('');
@@ -60,3 +55,7 @@ async function recalculateLocations(): Promise<void> {
   finally{busy.value=false}
 }
 </script>
+
+<style scoped>
+.plex-collection { display: grid; gap: var(--space-4); }
+</style>

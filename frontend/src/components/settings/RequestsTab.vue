@@ -1,15 +1,12 @@
 <template>
-  <div class="settings-rows">
-    <SettingsSection title="Approbation" subtitle="Ce qui attend un administrateur avant de partir vers Sonarr ou Radarr. Chaque compte peut être auto-approuvé ou toujours soumis à approbation depuis sa fiche.">
-      <SettingsRow label="Approbation requise" description="Chaque nouvelle demande reste en attente de validation. Un compte « auto-approuvé » y échappe.">
+  <ConfigureTemplate :sections="sections" v-bind="page.bind.value" @save="page.save" @cancel="page.cancel">
+    <template #section-approval>
+      <ConfigureField label="Approbation requise" help="Chaque nouvelle demande reste en attente de validation. Un compte « auto-approuvé » y échappe.">
         <ToggleSwitch v-model="form.require_approval" title="Approbation requise" />
-      </SettingsRow>
-    </SettingsSection>
+      </ConfigureField>
+    </template>
 
-    <SettingsSection
-      title="Quotas"
-      subtitle="Au-delà, une demande de la watchlist attend un administrateur ; dans Découvrir, elle est refusée avec la date de la prochaine place libre. Les administrateurs et modérateurs ne sont jamais limités."
-    >
+    <template #section-quotas>
       <div class="quota-cards">
         <label class="quota-card">
           <span>Films</span>
@@ -45,9 +42,9 @@
           </span>
         </li>
       </ul>
-    </SettingsSection>
+    </template>
 
-    <SettingsSection title="Exceptions par compte" subtitle="Elles se règlent dans la fiche de chaque utilisateur ; on les voit toutes ici.">
+    <template #section-exceptions>
       <p v-if="!exceptions.length" class="quota-empty">Aucune : tous les comptes suivent les règles ci-dessus.</p>
       <ul v-else class="quota-exceptions">
         <li v-for="entry in exceptions" :key="entry.user_id">
@@ -60,31 +57,32 @@
           <UiButton size="sm" :to="`/users/${entry.user_id}`">Ouvrir la fiche</UiButton>
         </li>
       </ul>
-    </SettingsSection>
+    </template>
 
-    <SettingsSection title="Watchlist" subtitle="Les watchlists Plex deviennent des demandes automatiquement.">
+    <template #section-watchlist>
       <p v-if="watchlistState" class="quota-state" :class="watchlistState.failed ? 'is-error' : 'is-ok'" aria-live="polite">{{ watchlistState.text }}</p>
-      <SettingsRow label="Relire toutes les" description="À quelle fréquence Watchdeck relit la watchlist.">
+      <ConfigureField label="Relire toutes les" help="À quelle fréquence Watchdeck relit la watchlist.">
         <IntervalPresetInput v-model="form.poll_interval_seconds" :presets="presetsFor('poll_interval_seconds')!" />
-      </SettingsRow>
-      <SettingsRow label="Source" description="Universal Watchlist agrège les watchlists de vos amis Plex sans qu'ils se connectent à Watchdeck (Plex Pass).">
+      </ConfigureField>
+      <ConfigureField label="Source" help="Universal Watchlist agrège les watchlists de vos amis Plex sans qu'ils se connectent à Watchdeck (Plex Pass).">
         <UiSelect v-model="form.watchlist_source_priority" aria-label="Source de la watchlist" :options="[{ value: 'api', label: 'API Plex' }, { value: 'rss', label: 'Universal Watchlist (RSS)' }]" />
-      </SettingsRow>
-      <SettingsRow label="Basculer sur l’autre source en cas d’échec">
+      </ConfigureField>
+      <ConfigureField label="Basculer sur l’autre source en cas d’échec">
         <ToggleSwitch v-model="form.watchlist_fallback_enabled" title="Source de repli" />
-      </SettingsRow>
-    </SettingsSection>
+      </ConfigureField>
+    </template>
 
-    <SettingsSection title="Langue" subtitle="Langue de l'interface pour qui n'a pas choisi la sienne.">
-      <SettingsRow label="Langue par défaut" description="Appliquée aux nouveaux comptes et aux pages publiques. Chaque utilisateur peut ensuite choisir la sienne.">
+    <template #section-language>
+      <ConfigureField label="Langue par défaut" help="Appliquée aux nouveaux comptes et aux pages publiques. Chaque utilisateur peut ensuite choisir la sienne.">
         <UiSelect v-model="locale" :options="LOCALE_OPTIONS" aria-label="Langue par défaut" />
-      </SettingsRow>
-    </SettingsSection>
-  </div>
+      </ConfigureField>
+    </template>
+  </ConfigureTemplate>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { BookmarkCheck, Gauge, Languages, ShieldCheck, UserCog } from '@lucide/vue';
 import { RouterLink } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import UiButton from '@/components/ui/UiButton.vue';
@@ -96,9 +94,19 @@ import { form } from '@/settingsForm';
 import { presetsFor } from '@/settingsPresets';
 import { formatRelativeDate } from '@/utils/format';
 import { roleLabel } from '@/utils/userLabels';
+import ConfigureTemplate from '@/components/templates/ConfigureTemplate.vue';
+import ConfigureField from '@/components/templates/configure/ConfigureField.vue';
+import { useSettingsPage } from '@/composables/useSettingsPage';
 import IntervalPresetInput from './IntervalPresetInput.vue';
-import SettingsRow from './SettingsRow.vue';
-import SettingsSection from './SettingsSection.vue';
+
+const page = useSettingsPage();
+const sections = [
+  { key: 'approval', title: 'Approbation', description: 'Ce qui attend un administrateur avant de partir vers Sonarr ou Radarr. Chaque compte peut être auto-approuvé ou toujours soumis à approbation depuis sa fiche.', icon: ShieldCheck, keywords: ['valider', 'validation', 'auto-approuvé'] },
+  { key: 'quotas', title: 'Quotas', description: 'Au-delà, une demande de la watchlist attend un administrateur ; dans Découvrir, elle est refusée avec la date de la prochaine place libre. Les administrateurs et modérateurs ne sont jamais limités.', icon: Gauge, keywords: ['limite', 'films', 'séries', 'jours'] },
+  { key: 'exceptions', title: 'Exceptions par compte', description: 'Elles se règlent dans la fiche de chaque utilisateur ; on les voit toutes ici.', icon: UserCog, keywords: ['compte', 'utilisateur'] },
+  { key: 'watchlist', title: 'Watchlist', description: 'Les watchlists Plex deviennent des demandes automatiquement.', icon: BookmarkCheck, keywords: ['plex', 'rss', 'universal', 'intervalle'] },
+  { key: 'language', title: 'Langue', description: 'Langue de l\'interface pour qui n\'a pas choisi la sienne.', icon: Languages, keywords: ['locale', 'français', 'english'] },
+];
 
 interface QuotaUse { used: number; limit: number | null }
 interface UsageEntry { user_id: number; name: string; movie?: QuotaUse; show?: QuotaUse; [key: string]: any }
@@ -157,7 +165,6 @@ const locale = computed({
 </script>
 
 <style scoped lang="scss">
-.settings-rows { display: flex; flex-direction: column; gap: var(--space-4); }
 .quota-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--space-3); }
 .quota-card { display: grid; gap: var(--space-1); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--inset-radius); }
 .quota-card > span:first-child { font-weight: 600; }

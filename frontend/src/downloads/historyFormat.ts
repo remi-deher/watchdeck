@@ -4,10 +4,6 @@ export function historyModeLabel(row: any): string {
   return row.processing_mode === 'automatic' ? 'Automatique' : row.processing_mode === 'manual' ? 'Import manuel' : 'Détecté par Watchdeck';
 }
 
-export function historyModeClass(row: any): string {
-  return row.processing_mode === 'automatic' ? 'available' : row.processing_mode === 'manual' ? 'pending' : '';
-}
-
 /** Qualite annoncee par *arr, sinon devinee depuis le nom de la release. */
 export function extractQuality(row: any): string {
   const quality = row?.quality;

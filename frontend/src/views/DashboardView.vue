@@ -1,112 +1,112 @@
 <template>
-  <AppPage hide-search
+  <!-- Accueil (gabarit Surveiller) : « est-ce que tout va bien ? ». Le verdict ne parle que
+       s'il y a quelque chose a traiter ; l'activite Plex en direct, les trois chiffres de la
+       file, les points d'attention et l'etat des services viennent ensuite, puis la lecture
+       complementaire (file, derniers elements, graphique, supervision). Pas de recherche ;
+       le chargement initial est un etat de page, une actualisation partielle (une source en
+       echec) une notification qui propose de reessayer. -->
+  <PageTemplate
     title="Accueil"
     page-class="dashboard-home"
-    :error="error"
-    error-title="Actualisation partielle"
-    retry
-    :loading="loading && !updatedAt"
+    :state="loading && !updatedAt ? 'loading' : 'ready'"
+    skeleton="cards"
     loading-message="Chargement du tableau de bord…"
-    @retry="load(true)"
   >
+    <template #tools>
+      <UiButton size="sm" :loading="syncingAll" @click="syncAll"><template #icon><RefreshCw /></template>Tout synchroniser</UiButton>
+    </template>
+    <template #quick-action>
+      <UiButton variant="primary" to="/discover"><template #icon><Plus /></template>Nouvelle demande</UiButton>
+    </template>
 
-    <DashboardGreeting :name="userName" :attention-count="attentionCount" :syncing="syncingAll" @sync-all="syncAll" />
-
-    <!-- Activite Plex en direct, sur toute la largeur, juste sous l'en-tete. -->
-    <DashboardLiveStrip
-      :sessions="liveActivity.active || []"
-      :loading="liveActivityQuery.isPending.value"
-      :failed="liveActivityQuery.isError.value"
-      :collection-enabled="liveActivity.enabled !== false"
-      @select="openSession"
-    />
-
-    <OnboardingChecklist :onboarding="onboarding" :show="showOnboarding" @dismiss="dismissOnboarding" />
-
-    <UiDisclosure
-      :title="attentionCount ? `${attentionCount} élément${attentionCount > 1 ? 's' : ''} à traiter` : 'Aucune intervention nécessaire'"
-      description="Imports bloqués et acquisitions en échec."
-      storage-key="dashboard.actionsOpen"
-    >
-      <DashboardActionCenter :queue="downloadQueue" :failed-count="failedCount" />
-    </UiDisclosure>
-
-    <MetricGrid aria-label="Vue d’ensemble de la bibliothèque">
-      <MetricCard label="En téléchargement" :value="queueTotals.downloading" detail="Acquisitions actives" to="/downloads?view=queue&amp;sub=active" :loading="loadingQueue" />
-      <MetricCard label="À importer" :value="queueTotals.importPending" detail="Téléchargements terminés" to="/downloads?view=queue&amp;sub=intervention" :loading="loadingQueue" />
-      <MetricCard label="Disponibles" :value="counts.available ?? '—'" detail="Dans votre bibliothèque" to="/library?status=available" :loading="loading && !updatedAt" />
-    </MetricGrid>
-
-    <AcquisitionPipelinePanel
-      :pending-count="Number(counts.pending_approval ?? pending.length ?? 0)"
-      :downloading-count="queueTotals.downloading"
-      :import-pending-count="queueTotals.importPending"
-      :available-count="counts.available ?? '…'"
-      :blocked-count="queueTotals.blocked + failedCount"
-    />
-
-    <DownloadQueuePanel class="dashboard-downloads" :queue="downloadQueue" :loading="loadingQueue" />
-
-    <DashboardLibraryTabs :recently-available="recentlyAvailable" :recent-requests="recentRequests" :upcoming="upcoming" />
-
-    <div class="dashboard-bento">
-      <DashboardVfUpgradesPanel class="bento-narrow" />
-      <ActivityChartPanel class="bento-wide" :timeline="timeline" />
-    </div>
-
-    <!-- Sante et stockage ne sont lus qu'une fois la zone a l'ecran (ou Supervision
-         ouverte) : le bas de page ne doit pas retarder le premier affichage. -->
-    <div ref="healthZone" class="dashboard-bento">
-      <ServiceHealthPanel v-if="healthShown" class="bento-wide" />
-      <div class="bento-narrow bento-stack">
-        <DashboardFileflowsPanel />
-        <ScanStatusPanel
-          :vff-scan="vffScan"
-          :plex-sync="plexSync"
-          :arr-sync="arrSync"
-          :watchlist-sync="watchlistSync"
-          :vff-counts="vffCounts"
-          @scan-vff="triggerVffScan"
-          @sync-plex="triggerPlexSync"
-          @sync-arr="triggerArrSync"
-          @sync-watchlist="triggerWatchlistSync"
+    <MonitorTemplate :items="attentionItems" :kpis="kpis" :zones="zones" :icons="AREA_ICONS" :loading="false" :labels="labels">
+      <!-- Activite Plex en direct, sur toute la largeur, juste sous le verdict. -->
+      <template #live>
+        <DashboardLiveStrip
+          :sessions="liveActivity.active || []"
+          :loading="liveActivityQuery.isPending.value"
+          :failed="liveActivityQuery.isError.value"
+          :collection-enabled="liveActivity.enabled !== false"
+          @select="openSession"
         />
-        <DiskSpacePanel v-if="healthShown" :volumes="diskSpace" />
-      </div>
-    </div>
+      </template>
 
-    <UiDisclosure
-      title="Supervision"
-      eyebrow="Historique"
-      description="Exécutions du planificateur et répartition des demandes."
-      storage-key="dashboard.supervisionOpen"
-      content-class="dashboard-supervision"
-      @open="loadSupervision"
-    >
-      <RecentJobsPanel :polls="polls" :next-poll="nextPoll" :countdown="countdown" />
-      <RequestsBreakdownPanel :counts="counts"/>
-      <TopRequestedPanel :items="topRequested"/>
-    </UiDisclosure>
-  </AppPage>
+      <!-- Sante et stockage ne sont lus qu'une fois la zone a l'ecran (ou Supervision
+           ouverte) : le bas de page ne doit pas retarder le premier affichage. -->
+      <template #details>
+        <OnboardingChecklist :onboarding="onboarding" :show="showOnboarding" @dismiss="dismissOnboarding" />
+        <div ref="healthZone" class="dashboard-details">
+          <ServiceHealthPanel v-if="healthShown" />
+          <DashboardFileflowsPanel />
+          <ScanStatusPanel
+            :vff-scan="vffScan"
+            :plex-sync="plexSync"
+            :arr-sync="arrSync"
+            :watchlist-sync="watchlistSync"
+            :vff-counts="vffCounts"
+            @scan-vff="triggerVffScan"
+            @sync-plex="triggerPlexSync"
+            @sync-arr="triggerArrSync"
+            @sync-watchlist="triggerWatchlistSync"
+          />
+          <DiskSpacePanel v-if="healthShown" :volumes="diskSpace" />
+        </div>
+      </template>
+
+      <template #after>
+        <AcquisitionPipelinePanel
+          :pending-count="Number(counts.pending_approval ?? pending.length ?? 0)"
+          :downloading-count="queueTotals.downloading"
+          :import-pending-count="queueTotals.importPending"
+          :available-count="counts.available ?? '…'"
+          :blocked-count="queueTotals.blocked + failedCount"
+        />
+
+        <DownloadQueuePanel class="dashboard-downloads" :queue="downloadQueue" :loading="loadingQueue" />
+
+        <DashboardLibraryTabs :recently-available="recentlyAvailable" :recent-requests="recentRequests" :upcoming="upcoming" />
+
+        <div class="dashboard-bento">
+          <DashboardVfUpgradesPanel class="bento-narrow" />
+          <ActivityChartPanel class="bento-wide" :timeline="timeline" />
+        </div>
+
+        <UiDisclosure
+          title="Supervision"
+          eyebrow="Historique"
+          description="Exécutions du planificateur et répartition des demandes."
+          storage-key="dashboard.supervisionOpen"
+          content-class="dashboard-supervision"
+          @open="loadSupervision"
+        >
+          <RecentJobsPanel :polls="polls" :next-poll="nextPoll" :countdown="countdown" />
+          <RequestsBreakdownPanel :counts="counts"/>
+          <TopRequestedPanel :items="topRequested"/>
+        </UiDisclosure>
+      </template>
+    </MonitorTemplate>
+  </PageTemplate>
 </template>
 
 <script setup lang="ts">
 import { formatCountdown } from '@/utils/format';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import PageTemplate from '@/components/templates/PageTemplate.vue';
+import { useToast } from '@/composables/useToast';
+import { computed, markRaw, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useElementVisibility } from '@vueuse/core';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useIntervalFn } from '@vueuse/core';
-import MetricCard from '@/components/ui/MetricCard.vue';
-import MetricGrid from '@/components/ui/MetricGrid.vue';
+import { Download, Library, Plus, RefreshCw, Tv } from '@lucide/vue';
+import MonitorTemplate from '@/components/templates/MonitorTemplate.vue';
+import type { MonitorKpi, MonitorLabels, MonitorZoneGroup } from '@/components/templates/MonitorTemplate.vue';
+import UiButton from '@/components/ui/UiButton.vue';
 import UiDisclosure from '@/components/ui/UiDisclosure.vue';
 import OnboardingChecklist from '@/components/dashboard/OnboardingChecklist.vue';
-import DashboardActionCenter from '@/components/dashboard/DashboardActionCenter.vue';
-import DashboardGreeting from '@/components/dashboard/DashboardGreeting.vue';
 import DashboardLiveStrip from '@/components/dashboard/DashboardLiveStrip.vue';
 import DashboardVfUpgradesPanel from '@/components/dashboard/DashboardVfUpgradesPanel.vue';
 import DashboardFileflowsPanel from '@/components/dashboard/DashboardFileflowsPanel.vue';
 import DashboardLibraryTabs from '@/components/dashboard/DashboardLibraryTabs.vue';
-import { attentionTotal } from '@/components/dashboard/dashboardAttention';
+import { dashboardAttentionItems } from '@/components/dashboard/dashboardAttention';
 import AcquisitionPipelinePanel from '@/components/dashboard/AcquisitionPipelinePanel.vue';
 import RecentJobsPanel from '@/components/dashboard/RecentJobsPanel.vue';
 import RequestsBreakdownPanel from '@/components/dashboard/RequestsBreakdownPanel.vue';
@@ -123,7 +123,6 @@ import { readCacheEntry, writeCache } from '@/cache';
 import { useRealtime } from '@/events';
 import { queueCounts } from '@/downloads/queueRules';
 import { usePreference } from '@/composables/usePreference';
-import { useSession } from '@/composables/useSession';
 import { queryKeys } from '@/queryKeys';
 import { arrQueueQuery, diskSpaceQuery, playbackLiveQuery, vffCountsQuery, vffScanStatusQuery, vffSyncStatusQuery } from '@/sharedQueries';
 
@@ -151,6 +150,11 @@ const onboarding = ref<Record<string, any>>({});
 const nextPoll = ref<Record<string, any>>({});
 const loading = ref(false);
 const error = ref('');
+/* Une source en echec n'efface pas la page : elle se signale, avec de quoi reessayer. */
+const toast = useToast();
+watch(error, (message) => {
+  if (message) toast.addToast({ type: 'error', title: 'Actualisation partielle', message, action: { label: 'Réessayer', run: () => load(true) } });
+});
 const seconds = ref<number | null>(null);
 const topRequested = ref<any[]>([]);
 const recentlyAvailable = ref<any[]>([]);
@@ -219,16 +223,45 @@ function dismissOnboarding(): void {
 // exclure les series a jour sur tout ce qui est deja diffuse -- voir matchesStatusFilter
 // dans LibraryView.vue). Ne passer que "sent_to_arr" ici excluait a tort les series
 // comme Face Off/New York police judiciaire (statut partially_available, vrai manque).
-const IN_PROGRESS_STATUSES = ['sent_to_arr', 'partially_available'];
 const failedCount = computed(() => Number(counts.value.failed || 0));
 // Memes regles que la page Telechargements (@/downloads/queueRules) : les trois tuiles
 // ci-dessous partitionnent la file sans double compte, et chaque chiffre correspond au
 // groupe qu'on trouve en cliquant.
 const queueTotals = computed(() => queueCounts(downloadQueue.value));
-const attentionCount = computed(() => attentionTotal(downloadQueue.value, failedCount.value));
+const attentionItems = computed(() => dashboardAttentionItems(downloadQueue.value, failedCount.value));
 
-const { session } = useSession();
-const userName = computed(() => String(session.value?.display_name || session.value?.username || '').trim());
+const AREA_ICONS: Record<string, any> = { downloads: markRaw(Download), library: markRaw(Library) };
+const labels: MonitorLabels = {
+  okTitle: 'Aucune intervention nécessaire',
+  okDetail: 'Imports bloqués et acquisitions en échec s’affichent ici.',
+  kpisLabel: 'Vue d’ensemble de la bibliothèque',
+  zonesLabel: 'Aller à',
+};
+
+/* Les trois chiffres de la file : ils partitionnent la file sans double compte, et chacun
+   mene au groupe qu'il compte. */
+const kpis = computed<MonitorKpi[]>(() => {
+  const waiting = loadingQueue.value;
+  return [
+    { key: 'downloading', label: 'En téléchargement', value: waiting ? '…' : String(queueTotals.value.downloading), status: 'Acquisitions actives', tone: 'info', to: '/downloads?view=queue&sub=active' },
+    { key: 'import', label: 'À importer', value: waiting ? '…' : String(queueTotals.value.importPending), status: 'Téléchargements terminés', tone: queueTotals.value.importPending ? 'warn' : 'ok', to: '/downloads?view=queue&sub=intervention' },
+    { key: 'available', label: 'Disponibles', value: String(counts.value.available ?? '—'), status: 'Dans votre bibliothèque', tone: 'ok', to: '/library?status=available' },
+  ];
+});
+
+/* Ou aller ensuite, avec l'etat de chaque partie en une ligne. */
+const zones = computed<MonitorZoneGroup[]>(() => {
+  const playing = (liveActivity.value.active || []).length;
+  const blocked = queueTotals.value.blocked;
+  return [{
+    label: 'Aller à',
+    items: [
+      { key: 'downloads', label: 'Acquisition', to: '/downloads', icon: markRaw(Download), line: blocked ? `${blocked} bloqué${blocked > 1 ? 's' : ''}` : `${queueTotals.value.downloading} en cours`, severity: blocked ? 'warn' : null },
+      { key: 'library', label: 'Bibliothèque', to: '/library', icon: markRaw(Library), line: `${counts.value.available ?? '—'} disponibles`, severity: failedCount.value ? 'error' : null },
+      { key: 'activity', label: 'Activité', to: '/activity', icon: markRaw(Tv), line: playing ? `${playing} lecture${playing > 1 ? 's' : ''} en cours` : 'Aucune lecture', severity: null },
+    ],
+  }];
+});
 
 const countdown = computed(() => formatCountdown(seconds.value));
 
@@ -479,27 +512,24 @@ onMounted(async () => {
   .dashboard-downloads :deep(.queue-heading) { grid-row: span 2; }
   .dashboard-downloads :deep(.queue-meta) { white-space: normal; }
 }
-.dashboard-home :deep(.shared-metric-grid) { gap: var(--space-3); }
 .dashboard-home :deep(.pipeline-wrapper) { margin-bottom: 0; }
 
-/* Grille de l'accueil : une colonne large (7/12) et une etroite (5/12), qui passent
+/* Les panneaux de sante s'empilent a cote des points d'attention. */
+.dashboard-details { display: grid; gap: var(--space-4); min-width: 0; }
+
+/* Vers le bas de la page : une colonne large (7/12) et une etroite (5/12), qui passent
    l'une sous l'autre quand le contenu se resserre. Les deux colonnes d'une rangee
-   prennent la meme hauteur : un panneau peu rempli s'etire jusqu'au bas de son voisin
-   plutot que de laisser un trou sous lui, et son message « vide » se centre dans la
-   place disponible. Dans la pile de droite, le dernier panneau absorbe l'ecart. */
+   prennent la meme hauteur. */
 .dashboard-bento { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--space-4); align-items: stretch; min-width: 0; }
 .dashboard-bento > .bento-wide { grid-column: span 7; min-width: 0; }
 .dashboard-bento > .bento-narrow { grid-column: span 5; min-width: 0; }
-.dashboard-bento > .bento-stack { display: flex; flex-direction: column; grid-column: 8 / -1; gap: var(--space-4); }
-.dashboard-bento > .bento-stack > :last-child { flex: 1; }
 .dashboard-bento :deep(.panel-card) { display: flex; flex-direction: column; }
 .dashboard-bento :deep(.panel-card > .ui-empty-state) { flex: 1; align-content: center; }
 :deep(.dashboard-supervision) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); align-items: start; }
 
 @container page (max-width: 957px) {
   .dashboard-bento > .bento-wide,
-  .dashboard-bento > .bento-narrow,
-  .dashboard-bento > .bento-stack { grid-column: 1 / -1; }
+  .dashboard-bento > .bento-narrow { grid-column: 1 / -1; }
   :deep(.dashboard-supervision) { grid-template-columns: minmax(0, 1fr); }
 }
 </style>

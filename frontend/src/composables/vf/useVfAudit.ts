@@ -119,5 +119,15 @@ export function useVfAudit(notify: Notify) {
     }
   }
 
-  return { items, counts, loading, fixingAll, totalCount, eligibleFixCount, load, applyStreamsFixInPlace, fixAll };
+  /** Lance la recherche de sous-titres francais d'un media ; le resultat est annonce par `notify`. */
+  async function searchSubtitles(item: AuditItem): Promise<void> {
+    try {
+      const result = await api<{ message?: string }>(`/api/subtitles/library/${item.id}/search`, { method: 'POST', body: '{}' });
+      notify(`${item.title || 'Sous-titres'} : ${result.message || 'recherche lancée.'}`);
+    } catch (e) {
+      notify(`${item.title || 'Sous-titres'} : ${humanizeError(e)}`, 'error');
+    }
+  }
+
+  return { items, counts, loading, fixingAll, totalCount, eligibleFixCount, load, applyStreamsFixInPlace, fixAll, searchSubtitles };
 }

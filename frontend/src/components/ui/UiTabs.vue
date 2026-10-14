@@ -5,7 +5,8 @@
        Pattern Tabs de Reka UI : role tablist, fleches, et un panneau relie a son onglet.
        Le panneau de l'onglet actif est l'emplacement par defaut (`{ tab }`). -->
   <TabsRoot class="ui-tabs" :model-value="modelValue" @update:model-value="choisir">
-    <TabsList class="ui-tabs__list" :aria-label="ariaLabel">
+    <!-- Une seule partie n'a rien a choisir : pas de rangee. -->
+    <TabsList v-if="items.length > 1" class="ui-tabs__list" :aria-label="ariaLabel">
       <TabsTrigger v-for="item in items" :key="item.key" class="ui-tabs__tab" :value="item.key" :disabled="item.disabled">
         <component :is="item.icon" v-if="item.icon" aria-hidden="true" />
         <span>{{ item.label }}</span>

@@ -110,39 +110,6 @@
   overscroll-behavior: contain;
 }
 
-/* La feuille ancrée en bas du mode compact vit desormais dans `components/_components.scss`,
-   juste apres la geometrie de bureau qu'elle remplace. Ici, chargee AVANT elle et a
-   specificite egale, elle ne s'appliquait jamais : une media query ne compte pas dans
-   la specificite, c'est donc la derniere regle ecrite qui l'emportait -- et le panneau
-   restait une modale centree sur telephone, a moitie sortie de l'ecran quand la
-   transition ecrasait son `translateX(-50%)`. */
-
-.drawer-head,
-.account-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.drawer-head-actions {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.drawer-head {
-  position: sticky;
-  top: calc(-1 * var(--drawer-pad, 24px));
-  z-index: 2;
-  margin: calc(-1 * var(--drawer-pad, 24px)) calc(-1 * var(--drawer-pad, 24px)) 18px;
-  padding: 14px var(--drawer-pad, 24px);
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  border-radius: var(--panel-radius, 16px) var(--panel-radius, 16px) 0 0;
-}
-
 .drawer-section,
 .status-stack,
 .checklist {
@@ -159,10 +126,9 @@
 
 /* ===== Tablette : les grilles denses passent en 2 colonnes ===== */
 @include bp.between(tablet, wide) {
-  .dashboard-grid,
   .metric-grid,
-  .compact-metrics,
-  .settings-grid.two {
+.compact-metrics,
+.settings-grid.two {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -181,19 +147,8 @@
     justify-self: start;
   }
 
-  .release-row {
-    grid-template-columns: minmax(0, 1fr) 40px;
-  }
-
-  .release-stats {
-    grid-column: 1;
-    grid-template-columns: repeat(3, auto);
-    text-align: left;
-  }
-
   .compact-metrics,
-  .dashboard-grid,
-  .settings-grid.two {
+.settings-grid.two {
     grid-template-columns: 1fr;
   }
 
@@ -206,8 +161,7 @@
     gap: var(--space-2);
   }
 
-  .detail-row,
-  .account-summary {
+  .detail-row {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -235,22 +189,7 @@
 
 /* Téléphone en paysage : les feuilles ancrées en bas ne peuvent pas dépasser. */
 @media (max-height: 500px) and (orientation: landscape) {
-  .detail-drawer,
   .modal-panel { max-height: calc(100dvh - var(--safe-top)); border-radius: var(--radius-md) var(--radius-md) 0 0; }
-}
-
-/* ── Layout PageSearchHeader + FilterSidebar ── */
-.psh-layout {
-  display: flex;
-  gap: var(--space-4);
-  align-items: flex-start;
-}
-.psh-main {
-  flex: 1;
-  min-width: 0;
-}
-@include bp.until(wide) {
-  .psh-layout { display: block; }
 }
 
 /* ── Filter-badge design system (global) ────────────────────────────────────

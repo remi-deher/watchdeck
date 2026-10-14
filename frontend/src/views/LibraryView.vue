@@ -1,8 +1,4 @@
 <template>
-  <!-- Bibliotheque : deux besoins sur une meme adresse, chacun son gabarit. Sans filtre, on
-       parcourt (hubs : banniere et rangees, gabarit Parcourir) ; des qu'un filtre, une
-       recherche ou le titre d'une rangee affine la vue, on explore (grille, gabarit
-       Explorer). Les actions sur un media vivent dans sa fiche. -->
   <PageTemplate
     title="Bibliothèque"
     v-model:query="query"
@@ -18,9 +14,7 @@
     @reset-filters="resetFilters"
   >
     <template #filters>
-      <FilterGroup v-for="group in filterGroups" :key="group.key" :label="group.label">
-        <UiChipGroup :label="group.label" :options="group.options" :default-value="group.fallback" :model-value="group.value" @update:model-value="group.set(String($event ?? ''))" />
-      </FilterGroup>
+      <FilterGroupList :groups="filterGroups" />
     </template>
 
     <BrowseTemplate v-if="activeHub" :rows="hubRows" :hero="heroItems" :hero-discover="false" :hero-status="false" @open="openDetail" @title-click="onHubTitleClick">
@@ -54,13 +48,16 @@
 </template>
 
 <script setup lang="ts">
+/* Bibliotheque : deux besoins sur une meme adresse, chacun son gabarit. Sans filtre, on
+   parcourt (hubs : banniere et rangees, gabarit Parcourir) ; des qu'un filtre, une
+   recherche ou le titre d'une rangee affine la vue, on explore (grille, gabarit
+   Explorer). Les actions sur un media vivent dans sa fiche. */
 import { useRoute } from 'vue-router';
 import PageTemplate from '@/components/templates/PageTemplate.vue';
 import BrowseTemplate from '@/components/templates/BrowseTemplate.vue';
 import ExploreTemplate from '@/components/templates/ExploreTemplate.vue';
 import LibraryCard from '@/components/library/LibraryCard.vue';
-import FilterGroup from '@/components/ui/FilterGroup.vue';
-import UiChipGroup from '@/components/ui/UiChipGroup.vue';
+import FilterGroupList from '@/components/ui/FilterGroupList.vue';
 import { LIBRARY_TYPE_TABS, libraryTypeTabFor } from '@/navigation';
 import { useLibraryExplorer } from '@/composables/useLibraryExplorer';
 

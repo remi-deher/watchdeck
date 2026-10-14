@@ -1,6 +1,5 @@
 import type { WorkRef } from '@/types/generated/mediaAvailability';
 import { mediaDetailPath } from '@/mediaUrl';
-import { parseReleaseEpisodeInfo, type ParsedEpisodeInfo } from '@/utils/releaseTitle';
 
 export interface QueueRow {
   work?: WorkRef;
@@ -183,39 +182,3 @@ export function queueCounts(rows: QueueRow[] = []): QueueCountsResult {
   return counts;
 }
 
-export interface UseQueueItemResult {
-  key: string;
-  status: QueueStatusKey;
-  label: string;
-  isImportPending: boolean;
-  isUnmatched: boolean;
-  needsEpisodeImport: boolean;
-  requiresIntervention: boolean;
-  detailPath: string | null;
-  episodeInfo: ParsedEpisodeInfo;
-}
-
-/** Composable réutilisable pour la ligne de téléchargement. */
-export function useQueueItem(row: QueueRow = {}): UseQueueItemResult {
-  const key = rowKey(row);
-  const status = statusKey(row);
-  const label = statusLabel(row);
-  const isImportBlocked = isImportPending(row);
-  const unmatched = isUnmatched(row);
-  const needsEpisode = needsEpisodeImport(row);
-  const needsAction = requiresIntervention(row);
-  const detailPath = queueDetailPath(row);
-  const episodeInfo = parseReleaseEpisodeInfo(row.title || row.name || '');
-
-  return {
-    key,
-    status,
-    label,
-    isImportPending: isImportBlocked,
-    isUnmatched: unmatched,
-    needsEpisodeImport: needsEpisode,
-    requiresIntervention: needsAction,
-    detailPath,
-    episodeInfo,
-  };
-}

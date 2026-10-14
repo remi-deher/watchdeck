@@ -44,9 +44,9 @@ test("« Recherche interactive » ouvre la feuille des releases au-dessus des de
   await expect(feuille).toBeVisible();
   await expect(page).toHaveURL(/\/releases\/42$/);
   await expect(feuille.getByRole("heading", { name: "Film introuvable" })).toBeVisible();
-  await expect(feuille.locator(".release-row")).toHaveCount(2);
+  await expect(feuille.locator(".choose-card")).toHaveCount(2);
   // La liste des demandes reste derriere la feuille.
-  await expect(page.locator(".rt-grid")).toHaveCount(1);
+  await expect(page.locator(".track")).toHaveCount(1);
   await page.waitForTimeout(700); // fin de l'ouverture
   await page.screenshot({ path: info.outputPath("feuille.png") });
 
@@ -61,5 +61,5 @@ test("ouverte par son adresse, la recherche interactive s'affiche en pleine page
   await page.goto("/releases/42");
   await expect(page.locator(".media-overlay__panel")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Film introuvable" })).toBeVisible();
-  await expect(page.locator(".release-row")).toHaveCount(2);
+  await expect(page.locator(".choose-card")).toHaveCount(2);
 });

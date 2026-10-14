@@ -1,9 +1,12 @@
 <template>
-  <!-- Les règles à gauche, ce qu'elles font à droite : qui est prévenu de quoi, par quel
-       canal, dit en une phrase qui reste visible pendant qu'on coche. -->
-  <div class="notify-rules">
-  <div class="settings-rows">
-    <SettingsSection title="Qui est prévenu, par quel canal" subtitle="Une ligne par événement, une colonne par canal. Un canal désactivé se rallume dans Canaux.">
+  <ConfigureTemplate :sections="sections" v-bind="page.bind.value" @save="page.save" @cancel="page.cancel">
+    <template #section-summary>
+      <div class="notify-summary" aria-live="polite">
+        <p v-for="line in summary" :key="line">{{ line }}</p>
+      </div>
+    </template>
+
+    <template #section-matrix>
       <div class="matrix-wrap">
         <table class="notify-matrix">
           <caption class="sr-only">Canaux utilisés pour chaque événement</caption>
@@ -33,80 +36,81 @@
           </tbody>
         </table>
       </div>
-      <SettingsRow label="Alerte de panne d'indexeur" description="Prévient l'email administrateur, et Discord s'il est actif, quand un indexeur Prowlarr tombe en panne ou fonctionne de nouveau.">
+      <ConfigureField label="Alerte de panne d'indexeur" help="Prévient l'email administrateur, et Discord s'il est actif, quand un indexeur Prowlarr tombe en panne ou fonctionne de nouveau.">
         <ToggleSwitch v-model="form.indexer_alerts_enabled" title="Alerte de panne d'indexeur" />
-      </SettingsRow>
-      <SettingsRow label="Email lors d'une amélioration VO vers VF" description="Notifie séparément quand un média déjà disponible en VO reçoit sa VF, en plus de la notification de disponibilité initiale.">
+      </ConfigureField>
+      <ConfigureField label="Email lors d'une amélioration VO vers VF" help="Notifie séparément quand un média déjà disponible en VO reçoit sa VF, en plus de la notification de disponibilité initiale.">
         <ToggleSwitch v-model="form.email_on_vf_available" title="Email lors d'une amélioration VO vers VF" />
-      </SettingsRow>
-    </SettingsSection>
+      </ConfigureField>
+    </template>
 
-    <SettingsSection title="Langue des notifications" subtitle="Distinguer la VO et la VF, et le rythme des notifications de séries.">
-      <SettingsRow label="Distinguer VO/VF pour les films" description="Activé : un film disponible en VO puis en VF déclenche deux notifications. Désactivé : une seule notification « disponible », sans distinction de langue.">
+    <template #section-language>
+      <ConfigureField label="Distinguer VO/VF pour les films" help="Activé : un film disponible en VO puis en VF déclenche deux notifications. Désactivé : une seule notification « disponible », sans distinction de langue.">
         <ToggleSwitch v-model="form.movie_notify_language" title="Distinguer VO/VF pour les films" />
-      </SettingsRow>
-      <SettingsRow label="Distinguer VO/VF pour les séries" description="Activé : les jalons VO/VF suivent la granularité ci-dessous. Désactivé : suivi de disponibilité classique, sans notification liée à la langue.">
+      </ConfigureField>
+      <ConfigureField label="Distinguer VO/VF pour les séries" help="Activé : les jalons VO/VF suivent la granularité ci-dessous. Désactivé : suivi de disponibilité classique, sans notification liée à la langue.">
         <ToggleSwitch v-model="form.series_notify_language" title="Distinguer VO/VF pour les séries" />
-      </SettingsRow>
-      <SettingsRow label="Granularité des séries" description="Une seule fois à la fin, à chaque début et fin de saison, ou à chaque épisode disponible.">
+      </ConfigureField>
+      <ConfigureField label="Granularité des séries" help="Une seule fois à la fin, à chaque début et fin de saison, ou à chaque épisode disponible.">
         <UiSelect v-model="form.series_notify_granularity" aria-label="Granularité des séries" :options="[{ value: 'minimal', label: 'Série complète' }, { value: 'jalons', label: 'Début et fin de saison' }, { value: 'tout', label: 'Chaque épisode' }]" />
-      </SettingsRow>
-    </SettingsSection>
+      </ConfigureField>
+    </template>
 
-    <SettingsSection title="Rétention et digest" subtitle="Conservation des journaux de notifications, et récapitulatif quotidien par email.">
-      <SettingsRow label="Journaux de notifications" description="En jours.">
+    <template #section-retention>
+      <ConfigureField label="Journaux de notifications" help="En jours.">
         <RetentionDaysInput v-model="form.notification_log_retention_days" :default-days="30"/>
-      </SettingsRow>
-      <SettingsRow label="Digest quotidien" description="Un récapitulatif par jour, à l'heure choisie, pour les utilisateurs qui l'ont activé dans leurs préférences, au lieu de chaque notification.">
+      </ConfigureField>
+      <ConfigureField label="Digest quotidien" help="Un récapitulatif par jour, à l'heure choisie, pour les utilisateurs qui l'ont activé dans leurs préférences, au lieu de chaque notification.">
         <ToggleSwitch v-model="form.digest_enabled" title="Digest quotidien" />
-      </SettingsRow>
-      <SettingsRow label="Heure du digest" :disabled="!form.digest_enabled">
+      </ConfigureField>
+      <ConfigureField label="Heure du digest">
         <UiTimeField v-model:hour="form.digest_hour" v-model:minute="form.digest_minute" aria-label="Heure du digest"/>
-      </SettingsRow>
-    </SettingsSection>
+      </ConfigureField>
+    </template>
 
-    <SettingsSection
-      title="Nouveautés de la semaine"
-      subtitle="Une lettre hebdomadaire avec les films et séries ajoutés à Plex, leur affiche et leur langue, pour les utilisateurs qui l'ont activée dans leur profil."
-      :status="form.newsletter_enabled ? 'active' : 'inactive'"
-    >
-      <template #actions>
+    <template #section-newsletter>
+      <div class="newsletter-actions">
         <UiButton href="/api/newsletter/preview" target="_blank" rel="noopener"><Eye />Aperçu</UiButton>
         <UiButton :loading="sendingTest" @click="sendTest"><MailCheck />M'envoyer un test</UiButton>
-      </template>
-      <SettingsRow label="Envoi hebdomadaire">
+      </div>
+      <ConfigureField label="Envoi hebdomadaire">
         <ToggleSwitch v-model="form.newsletter_enabled" title="Envoi hebdomadaire" />
-      </SettingsRow>
-      <SettingsRow label="Jour et heure" description="Heure locale. La lettre couvre les ajouts depuis le précédent envoi." :disabled="!form.newsletter_enabled">
+      </ConfigureField>
+      <ConfigureField label="Jour et heure" help="Heure locale. La lettre couvre les ajouts depuis le précédent envoi.">
         <div class="newsletter-when">
           <UiSelect v-model="form.newsletter_weekday" aria-label="Jour d'envoi" :disabled="!form.newsletter_enabled" :options="weekdays" />
           <UiSelect v-model="form.newsletter_hour" aria-label="Heure d'envoi" :disabled="!form.newsletter_enabled" :options="hours" />
         </div>
-      </SettingsRow>
-      <SettingsRow label="Publier aussi sur Discord" description="Sur le webhook Discord global (Canaux), en plus des emails." :disabled="!form.newsletter_enabled">
+      </ConfigureField>
+      <ConfigureField label="Publier aussi sur Discord" help="Sur le webhook Discord global (Canaux), en plus des emails.">
         <ToggleSwitch v-model="form.newsletter_discord" :disabled="!form.newsletter_enabled" title="Publier aussi sur Discord" />
-      </SettingsRow>
-    </SettingsSection>
-  </div>
-  <aside class="notify-summary" aria-live="polite">
-    <strong>En clair</strong>
-    <p v-for="line in summary" :key="line">{{ line }}</p>
-  </aside>
-  </div>
+      </ConfigureField>
+    </template>
+  </ConfigureTemplate>
 </template>
 <script setup lang="ts">
 import UiSelect from '@/components/ui/UiSelect.vue';
 import UiCheckbox from '@/components/ui/UiCheckbox.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
-import { Bell, Eye, Mail, MailCheck, Megaphone, MessageSquare, Send } from '@lucide/vue';
+import { Bell, CalendarClock, Eye, Globe2, Grid3x3, Mail, MailCheck, Megaphone, MessageSquare, Newspaper, Send, Sparkles } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import { api } from '@/api';
 import UiButton from '@/components/ui/UiButton.vue';
 import { form, success, fail } from '@/settingsForm';
-import SettingsSection from './SettingsSection.vue';
-import SettingsRow from './SettingsRow.vue';
+import ConfigureTemplate from '@/components/templates/ConfigureTemplate.vue';
+import ConfigureField from '@/components/templates/configure/ConfigureField.vue';
+import { useSettingsPage } from '@/composables/useSettingsPage';
 import UiTimeField from '@/components/ui/UiTimeField.vue';
 import RetentionDaysInput from './RetentionDaysInput.vue';
+
+const page = useSettingsPage();
+const sections = [
+  { key: 'summary', title: 'En clair', description: 'Ce que font ces règles, en phrases : à vérifier d\'un coup d\'œil avant d\'enregistrer.', icon: Sparkles, keywords: ['résumé'] },
+  { key: 'matrix', title: 'Qui est prévenu, par quel canal', description: 'Une ligne par événement, une colonne par canal. Un canal désactivé se rallume dans Canaux.', icon: Grid3x3, keywords: ['événement', 'canal', 'email', 'discord', 'telegram', 'ntfy', 'gotify', 'indexeur'] },
+  { key: 'language', title: 'Langue des notifications', description: 'Distinguer la VO et la VF, et le rythme des notifications de séries.', icon: Globe2, keywords: ['vo', 'vf', 'séries', 'granularité', 'saison'] },
+  { key: 'retention', title: 'Rétention et digest', description: 'Conservation des journaux de notifications, et récapitulatif quotidien par email.', icon: CalendarClock, keywords: ['digest', 'journaux', 'jours'] },
+  { key: 'newsletter', title: 'Nouveautés de la semaine', description: 'Une lettre hebdomadaire avec les films et séries ajoutés à Plex, leur affiche et leur langue, pour les utilisateurs qui l\'ont activée dans leur profil.', icon: Newspaper, keywords: ['lettre', 'newsletter', 'hebdomadaire'] },
+];
 
 const weekdays = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'].map((label, value) => ({ value, label }));
 const hours = Array.from({ length: 24 }, (_, value) => ({ value, label: `${String(value).padStart(2, '0')} h` }));
@@ -161,11 +165,8 @@ const summary = computed(() => {
 });
 </script>
 <style scoped lang="scss">
-@use '@/styles/foundations/breakpoints' as bp;
-
-.notify-rules { display: grid; grid-template-columns: minmax(0, 1fr) minmax(15rem, 19rem); gap: var(--space-4); align-items: start; }
-.notify-summary { position: sticky; top: var(--space-4); padding: var(--space-3) var(--space-4); border-radius: var(--panel-radius); background: var(--surface-2); font-size: var(--fs-sm); line-height: 1.55; }
-.notify-summary p { margin: var(--space-1) 0 0; }
+.notify-summary p { margin: 0 0 var(--space-1); font-size: var(--fs-sm); line-height: 1.55; }
+.newsletter-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .newsletter-when { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .matrix-wrap { overflow-x: auto; }
 .notify-matrix { width: 100%; border-collapse: collapse; }
@@ -181,8 +182,4 @@ const summary = computed(() => {
 .notify-matrix tbody th strong { display: block; }
 .notify-matrix tbody th small { display: block; color: var(--muted); font-size: var(--fs-xs); line-height: 1.4; }
 
-@include bp.until(wide) {
-  .notify-rules { grid-template-columns: minmax(0, 1fr); }
-  .notify-summary { position: static; order: -1; }
-}
 </style>

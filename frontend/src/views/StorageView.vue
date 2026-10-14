@@ -1,41 +1,113 @@
 <template>
-  <AppPage class="storage-page" title="Stockage et transferts" v-model:query="query" :placeholder="tab==='settings'?'Rechercher un stockage…':'Rechercher une tâche…'">
-    <template #tabs><AppSubnav :active="tab==='prepare'?'transfers':tab" :items="tabs" variant="tabs" aria-label="Sections du stockage" @update:active="tab=$event" /></template>
-    <template #tools><UiButton v-if="tab==='settings'" variant="primary" @click="addLocation">Ajouter un stockage</UiButton><UiButton v-else variant="primary" @click="createTask">Nouveau transfert</UiButton></template>
-    <UiFeedback v-if="error" type="error" :message="error" /><UiFeedback v-if="savedMessage" type="success" :message="savedMessage" />
+  <!-- Stockage et transferts : trois vues (transferts, stockages, historique) dans le gabarit de
+       page ; l'ajout ou le nouveau transfert est l'action du contexte, les erreurs et les
+       confirmations passent par des notifications. Les panneaux gardent leur contenu. -->
+  <PageTemplate
+    class="storage-page"
+    title="Stockage et transferts"
+    :tabs="tabs"
+    :active-tab="tab === 'prepare' ? 'transfers' : tab"
+    tabs-label="Sections du stockage"
+    v-model:query="query"
+    :search="{ placeholder: tab === 'settings' ? 'Rechercher un stockage…' : 'Rechercher une tâche…', scope: 'Stockage', kind: 'filter' }"
+  >
+    <template #quick-action>
+      <UiButton v-if="tab === 'settings'" variant="primary" @click="addLocation">Ajouter un stockage</UiButton>
+      <UiButton v-else variant="primary" @click="createTask">Nouveau transfert</UiButton>
+    </template>
     <UiFeedback v-if="previewProgress" type="info" :message="previewProgress" role="status" aria-live="polite" />
     <StoragePreparePanel v-if="tab==='prepare'" v-model="form" :roots="prepareRoots" :accesses="accesses" :locations="locations" :protected-titles="protectedTitles" :editing="Boolean(editingTaskId)" :busy="busy" @save="saveTaskSettings" @unprotect="unprotectTitle" @configure="tab='settings'" @preview="preview" />
 
-    <StorageTaskCatalog v-if="tab==='transfers' || tab==='history'" :jobs="jobs" :locations="locations" :busy="busy" :tab="tab" :query="query" :instances="instances" @command="command" @create="createTask" @edit="prepareTask($event,true)" @relaunch="relaunchTask" @duplicate="prepareTask($event,false)" @verify="verifyTask" @remove="removeTask" />
+    <template v-if="tab === 'transfers' || tab === 'history'">
+      <!-- Une tache : sa fiche, depuis Transferts comme depuis l'Historique. -->
+      <StorageTaskSheet v-if="selectedJob" :job="selectedJob" :ctx="taskCtx" @back="closeTask" @action="(key) => runTaskAction(selectedJob, key)" />
+      <TrackTemplate
+        v-else-if="tab === 'transfers'"
+        :items="trackItems"
+        :recent="recentTasks"
+        :history-to="{ query: { vue: 'history' } }"
+        :loading="loading && !jobs.length"
+        :labels="{ items: 'transferts', empty: 'Aucun transfert en cours', emptyDetail: 'Créez un transfert pour libérer de l’espace sur un stockage.', recent: 'Derniers transferts terminés', history: 'Historique des transferts' }"
+        @action="onTrackAction"
+      />
+      <UnderstandTemplate
+        v-else
+        :events="historyEvents"
+        :detail="historyDetail"
+        :open-key="historyOpen"
+        :outcomes="OUTCOMES"
+        :outcome="historyOutcome"
+        :exportable="false"
+        :loading="loading && !jobs.length"
+        empty-title="Aucun transfert terminé"
+        empty-message="Les transferts terminés ou annulés apparaîtront ici."
+        @update:outcome="historyOutcome = $event"
+        @open="(event) => (historyOpen = event.key)"
+        @close="historyOpen = ''"
+        @action="onHistoryAction"
+      />
+    </template>
 
-    <section v-if="tab === 'settings'" class="storage-card">
-      <UiButton v-if="settingsTab!=='roots'" variant="ghost" @click="settingsTab='roots'">← Stockages</UiButton>
-      <StorageConnectionPanel v-if="settingsTab==='connections'" :connections="connections" :locations="locations" :accesses="accesses" @changed="load()" />
-      <StorageInventoryPanel v-if="settingsTab==='inventory'" />
-      <template v-if="settingsTab==='roots'">
-      <StorageSettingsList :locations="locations" :accesses="accesses" :connections="connections" :query="query" @edit="configureLocation" @connections="settingsTab='connections'" @inventory="settingsTab='inventory'" />
-      <details><summary>Découvrir et associer d’autres dossiers</summary>
-      <StorageRootTable :connections="connections" :accesses="accesses" :binding-drafts="bindingDrafts" @binding="(key,value)=>bindingDrafts[key]=value" :progress="scanProgress" :saved-pairs="savedPairs" :dirty-count="dirtyRows.length" v-model:pairs="rootPairs" :root-rows="rootRows" :busy="busy" @save="saveRoots" />
+    <template v-if="tab === 'settings'">
+      <ManageTemplate
+        v-if="settingsTab === 'roots'"
+        label="Stockages"
+        :rows="filteredLocations"
+        :columns="LOCATION_COLUMNS"
+        :row-key="(row: any) => row.id"
+        :row-label="(row: any) => row.name"
+        :loading="loading && !locations.length"
+        :labels="{ singular: 'stockage sélectionné', plural: 'stockages sélectionnés', empty: 'Aucun stockage', global: 'Actions sur les stockages' }"
+        :row-actions="LOCATION_ROW_ACTIONS"
+        :global-actions="LOCATION_GLOBAL_ACTIONS"
+        openable
+        @open="configureLocation"
+        @action="onLocationAction"
+      >
+        <template #cell-name="{ row }"><strong>{{ row.name }}</strong><small>{{ row.mappings?.length || 0 }} dossier(s) associé(s)</small></template>
+        <template #cell-capacity="{ row }">
+          <strong>{{ bytesLabel(row.free_bytes) }} libres</strong><small>sur {{ bytesLabel(row.total_bytes) }} · {{ row.checked_at ? 'dernier contrôle' : 'capacité à confirmer' }}</small>
+          <UiProgress v-if="row.total_bytes && row.free_bytes != null" :value="(row.total_bytes - row.free_bytes) / row.total_bytes * 100" :label="`Espace utilisé de ${row.name}`" />
+        </template>
+        <template #cell-access="{ row }"><span>{{ connectionNames(row, accesses, connections) }}</span><small>{{ row.virtual ? 'À configurer' : 'Contrôle des accès à l’aperçu' }}</small></template>
+      </ManageTemplate>
+      <section v-else class="storage-card">
+        <UiButton variant="ghost" @click="settingsTab = 'roots'">← Stockages</UiButton>
+        <StorageConnectionPanel v-if="settingsTab === 'connections'" :connections="connections" :locations="locations" :accesses="accesses" @changed="load()" />
+        <StorageInventoryPanel v-if="settingsTab === 'inventory'" />
+      </section>
+      <details v-if="settingsTab === 'roots'" class="storage-card"><summary>Découvrir et associer d’autres dossiers</summary>
+        <StorageRootTable :connections="connections" :accesses="accesses" :binding-drafts="bindingDrafts" @binding="(key,value)=>bindingDrafts[key]=value" :progress="scanProgress" :saved-pairs="savedPairs" :dirty-count="dirtyRows.length" v-model:pairs="rootPairs" :root-rows="rootRows" :busy="busy" @save="saveRoots" />
       </details>
       <StorageAssociationDialog v-model="locationForm" :open="locationDialog" :error="error" :busy="busy" :edit-id="editId" :instances="instances" :roots="discoveredRoots" :total-bytes="locations.find(l=>l.id===editId)?.total_bytes" @save="saveLocation" @close="resetLocation();locationDialog=false"><template #connections><h3>Connexion au serveur</h3><StorageRootAccess v-for="mapping in locationForm.mappings" :key="mapping.arr_instance_id+mapping.arr_root" :row="{...mapping,instance:instances.find(i=>i.id===mapping.arr_instance_id)?.name}" :connections="connections" :busy="busy" :binding="bindingDrafts[mapping.arr_instance_id+':'+mapping.arr_root] || bindingFor(mapping)" :dirty="Boolean(bindingDrafts[mapping.arr_instance_id+':'+mapping.arr_root])" :validated="false" @change="bindingDrafts[mapping.arr_instance_id+':'+mapping.arr_root]=$event" /><UiButton variant="ghost" @click="locationDialog=false;settingsTab='connections'">Gérer les connexions</UiButton></template></StorageAssociationDialog>
-      </template>
-    </section>
+    </template>
 
     <ModalShell v-if="previewOpening && !plan" :open="true" title="Aperçu des déplacements" :busy="busy" :error="error" @close="previewOpening=false">
       <p v-if="busy" role="status"><span class="preview-spinner" aria-hidden="true" /> {{ previewProgress || 'Préparation de l’aperçu…' }}</p>
       <UiButton v-if="!busy && error" @click="previewOpening=false;tab='prepare'">Modifier les réglages</UiButton>
     </ModalShell>
     <StoragePreviewDialog v-if="plan" v-model="selected" :plan="plan" :busy="busy" :error="error" :gb="gb" @close="plan=null;previewOpening=false" @launch="launch(true)" @save="launch(false)"  @protect="protectTitle"/>
-  </AppPage>
+  </PageTemplate>
+  <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
 </template>
 
 <script setup lang="ts">
 import {readCache, writeCache} from '@/cache';
-import AppSubnav from '@/components/ui/AppSubnav.vue';
+import PageTemplate from '@/components/templates/PageTemplate.vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useToast } from '@/composables/useToast';
 import {newAssociationMapping, rootMapping as mappingFromPair, suggestedPlex} from '@/components/storage/storageAssociations';
 import {useStorageTelemetry} from '@/components/storage/useStorageTelemetry';
-import StorageSettingsList from '@/components/storage/StorageSettingsList.vue';
-import StorageTaskCatalog from '@/components/storage/StorageTaskCatalog.vue';
+import ConfirmModal from '@/components/ConfirmModal.vue';
+import ManageTemplate from '@/components/templates/ManageTemplate.vue';
+import TrackTemplate from '@/components/templates/TrackTemplate.vue';
+import UnderstandTemplate from '@/components/templates/UnderstandTemplate.vue';
+import type { TrackItem } from '@/components/templates/track/types';
+import UiProgress from '@/components/ui/UiProgress.vue';
+import StorageTaskSheet from '@/components/storage/StorageTaskSheet.vue';
+import { LOCATION_COLUMNS, LOCATION_GLOBAL_ACTIONS, LOCATION_ROW_ACTIONS, bytesLabel, connectionNames } from '@/components/storage/storageDefinitions';
+import { isTerminal, taskDetail, taskEvent, taskName, taskRecent, taskTrackItem, type TaskContext } from '@/storage/storageTasks';
+import { useConfirm } from '@/composables/useConfirm';
 import StorageRootAccess from '@/components/storage/StorageRootAccess.vue';
 import StoragePreviewDialog from '@/components/storage/StoragePreviewDialog.vue';
 import StorageConnectionPanel from '@/components/storage/StorageConnectionPanel.vue';
@@ -54,9 +126,17 @@ import UiButton from '@/components/ui/UiButton.vue';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 const query=ref('');
-const tabs=[{key:'transfers',label:'Transferts'},{key:'settings',label:'Stockages'},{key:'history',label:'Historique'}];
+const route=useRoute(),router=useRouter(),toast=useToast();
+/* La vue est dans l'adresse (?vue=) : partageable, retrouvee au retour. `prepare` (la fenetre de
+   preparation d'un transfert) reste un etat local, rattache a « Transferts ». */
+const VIEWS=['transfers','settings','history'];
+const prepareOpen=ref(false);
+/* Changer de vue quitte la fiche d'une tache ouverte (`tache`). */
+const withoutTask=()=>{const {tache:_task,...rest}=route.query;return rest;};
+const tabs=computed(()=>[{key:'transfers',label:'Transferts'},{key:'settings',label:'Stockages'},{key:'history',label:'Historique'}].map(item=>({...item,to:{path:route.path,query:{...withoutTask(),vue:item.key}}})));
 const settingsTab=ref('roots');
-const tab=ref('transfers'),locations=ref<any[]>([]),jobs=ref<any[]>([]),instances=ref<any[]>([]),discoveredRoots=ref<any[]>([]),loading=ref(false),busy=ref(false),error=ref(''),plan=ref<any>(null),selected=ref<string[]>([]),editId=ref<number|null>(null);
+const tab=computed<string>({get:()=>prepareOpen.value?'prepare':(VIEWS.includes(String(route.query.vue))?String(route.query.vue):'transfers'),set:(value)=>{if(value==='prepare'){prepareOpen.value=true;return;}prepareOpen.value=false;void router.replace({query:{...withoutTask(),vue:value}});}});
+const locations=ref<any[]>([]),jobs=ref<any[]>([]),instances=ref<any[]>([]),discoveredRoots=ref<any[]>([]),loading=ref(false),busy=ref(false),error=ref(''),plan=ref<any>(null),selected=ref<string[]>([]),editId=ref<number|null>(null);
 const rootsLoading=ref(false);
 const rootPairs=ref<Record<string,string>>({});
 const locationDialog=ref(false),savedMessage=ref('');
@@ -132,7 +212,7 @@ const form=ref(freshForm());
 
 const newMapping=()=>newAssociationMapping(instances.value[0]?.id||0);
 const locationForm=ref({name:'',mount_path:'',reserve_gb:0,reserve_percent:null as number|null,enabled:true,mappings:[newMapping()]});
-const {gb}=useStorageTelemetry(locations,jobs,tab,plan,selected);
+const {gb,date,locationName,status}=useStorageTelemetry(locations,jobs,tab,plan,selected);
 useStorageLiveTelemetry(jobs,loading);
 /* Dernier etat connu : la page s'affiche aussitot, le serveur la met a jour derriere. */
 const STORAGE_CACHE_KEY='storage-overview';
@@ -140,6 +220,9 @@ const STORAGE_CACHE_KEY='storage-overview';
 async function load(silent=false){if(loading.value)return;loading.value=true;try{const [nextLocations,nextJobs,nextAccesses,nextConnections,nextInstances]=await Promise.all([api<any[]>('/api/storage/locations'),api<any[]>('/api/storage/transfers'),api<any[]>('/api/storage/accesses'),api<any[]>('/api/storage/connections'),api<any[]>('/api/storage/instances')]);if(JSON.stringify(connections.value)!==JSON.stringify(nextConnections))connections.value=nextConnections;if(JSON.stringify(accesses.value)!==JSON.stringify(nextAccesses))accesses.value=nextAccesses;if(JSON.stringify(instances.value)!==JSON.stringify(nextInstances))instances.value=nextInstances;if(JSON.stringify(locations.value)!==JSON.stringify(nextLocations))locations.value=nextLocations;if(JSON.stringify(jobs.value)!==JSON.stringify(nextJobs))jobs.value=nextJobs;writeCache(STORAGE_CACHE_KEY,{locations:nextLocations,jobs:nextJobs,accesses:nextAccesses,connections:nextConnections,instances:nextInstances});}catch(e:any){if(!silent)error.value=e.message;}finally{loading.value=false;}}
 async function act(fn:()=>Promise<void>){busy.value=true;error.value='';try{await fn();}catch(e:any){error.value=e.message;}finally{busy.value=false;previewProgress.value="";}}
 const previewProgress=ref('');
+/* Hors d'une fenetre (qui montre elle-meme l'erreur), les echecs et confirmations passent par des notifications. */
+watch(error,(value)=>{if(value&&!plan.value&&!previewOpening.value&&!locationDialog.value)toast.error('Stockage',value);});
+watch(savedMessage,(value)=>{if(value){toast.success(value);savedMessage.value='';}});
 const previewOpening=ref(false);
 const preview=()=>act(async()=>{
  await loadProtections();
@@ -173,6 +256,53 @@ async function relaunchTask(job:any){
 async function verifyTask(job:any){prepareTask(job,true);await preview();}
 const removeTask=(id:number)=>act(async()=>{const result:any=await api(`/api/storage/transfers/${id}`,{method:'DELETE'});savedMessage.value=result.deletion_pending?'Suppression demandée : annulation et nettoyage en cours.':'Tâche supprimée.';await load();});
 const command=(id:number,action:string)=>act(async()=>{await api(`/api/storage/transfers/${id}/command`,{method:'POST',body:JSON.stringify({action})});await load();});
+/* Taches de transfert : Transferts (Suivre), Historique (Comprendre) et la fiche d'une tache (`?tache=`). */
+const taskCtx:TaskContext={locationName,status,gb,date,instanceName:(job:any)=>instances.value.find((i:any)=>i.id===job.params?.arr_instance_id)?.name||`Instance ${job.params?.arr_instance_id||'non précisée'}`,taskTo:(id:number)=>({query:{...route.query,vue:tab.value==='history'?'history':'transfers',tache:String(id)}})};
+const OUTCOMES=[{value:'all',label:'Toutes'},{value:'completed',label:'Terminées'},{value:'cancelled',label:'Annulées'}];
+const historyOpen=ref(''),historyOutcome=ref('all');
+const needle=computed(()=>query.value.trim().toLowerCase());
+const named=(job:any)=>taskName(job).toLowerCase().includes(needle.value);
+const trackItems=computed(()=>jobs.value.filter(job=>!isTerminal(job)&&named(job)).map(job=>taskTrackItem(job,taskCtx,busy.value)));
+const finishedJobs=computed(()=>jobs.value.filter(job=>isTerminal(job)&&named(job)));
+const recentTasks=computed(()=>finishedJobs.value.slice().sort((a,b)=>String(b.updated_at).localeCompare(String(a.updated_at))).slice(0,5).map(job=>taskRecent(job,taskCtx)));
+const historyEvents=computed(()=>finishedJobs.value.filter(job=>historyOutcome.value==='all'||job.status===historyOutcome.value).map(job=>taskEvent(job,taskCtx)));
+const historyJob=computed(()=>jobs.value.find(job=>String(job.id)===historyOpen.value));
+const historyDetail=computed(()=>historyJob.value?taskDetail(historyJob.value,taskCtx):null);
+const selectedJob=computed(()=>jobs.value.find(job=>String(job.id)===String(route.query.tache)));
+const filteredLocations=computed(()=>locations.value.filter(l=>(l.name||`Stockage ${l.id}`).toLowerCase().includes(needle.value)));
+const {dialog:confirmDialog,askConfirm,resolveConfirm}=useConfirm();
+function closeTask(){void router.replace({query:withoutTask()});}
+async function confirmRemove(job:any){
+ const draft=job.status==='draft',live=!isTerminal(job)&&!draft;
+ const ok=await askConfirm({title:draft?'Supprimer le brouillon ?':'Supprimer la tâche ?',message:`Cette tâche et son historique seront supprimés. Les originaux et les copies complètes seront conservés.${draft?' Aucun fichier média ne sera déplacé ou supprimé.':''}${live?' La tâche sera d’abord annulée et ses fichiers temporaires nettoyés ; sa suppression attendra la fin de cette opération, y compris d’une commande Arr déjà lancée.':''}`,confirmLabel:draft?'Supprimer le brouillon':live?'Annuler et supprimer':'Supprimer la tâche',danger:true});
+ if(!ok)return;
+ await removeTask(job.id);
+ if(String(route.query.tache)===String(job.id))closeTask();
+ if(historyOpen.value===String(job.id))historyOpen.value='';
+}
+async function confirmCancel(job:any){
+ const arr=job.params?.transfer_mode==='arr';
+ const ok=await askConfirm({title:'Annuler cette tâche ?',message:`Les prochains titres ne seront pas transférés. Les fichiers partiels seront nettoyés après l’arrêt de la copie. Les copies complètes, les originaux non transférés et les deux emplacements Plex restent conservés. Avec rsync, une série incomplète garde sa racine Arr d’origine.${arr?' Une commande Sonarr / Radarr déjà lancée peut continuer : l’annulation attend sa fin et ne revient pas sur son déplacement.':''}`,confirmLabel:'Annuler et nettoyer',danger:true});
+ if(ok)await command(job.id,'cancel');
+}
+function runTaskAction(job:any,key:string){
+ if(!job)return;
+ if(['pause','resume','retry'].includes(key))return command(job.id,key);
+ if(key==='retry-items')return command(job.id,'retry');
+ if(key==='verify')return verifyTask(job);
+ if(key==='cancel')return confirmCancel(job);
+ if(key==='remove')return confirmRemove(job);
+ if(key==='edit')return prepareTask(job,true);
+ if(key==='duplicate')return prepareTask(job,false);
+ if(key==='relaunch')return relaunchTask(job);
+}
+const onTrackAction=(item:TrackItem,key:string)=>runTaskAction(jobs.value.find(job=>String(job.id)===item.key),key);
+const onHistoryAction=(key:string)=>runTaskAction(historyJob.value,key);
+function onLocationAction(key:string,rows:any[]){
+ if(key==='configure'&&rows[0])return configureLocation(rows[0]);
+ if(key==='connections')settingsTab.value='connections';
+ if(key==='inventory')settingsTab.value='inventory';
+}
 function resetLocation(){editId.value=null;locationForm.value={name:'',mount_path:'',reserve_gb:0,reserve_percent:null as number|null,enabled:true,mappings:[newMapping()]};}
 function editLocation(l:any,open=true){locationDialog.value=open;editId.value=l.id;locationForm.value={name:l.name,mount_path:l.mount_path,reserve_gb:l.reserve_bytes/1e9,reserve_percent:l.reserve_percent??null,enabled:l.enabled,mappings:l.mappings.map((mapping:any)=>({...mapping}))};}
 async function persistLocation(){await api('/api/storage/locations'+(editId.value?`/${editId.value}`:''),{method:editId.value?'PUT':'POST',body:JSON.stringify(locationForm.value)});resetLocation();locationDialog.value=false;savedMessage.value='Correspondance enregistrée. Aucun transfert lancé.';await load();}

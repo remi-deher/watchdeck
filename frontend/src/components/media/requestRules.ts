@@ -6,7 +6,7 @@ import { parseApiDate } from '@/utils/format';
  * État de notification d'un co-demandeur pour l'évènement courant.
  * @returns `true` notifié, `false` pas encore, `null` rien à notifier.
  */
-export function notifiedStatus(row: any, uid: string | number): boolean | null {
+function notifiedStatus(row: any, uid: string | number): boolean | null {
   const notified = row.requester_notifications?.[uid];
   if (!notified) return null;
   return row.status === 'available' ? notified.available : notified.request;
@@ -83,7 +83,7 @@ export function shortDate(value?: string | null, now: Date = new Date()): string
 }
 
 /** Date de la demande : le champ direct s'il existe, sinon l'étape « requested » du parcours. */
-export function requestedAt(row: any): string | null {
+function requestedAt(row: any): string | null {
   return (
     row?.requested_at ||
     (row?.workflow_timeline || []).find((step: any) => step.key === 'requested')?.occurred_at ||

@@ -100,7 +100,7 @@ export interface ReleaseTitlesSummary {
   sources: string[];
 }
 
-export function summarizeReleaseTitles(titles: string[] = []): ReleaseTitlesSummary {
+function summarizeReleaseTitles(titles: string[] = []): ReleaseTitlesSummary {
   const parsed = titles.map((t) => parseReleaseTitle(t));
   const best = parsed.reduce((current, item) => (
     item.resolutionRank > current.resolutionRank ? item : current

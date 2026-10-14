@@ -4,7 +4,8 @@ import MediaRowsTable from './MediaRowsTable.vue';
 import AnalyticsItemDetail from './AnalyticsItemDetail.vue';
 
 const push = vi.fn();
-vi.mock('vue-router', () => ({
+vi.mock('vue-router', async (importOriginal) => ({
+  ...(await importOriginal()),
   useRoute: () => ({ fullPath: '/analytics?tab=table' }),
   useRouter: () => ({
     push,
@@ -13,6 +14,19 @@ vi.mock('vue-router', () => ({
   }),
 }));
 
+/* L'en-tete et les onglets sont ceux du gabarit Fiche (templates.spec.js) : ici on lit ce que la fiche lui
+   confie et on montre toutes les parties d'un coup. */
+const stubs = {
+  DetailTemplate: {
+    props: ['title', 'meta', 'badges', 'actions', 'facts'],
+    emits: ['action'],
+    template: `<article><h1>{{ title }}</h1><p>{{ (meta || []).join(' · ') }}</p><ul><li v-for="b in badges" :key="b.key">{{ b.label }}</li></ul>
+      <dl><div v-for="f in facts" :key="f.label"><dt>{{ f.label }}</dt><dd>{{ f.value }}</dd></div></dl>
+      <button v-for="a in actions" :key="a.key" type="button" :data-action="a.key" @click="$emit('action', a.key)">{{ a.label }}</button>
+      <slot name="tab-file" /><slot name="tab-tracks" /><slot name="tab-views" /></article>`,
+  },
+  RouterLink: { template: '<a><slot /></a>' },
+};
 const items = [
   {
     rating_key: '1', title: 'Épisode 1', grandparent_title: 'Foundation', media_type: 'episode',
@@ -55,7 +69,7 @@ describe('MediaRowsTable', () => {
   });
 
   it('la fiche detaille le media, le fichier et son audience', () => {
-    const wrapper = mount(AnalyticsItemDetail, { props: { item: items[0] } });
+    const wrapper = mount(AnalyticsItemDetail, { props: { item: items[0] }, global: { stubs } });
     expect(wrapper.text()).toContain('Apple');
     expect(wrapper.text()).toContain('Rémi');
     expect(wrapper.text()).toContain('MKV');
@@ -70,7 +84,7 @@ describe('MediaRowsTable', () => {
       subtitles: [{ language: 'English', codec: 'srt', forced: true, external: true }],
       library_item_id: null,
     };
-    const wrapper = mount(AnalyticsItemDetail, { props: { item: items[0], technical } });
+    const wrapper = mount(AnalyticsItemDetail, { props: { item: items[0], technical }, global: { stubs } });
     const text = wrapper.text();
     expect(text).toContain('3840 × 2160 (4K)');
     expect(text).toContain('HDR10');
@@ -88,7 +102,7 @@ describe('MediaRowsTable', () => {
         { user: 'Léa', at: '2026-09-20T20:00:00', watched_ms: 3_600_000 },
       ],
     };
-    const wrapper = mount(AnalyticsItemDetail, { props: { item }, global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } } });
+    const wrapper = mount(AnalyticsItemDetail, { props: { item }, global: { stubs } });
     expect(wrapper.text()).toContain('75 %');
     expect(wrapper.text()).toContain('100 %');
     expect(wrapper.text()).toContain('Salon · tvOS');
@@ -99,8 +113,8 @@ describe('MediaRowsTable', () => {
   });
 
   it("l'affiche ouvre la fiche du media quand la bibliotheque le connait", async () => {
-    const wrapper = mount(AnalyticsItemDetail, { props: { item: items[0], technical: { library_item_id: 7 } } });
-    await wrapper.find('button.item-poster').trigger('click');
+    const wrapper = mount(AnalyticsItemDetail, { props: { item: items[0], technical: { library_item_id: 7 } }, global: { stubs } });
+    await wrapper.find('[data-action="open-media"]').trigger('click');
     expect(push.mock.calls.at(-1)[0].path).toBe('/library/media/library/7');
   });
 

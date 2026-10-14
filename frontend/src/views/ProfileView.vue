@@ -1,70 +1,71 @@
 <template>
-  <AppPage hide-search title="Profil" :error="error" :success="message" @dismiss-success="message = ''">
-    <!-- En-tete : qui je suis, puis mes chiffres. Les onglets viennent dessous. -->
-    <header class="profile-hero">
-      <UiAvatar class="profile-hero__avatar" :person="account" tone="accent" size="lg" />
-      <div class="profile-hero__text">
-        <h2>Bonjour {{ firstName }}</h2>
-        <p>{{ heroLine }}</p>
-      </div>
-    </header>
+  <!-- Profil (gabarit Fiche) : tout sur mon compte. L'identité et mes chiffres en tête, la
+       lacune de sécurité la plus importante en alerte, puis mes dernières demandes, la
+       sécurité, les notifications et l'appareil en onglets. -->
+  <PageTemplate title="Profil" :state="meQuery.error.value ? 'error' : 'ready'" :error="meQuery.error.value?.message || ''" @retry="meQuery.refetch()">
+    <DetailTemplate
+      variant="card"
+      eyebrow="Mon compte"
+      :title="name"
+      :icon="UserRound"
+      :poster="account?.avatar_url || null"
+      :meta="heroMeta"
+      :badges="badges"
+      :actions="hasAccount ? [{ key: 'requests', label: 'Mes demandes', to: '/discover/requests' }] : []"
+      :alert="alert"
+      :tabs="tabItems"
+      :tab="tab"
+      :facts="facts"
+      @update:tab="tab = $event as Tab"
+    >
+      <template #tab-overview>
+        <section class="profile-panel" aria-label="Aperçu">
+          <div class="profile-section-head">
+            <h3>Mes dernières demandes</h3>
+            <RouterLink to="/discover/requests">Tout voir</RouterLink>
+          </div>
+          <UiEmptyState v-if="account && !recent.length" title="Aucune demande pour l’instant" description="Les titres que vous demandez depuis Explorer apparaîtront ici." compact />
+          <ul v-else class="profile-requests">
+            <li v-for="item in recent" :key="item.id">
+              <RouterLink :to="mediaDetailPath({ request_id: item.id }, 'request', { discover: true })" class="profile-request">
+                <MediaPoster :poster-url="item.poster_url" :alt="''" sizes="(max-width: 640px) 30vw, 160px" />
+                <strong>{{ item.title }}</strong>
+                <span class="profile-request__status" :class="statusTone(item.status)">{{ requestStatusLabel(item.status) }}</span>
+              </RouterLink>
+            </li>
+          </ul>
+        </section>
+      </template>
 
-    <MetricGrid v-if="account" class="profile-metrics" grid-class="profile-metrics-grid" aria-label="Mes chiffres">
-      <MetricCard label="Mes demandes" :value="stats.total" :detail="lastRequestDetail" :loading="loading" to="/discover/requests" />
-      <MetricCard label="Disponibles" :value="stats.available + stats.partially_available" :detail="availableDetail" :loading="loading" card-class="profile-metric--ok" />
-      <MetricCard label="En cours" :value="inProgress" :detail="pendingApprovalDetail" :loading="loading" />
-      <MetricCard label="Protection du compte" :value="`${score.done}/${score.total}`" :detail="gap ? gapShort : 'Tout est en place'" :loading="loading" :card-class="gap ? 'profile-metric--todo' : 'profile-metric--ok'" />
-    </MetricGrid>
+      <template #tab-security>
+        <section class="profile-panel" aria-label="Sécurité">
+          <ProfileSecurityTab v-if="account" :account="account" @notify="notify" />
+        </section>
+      </template>
 
-    <AppSubnav v-model:active="tab" class="profile-tabs" variant="tabs" :items="tabItems" aria-label="Sections du profil" />
+      <template #tab-notifications>
+        <section class="profile-panel" aria-label="Notifications">
+          <ProfileNotificationsTab v-if="account" :preferences="account.preferences" :plex-email="account.plex_email" @notify="notify" @error="fail" />
+        </section>
+      </template>
 
-    <section v-if="tab === 'overview'" class="profile-panel" aria-label="Aperçu">
-      <div v-if="gap" class="profile-todo">
-        <span class="profile-todo__mark" aria-hidden="true">!</span>
-        <p><strong>{{ gap.key === 'totp' ? 'Activez la double authentification.' : 'Ajoutez une passkey.' }}</strong> {{ gap.detail }}</p>
-        <UiButton variant="primary" @click="tab = 'security'">{{ gap.key === 'totp' ? 'Activer' : 'Ajouter' }}</UiButton>
-      </div>
-
-      <div class="profile-section-head">
-        <h3>Mes dernières demandes</h3>
-        <RouterLink to="/discover/requests">Tout voir</RouterLink>
-      </div>
-      <UiEmptyState v-if="account && !recent.length" title="Aucune demande pour l’instant" description="Les titres que vous demandez depuis Explorer apparaîtront ici." compact />
-      <ul v-else class="profile-requests">
-        <li v-for="item in recent" :key="item.id">
-          <RouterLink :to="mediaDetailPath({ request_id: item.id }, 'request', { discover: true })" class="profile-request">
-            <MediaPoster :poster-url="item.poster_url" :alt="''" sizes="(max-width: 640px) 30vw, 160px" />
-            <strong>{{ item.title }}</strong>
-            <span class="profile-request__status" :class="statusTone(item.status)">{{ requestStatusLabel(item.status) }}</span>
-          </RouterLink>
-        </li>
-      </ul>
-    </section>
-
-    <section v-else-if="tab === 'security'" class="profile-panel" aria-label="Sécurité">
-      <ProfileSecurityTab v-if="account" :account="account" @notify="notify" />
-    </section>
-
-    <section v-else-if="tab === 'notifications'" class="profile-panel" aria-label="Notifications">
-      <ProfileNotificationsTab v-if="account" :preferences="account.preferences" :plex-email="account.plex_email" @notify="notify" @error="actionError = $event" />
-    </section>
-
-    <section v-else class="profile-panel" aria-label="Compte et appareil">
-      <ProfileAccountTab :account="account" />
-    </section>
-  </AppPage>
+      <template #tab-account>
+        <section class="profile-panel" aria-label="Compte et appareil">
+          <ProfileAccountTab :account="account" />
+        </section>
+      </template>
+    </DetailTemplate>
+  </PageTemplate>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { api } from '@/api';
-import AppPage from '@/components/ui/AppPage.vue';
-import AppSubnav from '@/components/ui/AppSubnav.vue';
-import MetricCard from '@/components/ui/MetricCard.vue';
-import MetricGrid from '@/components/ui/MetricGrid.vue';
-import UiAvatar from '@/components/ui/UiAvatar.vue';
-import UiButton from '@/components/ui/UiButton.vue';
+import { UserRound } from '@lucide/vue';
+import PageTemplate from '@/components/templates/PageTemplate.vue';
+import DetailTemplate from '@/components/templates/DetailTemplate.vue';
+import { useToast } from '@/composables/useToast';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import MediaPoster from '@/components/media/MediaPoster.vue';
 import ProfileAccountTab from '@/components/profile/ProfileAccountTab.vue';
@@ -107,7 +108,6 @@ const meQuery = useQuery({
   enabled: hasAccount,
 });
 const account = computed(() => meQuery.data.value || null);
-const loading = computed(() => meQuery.isPending.value && hasAccount.value);
 
 // La session arrive apres le premier rendu : l'onglet par defaut suit son chargement,
 // tant que la personne n'en a pas choisi un elle-meme.
@@ -117,19 +117,18 @@ const tab = computed<Tab>({
   set: (value) => { chosenTab.value = value; },
 });
 
-const actionError = ref('');
-const message = ref('');
-const error = computed(() => actionError.value || meQuery.error.value?.message || '');
-function notify(text: string) { message.value = text; actionError.value = ''; }
+/* Reussites et echecs passent par des notifications, pas par un bandeau. */
+const toast = useToast();
+function notify(text: string) { toast.success(text); }
+function fail(text: string) { toast.error('Action impossible', text); }
 
 const name = computed(() => account.value?.display_name || session.value?.username || 'Compte');
-const firstName = computed(() => name.value.split(/\s+/)[0]);
-const heroLine = computed(() => {
+const heroMeta = computed(() => {
   const parts = [roleLabel(account.value?.role || session.value?.role)];
   if (account.value?.created_at) parts.push(`membre depuis ${formatDateLong(account.value.created_at).replace(/^\d+\s/, '')}`);
   if (account.value) parts.push(account.value.source === 'local' ? 'compte local' : 'connecté avec Plex');
   if (account.value?.last_login_at) parts.push(`dernière connexion ${formatRelativeDate(account.value.last_login_at).toLowerCase()}`);
-  return parts.join(' · ');
+  return parts;
 });
 
 const stats = computed(() => {
@@ -154,7 +153,6 @@ const pendingApprovalDetail = computed(() => (stats.value.pending_approval
 const checks = computed(() => securityChecks(account.value));
 const score = computed(() => securityScore(checks.value));
 const gap = computed(() => firstSecurityGap(checks.value));
-const gapShort = computed(() => (gap.value?.key === 'totp' ? '2FA à activer' : 'passkey conseillée'));
 
 const recent = computed(() => (account.value?.recent_requests || []).slice(0, 6));
 function statusTone(status: string): string {
@@ -162,6 +160,20 @@ function statusTone(status: string): string {
   if (status === 'failed' || status === 'rejected') return 'is-ko';
   return 'is-wait';
 }
+
+const badges = computed(() => [
+  { key: 'role', label: roleLabel(account.value?.role || session.value?.role), tone: 'info' as const },
+  ...(account.value ? [{ key: 'protection', label: `Protection ${score.value.done}/${score.value.total}`, tone: gap.value ? 'warning' as const : 'success' as const }] : []),
+]);
+const facts = computed(() => (account.value ? [
+  { label: 'Mes demandes', value: `${stats.value.total} · ${lastRequestDetail.value}` },
+  { label: 'Disponibles', value: `${stats.value.available + stats.value.partially_available}${availableDetail.value ? ` (${availableDetail.value})` : ''}` },
+  { label: 'En cours', value: `${inProgress.value} · ${pendingApprovalDetail.value}` },
+] : []));
+/* La lacune de securite la plus importante : une seule alerte, avec ou la traiter. */
+const alert = computed(() => (gap.value
+  ? { tone: 'warning' as const, message: `${gap.value.key === 'totp' ? 'Activez la double authentification.' : 'Ajoutez une passkey.'} ${gap.value.detail}`, link: { label: gap.value.key === 'totp' ? 'Activer' : 'Ajouter', tab: 'security' } }
+  : null));
 
 const tabItems = computed(() => {
   const todo = checks.value.filter((c) => !c.ok).length;
@@ -181,57 +193,7 @@ const tabItems = computed(() => {
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
 
-.profile-hero {
-  display: flex;
-  align-items: center;
-  gap: var(--space-5);
-  padding: var(--space-5);
-  border: 1px solid var(--border);
-  border-radius: var(--panel-radius);
-  background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--accent) 14%, var(--surface)) 0%, var(--surface) 60%);
-}
-
-.profile-hero .profile-hero__avatar {
-  width: 72px;
-  height: 72px;
-  font-family: var(--font-display);
-  font-size: var(--fs-2xl);
-}
-
-.profile-hero__text { min-width: 0; }
-.profile-hero h2 { margin: 0; font-family: var(--font-display); font-size: var(--fs-2xl); }
-.profile-hero p { margin: 4px 0 0; color: var(--muted); font-size: var(--fs-sm); }
-
-.profile-metrics { margin-top: var(--space-4); }
-.profile-metrics :deep(.profile-metric--ok strong) { color: var(--green-text, var(--green)); }
-.profile-metrics :deep(.profile-metric--todo strong) { color: var(--accent); }
-
-.profile-tabs { margin-top: var(--space-5); }
 .profile-panel { padding-top: var(--space-4); }
-
-.profile-todo {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-bottom: var(--space-5);
-  padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
-  font-size: var(--fs-sm);
-}
-.profile-todo p { margin: 0; flex: 1; color: var(--text); line-height: 1.45; }
-.profile-todo__mark {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--accent);
-  font-weight: 700;
-}
 
 .profile-section-head {
   display: flex;
@@ -268,11 +230,6 @@ const tabItems = computed(() => {
 }
 
 @include bp.until(phablet) {
-  .profile-hero { gap: var(--space-3); padding: var(--space-4); }
-  .profile-hero .profile-hero__avatar { width: 52px; height: 52px; font-size: var(--fs-lg); }
-  .profile-hero h2 { font-size: var(--fs-xl); }
-  .profile-todo { flex-wrap: wrap; }
-  .profile-todo .ui-button { margin-left: 40px; }
   .profile-requests { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
   .profile-requests li:nth-child(n + 4) { display: none; }
 }

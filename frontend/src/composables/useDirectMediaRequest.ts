@@ -1,4 +1,4 @@
-import { isReadonly, ref, type Ref } from 'vue';
+import { isReadonly, ref } from 'vue';
 import { useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
 import { queryKeys } from '@/queryKeys';

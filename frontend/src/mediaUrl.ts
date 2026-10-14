@@ -72,7 +72,7 @@ const PLEX_ANDROID_PACKAGE = 'com.plexapp.android';
 const PLEX_PLAY_STORE_URL = `https://play.google.com/store/apps/details?id=${PLEX_ANDROID_PACKAGE}`;
 const PLEX_APP_STORE_URL = 'https://apps.apple.com/app/plex/id383457673';
 
-export function detectPlatform(): 'android' | 'ios' | 'desktop' {
+function detectPlatform(): 'android' | 'ios' | 'desktop' {
   if (typeof navigator === 'undefined') return 'desktop';
   const ua = navigator.userAgent || '';
   if (/android/i.test(ua)) return 'android';

@@ -1,68 +1,40 @@
 <template>
-  <SettingsItem
-    title="Enrichissement Tracearr"
-    :subtitle="live.status === 'error' ? live.detail : [baseSubtitle, live.detail].filter(Boolean).join(' · ')"
-    :icon="Sparkles"
-    :status="live.status === 'neutral' ? (form.tracearr_enabled ? 'active' : 'inactive') : live.status"
-    :status-text="live.text || (form.tracearr_enabled ? 'Activé' : 'Désactivé')"
-    keywords="url clé api enrichir import lectures"
-    saveable
-  >
-    <template #actions>
-      <ToggleSwitch v-model="form.tracearr_enabled" label="Activer" title="Activer Tracearr"/>
-    </template>
+  <!-- Contenu de la section Tracearr : activation, adresse, cle, test, puis l'enrichissement. -->
+  <ConfigureField label="Activer l’enrichissement" help="Complète les lectures dont Plex n’a pas conservé la décision.">
+    <ToggleSwitch v-model="form.tracearr_enabled" label="Activer Tracearr" />
+  </ConfigureField>
+  <UiField label="URL Tracearr" hint="Adresse de votre instance, sans le chemin d’API : Watchdeck ajoute lui-même /api/v2/public." v-slot="field"><input :id="field.id" v-model.trim="form.tracearr_url" type="url" placeholder="https://tracearr.exemple.net" :aria-describedby="field.describedBy"></UiField>
+  <SecretField v-model="form.tracearr_api_key" label="Clé API" hint="À générer dans Tracearr sous Réglages > Général. Lecture seule, format trr_pub_…" :configured="Boolean(secretsPresent.tracearr_api_key)" />
+  <ConfigureTest :result="shown" :testing="busy" label="Tester Tracearr" @test="testConnection" />
 
-
-    <div class="settings-grid two">
-      <label class="span-two">URL Tracearr
-        <input v-model.trim="form.tracearr_url" type="url" placeholder="https://tracearr.exemple.net">
-        <small>Adresse de votre instance, sans le chemin d’API : Watchdeck ajoute lui-même <code>/api/v2/public</code>.</small>
-      </label>
-      <label class="span-two">Clé API
-        <SecretField v-model="form.tracearr_api_key" label="Clé API" :configured="Boolean(secretsPresent.tracearr_api_key)" />
-        <small>À générer dans Tracearr sous Réglages &gt; Général. Lecture seule, format <code>trr_pub_…</code>.</small>
-      </label>
-    </div>
-
-    <!-- Le « pourquoi » compte autant que le « comment » ici : sans cette explication, on
-         ne comprend pas pourquoi une source tierce répare des chiffres venus de Plex. -->
-    <p class="connection-result">
-      Plex ne conserve la décision de lecture (directe, remux, transcodage) que pendant la session vivante :
-      une lecture terminée avant que Watchdeck ne l’observe reste <strong>inconnue</strong> pour toujours.
-      Tracearr, lui, enregistre chaque session au moment où elle se produit — <strong>y compris celles qui n’ont
-      jamais été terminées</strong>, que l’historique Plex ignore complètement.
-      L’import <strong>ne remplace rien</strong> : il ne remplit que les champs manquants, et signale les désaccords
-      au lieu de les trancher en silence.
-    </p>
-
-    <div class="card-actions">
-      <UiButton :disabled="busy" @click="testConnection"><PlugZap/>Tester</UiButton>
-      <UiSelect v-model="importDays" :options="[{ value: 30, label: '30 derniers jours' }, { value: 90, label: '90 derniers jours' }, { value: 365, label: '1 an' }, { value: 0, label: 'Tout l’historique' }]" />
-      <UiButton :disabled="busy" @click="runImport"><Sparkles/>Enrichir</UiButton>
-    </div>
-
-    <p v-if="status" class="connection-result">{{ status }}</p>
-  </SettingsItem>
+  <!-- Le « pourquoi » compte autant que le « comment » ici : sans cette explication, on
+       ne comprend pas pourquoi une source tierce répare des chiffres venus de Plex. -->
+  <ConfigureField label="Enrichir l’historique" help="Plex ne conserve la décision de lecture (directe, remux, transcodage) que pendant la session vivante : une lecture terminée avant que Watchdeck ne l’observe reste inconnue pour toujours. Tracearr enregistre chaque session au moment où elle se produit, y compris celles qui n’ont jamais été terminées. L’import ne remplace rien : il ne remplit que les champs manquants, et signale les désaccords au lieu de les trancher en silence." stacked>
+    <UiSelect v-model="importDays" aria-label="Période à enrichir" :options="[{ value: 30, label: '30 derniers jours' }, { value: 90, label: '90 derniers jours' }, { value: 365, label: '1 an' }, { value: 0, label: 'Tout l’historique' }]" />
+    <UiButton :disabled="busy" @click="runImport"><Sparkles />Enrichir</UiButton>
+  </ConfigureField>
+  <p v-if="status" class="connection-result" role="status">{{ status }}</p>
 </template>
 
 <script setup lang="ts">
 import UiSelect from '@/components/ui/UiSelect.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { ref, computed } from 'vue';
-import { PlugZap, Sparkles } from '@lucide/vue';
+import { Sparkles } from '@lucide/vue';
 import { api } from '@/api';
 import { form, save, secretsPresent } from '@/settingsForm';
 import SecretField from '@/components/ui/SecretField.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
-import SettingsItem from '../SettingsItem.vue';
-import { useConnectionsStatus } from './connectionsStatus';
+import ConfigureField from '@/components/templates/configure/ConfigureField.vue';
+import ConfigureTest from '@/components/templates/configure/ConfigureTest.vue';
+import UiField from '@/components/ui/UiField.vue';
+import { testResultOf, useConnectionsStatus } from './connectionsStatus';
 
-/* État réel lu par la zone (`useConnectionsStatus`) : la ligne dit ce que le service
-   a répondu, plus seulement s'il est configuré. */
+/* L'état réel lu par la zone (`useConnectionsStatus`) tient lieu de dernier résultat de test. */
 const connections = useConnectionsStatus();
-const live = computed(() => connections.rowFor('tracearr'));
-const baseSubtitle = computed(() => 'Complète les lectures dont Plex n’a pas conservé la décision');
-
+const live = computed(() => testResultOf(connections.rowFor('tracearr')));
+const testResult = ref<{ ok: boolean; message: string } | null>(null);
+const shown = computed(() => testResult.value || live.value);
 
 const busy = ref(false);
 const status = ref('');
@@ -74,9 +46,9 @@ async function testConnection(): Promise<void> {
   try {
     await save();
     const result = await api<{ message: string }>('/api/playback/tracearr/test', { method: 'POST' });
-    status.value = result.message;
+    testResult.value = { ok: true, message: result.message };
   } catch (error: any) {
-    status.value = error.message;
+    testResult.value = { ok: false, message: error.message };
   } finally {
     busy.value = false;
   }
@@ -108,3 +80,7 @@ async function runImport(): Promise<void> {
   }
 }
 </script>
+
+<style scoped>
+.connection-result{margin:0;color:var(--muted);font-size:var(--fs-sm);line-height:1.5}
+</style>

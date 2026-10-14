@@ -1,25 +1,23 @@
 <template>
-  <AppPage
+  <PageTemplate
     :title="pageTitle"
     v-model:query="query"
-    search-scope="Réglages"
-    placeholder="Filtrer les réglages…"
-    search-kind="filter"
-    :match-count="settingsSearch.matched.value"
-    :total-count="settingsSearch.total.value"
+    :search="{ placeholder: 'Filtrer les réglages…', scope: 'Réglages', kind: 'filter' }"
   >
-    <template #actions>
-      <UiButton v-if="formPanels.has(tab)" variant="primary" :loading="saving" @click="save"><template #icon><Save/></template>{{ saving ? 'Enregistrement...' : 'Enregistrer' }}</UiButton>
+    <!-- L'enregistrement des panneaux a formulaire est aussi l'action de la capsule. -->
+    <template v-if="formPanels.has(tab)" #quick-action>
+      <UiButton variant="primary" :loading="saving" @click="save"><template #icon><Save /></template>{{ saving ? 'Enregistrement…' : 'Enregistrer' }}</UiButton>
     </template>
+    <!-- Un panneau declare ses sections et porte lui-meme le gabarit (enregistrement global,
+         garde de sortie) ; les autres, pas encore ecrits ainsi, sont enveloppes ici. -->
+    <component :is="selfConfiguring.has(tab) ? 'div' : ConfigureTemplate" v-bind="selfConfiguring.has(tab) ? {} : { dirty, saving, onSave: save, onCancel: discardChanges }">
     <!-- La colonne de navigation a disparu : ses groupes sont devenus des destinations
          du rail et ses entrees leurs sections. Un seul panneau reste ici, sur toute la
          largeur -- c'est ce qui rend enfin possibles les grilles a deux ou trois
          colonnes des taches planifiees et de la maintenance. -->
     <div class="settings-layout">
       <div class="settings-panel">
-        <UiFeedback v-if="error" type="error" title="Enregistrement impossible" :message="error" />
         <SettingsValidationSummary />
-        <UiFeedback v-if="message" type="success" :message="message" />
 
         <!-- La question n'est plus « comment regler ceci » mais « ou vit ce reglage » :
              le champ retranche les cartes de cette page, et cette liste dit ce qui
@@ -35,20 +33,17 @@
             </li>
           </ul>
         </section>
-        <p v-if="query.trim() && !settingsSearch.matched.value" class="settings-no-match">
-          Aucun réglage de cette page ne correspond à « {{ query.trim() }} ».
-        </p>
 
         <SettingsOverview v-if="tab==='overview'"/>
         <ConnectionsTab v-else-if="tab==='plex'"/>
         <ServicesTab v-else-if="tab==='services'"/>
         <MediaConnectionsTab v-else-if="tab==='media'"/>
         <WebhooksTab v-else-if="tab==='webhooks'"/>
-        <div v-else-if="tab==='download-clients'" class="settings-rows"><ClientsVerdict/><DownloadClientsList/></div>
+        <DownloadClientsTab v-else-if="tab==='download-clients'"/>
         <DownloadsTab v-else-if="tab==='downloads'"/>
         <!-- L'analyse VF de la bibliothèque vivait dans Connexions → Plex : elle décide de ce
              qui doit être amélioré, sa place est avec les améliorations VF. -->
-        <div v-else-if="tab==='vf-upgrades'" class="settings-rows"><VfScanSection/><VfUpgradesSettingsTab/></div>
+        <VfUpgradesSettingsTab v-else-if="tab==='vf-upgrades'" scan/>
         <SubtitleSearchSection v-else-if="tab==='subtitles'"/>
         <ScheduledTasksTab v-else-if="tab==='scheduled-tasks'"/>
         <NotificationsChannelsTab v-else-if="tab==='notifications-channels'"/>
@@ -66,38 +61,37 @@
       </div>
     </div>
 
-    <FormSaveBar v-if="!standaloneTabs.has(tab)" :dirty="isDirty" :saving="saving" @save="save"/>
-    <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
-  </AppPage>
-</template><script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue';
-import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router';
+    </component>
+  </PageTemplate>
+</template>
+<script setup lang="ts">
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { Save } from '@lucide/vue';
 import SettingsOverview from '@/components/settings/SettingsOverview.vue';
-import ConfirmModal from '@/components/ConfirmModal.vue';
-import SettingsValidationSummary from '@/components/settings/SettingsValidationSummary.vue';
-import { useConfirm } from '@/composables/useConfirm';
-import { load, save, saving, error, message, isDirty } from '@/settingsForm';
 import UiButton from '@/components/ui/UiButton.vue';
+import PageTemplate from '@/components/templates/PageTemplate.vue';
+import ConfigureTemplate from '@/components/templates/ConfigureTemplate.vue';
+import SettingsValidationSummary from '@/components/settings/SettingsValidationSummary.vue';
+import { useToast } from '@/composables/useToast';
+import { load, save, saving, error, message, isDirty, discardChanges } from '@/settingsForm';
 import { panelForPath, pathForLegacyTab, type SettingsPanel } from '@/settingsRoutes';
 import { SETTINGS_SEARCH_INDEX } from '@/settingsSearchIndex';
-import { matchesQuery, normalizeSearchText, provideSettingsSearch } from '@/composables/useSettingsSearch';
+import { matchesQuery, normalizeSearchText } from '@/composables/useSettingsSearch';
+import { provideSettingsPage } from '@/composables/useSettingsPage';
 
-const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
 const ConnectionsTab = defineAsyncComponent(() => import('@/components/settings/ConnectionsTab.vue'));
 const ServicesTab = defineAsyncComponent(() => import('@/components/settings/ServicesTab.vue'));
 const WebhooksTab = defineAsyncComponent(() => import('@/components/settings/WebhooksTab.vue'));
 const NotificationsChannelsTab = defineAsyncComponent(() => import('@/components/settings/NotificationsChannelsTab.vue'));
 const NotificationsRulesTab = defineAsyncComponent(() => import('@/components/settings/NotificationsRulesTab.vue'));
 const DownloadsTab = defineAsyncComponent(() => import('@/components/settings/DownloadsTab.vue'));
-const VfScanSection = defineAsyncComponent(() => import('@/components/settings/VfScanSection.vue'));
 const VfUpgradesSettingsTab = defineAsyncComponent(() => import('@/components/settings/VfUpgradesSettingsTab.vue'));
 const SubtitleSearchSection = defineAsyncComponent(() => import('@/components/settings/SubtitleSearchSection.vue'));
-const ClientsVerdict = defineAsyncComponent(() => import('@/components/settings/connections/ClientsVerdict.vue'));
+const DownloadClientsTab = defineAsyncComponent(() => import('@/components/settings/DownloadClientsTab.vue'));
 const MediaConnectionsTab = defineAsyncComponent(() => import('@/components/settings/MediaConnectionsTab.vue'));
 const ScheduledTasksTab = defineAsyncComponent(() => import('@/components/settings/ScheduledTasksTab.vue'));
 const MaintenanceTab = defineAsyncComponent(() => import('@/components/settings/MaintenanceTab.vue'));
-const DownloadClientsList = defineAsyncComponent(() => import('@/components/settings/connections/DownloadClientsList.vue'));
 const RequestsTab = defineAsyncComponent(() => import('@/components/settings/RequestsTab.vue'));
 const NetworkTab = defineAsyncComponent(() => import('@/components/settings/NetworkTab.vue'));
 const EmailTemplatesPanel = defineAsyncComponent(() => import('@/components/EmailTemplatesPanel.vue'));
@@ -113,10 +107,9 @@ const route = useRoute(), router = useRouter();
 const tab = computed(() => panelForPath(route.path));
 
 /* Deux moities de la meme question : le champ retranche les cartes de la page affichee
-   (les cartes se declarent elles-memes, voir `useSettingsSearch`), et l'index dit ou
+   (les sections de ConfigureTemplate), et l'index dit ou
    trouver ce qui correspond ailleurs. */
 const query = ref('');
-const settingsSearch = provideSettingsSearch(query);
 const elsewhere = computed(() => {
   const needle = query.value.trim();
   if (normalizeSearchText(needle).length < 2) return [];
@@ -131,7 +124,7 @@ const elsewhere = computed(() => {
 const standaloneTabs = new Set<SettingsPanel>([
   'templates', 'system-version', 'download-clients', 'maintenance', 'data',
 ]);
-// Ceux dont les champs passent par le bouton Enregistrer de l'en-tete.
+// Ceux dont les champs passent par le bouton Enregistrer de la capsule.
 const formPanels = new Set<SettingsPanel>([
   'plex', 'services', 'media', 'webhooks', 'downloads', 'vf-upgrades', 'subtitles', 'scheduled-tasks',
   'notifications-channels', 'notifications-rules', 'requests', 'network', 'api', 'privacy',
@@ -146,11 +139,17 @@ function ensureSettingsLoaded(value = tab.value): Promise<void> {
   return settingsLoadPromise;
 }
 const pageTitle = computed(() => (tab.value === 'overview' ? 'Administration' : String(route.meta?.title || 'Administration')));
-function warnUnsaved(event: BeforeUnloadEvent): void { if (!isDirty.value) return; event.preventDefault(); event.returnValue = ''; }
-onBeforeRouteLeave(() => !isDirty.value || askConfirm({ title: 'Quitter sans enregistrer ?', message: 'Des modifications ne sont pas enregistrées. Quitter cette page ?', confirmLabel: 'Quitter', danger: true }));
-onBeforeRouteUpdate(() => !isDirty.value || askConfirm({ title: 'Changer de section sans enregistrer ?', message: 'Des modifications ne sont pas enregistrées. Changer de section ?', confirmLabel: 'Continuer', danger: true }));
-onMounted(() => window.addEventListener('beforeunload', warnUnsaved));
-onUnmounted(() => window.removeEventListener('beforeunload', warnUnsaved));
+/* Les panneaux qui n'editent aucun champ du formulaire general n'ont rien a enregistrer ; les autres
+   passent par l'enregistrement global du gabarit (barre, confirmation avant de quitter). */
+const dirty = computed(() => isDirty.value && !standaloneTabs.has(tab.value));
+/* Reussites et echecs de l'enregistrement : un message qui passe, pas un bandeau. */
+const toast = useToast();
+watch(error, (value) => { if (value) toast.error('Enregistrement impossible', value); });
+watch(message, (value) => { if (value) toast.success(value); });
+
+provideSettingsPage({ query, dirty, saving, save, cancel: discardChanges });
+/* Panneaux ecrits en sections declarees (ils portent leur ConfigureTemplate). */
+const selfConfiguring = new Set<SettingsPanel>(['privacy', 'requests', 'network', 'api', 'downloads', 'subtitles', 'webhooks', 'notifications-channels', 'notifications-rules', 'scheduled-tasks', 'data', 'system-version', 'maintenance', 'reasons', 'plex', 'services', 'media', 'download-clients', 'vf-upgrades']);
 
 watch(tab, (value) => ensureSettingsLoaded(value).catch(() => {}));
 onMounted(() => ensureSettingsLoaded().catch(() => {}));

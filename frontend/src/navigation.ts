@@ -75,7 +75,7 @@ export interface NavSection {
  * destinations restent atteignables en entier depuis la feuille de navigation, qui
  * n'en cache aucune.
  */
-export const DOCK_DESTINATION_KEYS = ['dashboard', 'library', 'discover', 'requests'];
+const DOCK_DESTINATION_KEYS = ['dashboard', 'library', 'discover', 'requests'];
 
 /** Une destination de premier niveau, présente dans le rail comme dans le dock. */
 export interface NavDestination {

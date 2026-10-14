@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue';
+import { ref } from 'vue';
 import { humanizeError } from '@/utils/apiError';
 import { api } from '@/api';
 import type { VfUpgradeItem } from '@/types/vfUpgrades';

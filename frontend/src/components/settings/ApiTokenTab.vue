@@ -1,29 +1,22 @@
 <template>
-  <div class="settings-rows">
-    <SettingsSection
-      title="Jeton API"
-      subtitle="Accès à l'API Watchdeck (création de demandes, lecture des utilisateurs…), à passer en en-tête Authorization: Bearer …"
-      :status="tokenActive || apiToken ? 'active' : 'inactive'"
-    >
-      <p class="token-warning">Le jeton donne un accès complet à l'API. Traitez-le comme un mot de passe : ne le partagez pas et ne le placez pas dans un dépôt.</p>
-      <SettingsRow label="État" :description="stateDescription" block>
-        <div class="token-line">
-          <code class="secret-box">{{ apiToken || (tokenActive ? 'Actif (valeur masquée)' : 'Aucun jeton généré') }}</code>
-          <UiButton v-if="apiToken" @click="copyToken"><Check v-if="copied"/><Copy v-else/>{{ copied ? 'Copié' : 'Copier' }}</UiButton>
-          <UiButton :variant="tokenActive ? 'secondary' : 'primary'" :loading="tokenMutation.isPending.value" @click="generateToken"><KeyRound/>{{ tokenActive ? 'Régénérer' : 'Générer' }}</UiButton>
-          <UiButton v-if="tokenActive || apiToken" variant="danger" @click="deleteToken"><Trash2/>Révoquer</UiButton>
-        </div>
-        <p v-if="apiToken" class="hint token-once">Copiez-le maintenant : il ne sera plus jamais affiché.</p>
-        <UiFeedback v-if="error" type="error" :message="error" />
-      </SettingsRow>
-    </SettingsSection>
+  <!-- Contenu de la section « Jeton API » de Securite & API : la section porte le titre. -->
+  <div class="token-body">
+    <p class="token-warning">Le jeton donne un accès complet à l'API. Traitez-le comme un mot de passe : ne le partagez pas et ne le placez pas dans un dépôt.</p>
+    <ConfigureField label="État" :help="stateDescription" stacked>
+      <div class="token-line">
+        <code class="secret-box">{{ apiToken || (tokenActive ? 'Actif (valeur masquée)' : 'Aucun jeton généré') }}</code>
+        <UiButton v-if="apiToken" @click="copyToken"><Check v-if="copied"/><Copy v-else/>{{ copied ? 'Copié' : 'Copier' }}</UiButton>
+        <UiButton :variant="tokenActive ? 'secondary' : 'primary'" :loading="tokenMutation.isPending.value" @click="generateToken"><KeyRound/>{{ tokenActive ? 'Régénérer' : 'Générer' }}</UiButton>
+        <UiButton v-if="tokenActive || apiToken" variant="danger" @click="deleteToken"><Trash2/>Révoquer</UiButton>
+      </div>
+      <p v-if="apiToken" class="hint token-once">Copiez-le maintenant : il ne sera plus jamais affiché.</p>
+      <UiFeedback v-if="error" type="error" :message="error" />
+    </ConfigureField>
 
-    <SettingsSection title="Exemple d'appel" subtitle="Remplacez le jeton par celui que vous venez de générer.">
-      <SettingsRow label="Commande" block>
-        <pre class="token-example"><code>{{ example }}</code></pre>
-        <UiButton size="sm" @click="copyExample"><Check v-if="exampleCopied"/><Copy v-else/>{{ exampleCopied ? 'Copié' : 'Copier la commande' }}</UiButton>
-      </SettingsRow>
-    </SettingsSection>
+    <ConfigureField label="Exemple d'appel" help="Remplacez le jeton par celui que vous venez de générer." stacked>
+      <pre class="token-example"><code>{{ example }}</code></pre>
+      <UiButton size="sm" @click="copyExample"><Check v-if="exampleCopied"/><Copy v-else/>{{ exampleCopied ? 'Copié' : 'Copier la commande' }}</UiButton>
+    </ConfigureField>
     <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
   </div>
 </template>
@@ -38,8 +31,7 @@ import { api } from '@/api';
 import { useConfirm } from '@/composables/useConfirm';
 import { humanizeError } from '@/utils/apiError';
 import { form } from '@/settingsForm';
-import SettingsRow from './SettingsRow.vue';
-import SettingsSection from './SettingsSection.vue';
+import ConfigureField from '@/components/templates/configure/ConfigureField.vue';
 
 const queryClient = useQueryClient();
 const apiToken = ref('');
@@ -114,11 +106,6 @@ const copyExample = () => copyText(example.value, exampleCopied);
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
-.settings-rows {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
 .token-warning {
   margin: 0;
   padding: var(--space-3);

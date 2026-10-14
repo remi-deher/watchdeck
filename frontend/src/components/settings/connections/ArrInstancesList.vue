@@ -2,10 +2,6 @@
 
   <CrudResourceList
 
-    title="Sonarr, Radarr, Prowlarr, Bazarr et FileFlows"
-
-    :icon="ServerCog"
-
     :items="arrInstances"
 
     :item-subtitle="(item: any) => [item.arr_type === 'fileflows' ? 'FileFlows' : capitalize(item.arr_type), item.url].filter(Boolean).join(' · ')"
@@ -41,8 +37,6 @@ import { ouvrirFiche } from '@/composables/useMediaOverlay';
 
 import { useMutation } from '@tanstack/vue-query';
 
-import { ServerCog } from '@lucide/vue';
-
 import { api } from '@/api';
 
 import { success, fail } from '@/settingsForm';
@@ -62,13 +56,9 @@ const connections = useConnectionsStatus();
 
 function capitalize(value: string): string { return value ? value.charAt(0).toUpperCase() + value.slice(1) : ''; }
 
-
-
-const arrDefaults = { name: '', arr_type: 'sonarr', url: '', api_key: '', quality_profile_id: null, root_folder: '', minimum_availability: 'released', is_default: false, enabled: true, indexer_ids: null };
-
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
 
-const { items: arrInstances, toggle: toggleArr, remove } = useCrudResource('/api/arr-instances', arrDefaults, {
+const { items: arrInstances, toggle: toggleArr, remove } = useCrudResource('/api/arr-instances', {
 
   confirmTitle: 'Supprimer cette instance ?',
 

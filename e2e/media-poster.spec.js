@@ -28,14 +28,14 @@ test("l'affiche d'une fiche reste au format 2:3", async ({ page }) => {
   // Dans la feuille.
   await page.goto("/discover/shows");
   await page.getByRole("link", { name: /Série test/ }).first().click();
-  const inSheet = page.locator(".media-overlay .mdh-poster");
+  const inSheet = page.locator(".media-overlay .detail__cover");
   await expect(inSheet).toBeVisible();
   await page.waitForTimeout(600); // fin de l'ouverture
   expect(await ratio(inSheet)).toBeCloseTo(1.5, 1);
 
   // En pleine page.
   await page.goto("/discover/media/discover/1399?media_type=show");
-  const fullPage = page.locator(".mdh-poster");
+  const fullPage = page.locator(".detail__cover");
   await expect(fullPage).toBeVisible();
   expect(await ratio(fullPage)).toBeCloseTo(1.5, 1);
 });

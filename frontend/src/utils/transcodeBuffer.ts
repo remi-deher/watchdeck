@@ -1,4 +1,3 @@
-import { formatBuffer as formatBuffer } from '@/utils/format';
 /* Tampon d'un transcodage en direct : l'avance du transcodeur de Plex sur la tete de
    lecture. Tant qu'il reste du tampon, la lecture ne s'arrete pas ; un tampon qui fond
    annonce une coupure. */

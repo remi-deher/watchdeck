@@ -3,12 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { VueQueryPlugin } from '@tanstack/vue-query';
 import { createQueryClient } from '@/queryClient';
 
-import DashboardActionCenter from './DashboardActionCenter.vue';
-import DashboardGreeting from './DashboardGreeting.vue';
 import DashboardLiveStrip from './DashboardLiveStrip.vue';
 import DashboardVfUpgradesPanel from './DashboardVfUpgradesPanel.vue';
 import ServiceHealthPanel from './ServiceHealthPanel.vue';
-import { attentionTotal, blockedQueueRows } from './dashboardAttention';
+import { blockedQueueRows, dashboardAttentionItems } from './dashboardAttention';
 
 const apiMock = vi.fn();
 vi.mock('@/api', () => ({ api: (...args) => apiMock(...args) }));
@@ -17,44 +15,30 @@ vi.mock('@/events', () => ({ useRealtime: vi.fn() }));
 const global = { stubs: { RouterLink: RouterLinkStub } };
 
 describe('dashboardAttention', () => {
-  it('compte les telechargements bloques et les echecs', () => {
+  it('compte les telechargements bloques', () => {
     const queue = [{ status: 'downloading' }, { tracked_state: 'importPending' }, { error: 'disque plein' }];
     expect(blockedQueueRows(queue)).toHaveLength(2);
-    expect(attentionTotal(queue, 1)).toBe(3);
-  });
-});
-
-describe('DashboardGreeting', () => {
-  it('salue selon l heure et annonce le nombre d elements a traiter', () => {
-    const evening = new Date(2026, 8, 29, 21, 0).getTime();
-    const wrapper = mount(DashboardGreeting, { props: { name: 'Rémi', attentionCount: 3, now: evening }, global });
-    expect(wrapper.text()).toContain('Bonsoir, Rémi');
-    expect(wrapper.text()).toContain('3 éléments demandent votre attention');
-    expect(wrapper.text()).toContain('Mardi 29 septembre');
   });
 
-  it('dit quand rien n est a traiter', () => {
-    const morning = new Date(2026, 8, 29, 9, 0).getTime();
-    const wrapper = mount(DashboardGreeting, { props: { now: morning }, global });
-    expect(wrapper.text()).toContain('Bonjour');
-    expect(wrapper.text()).toContain('Aucune intervention nécessaire');
+  it('ne signale rien quand tout tourne', () => {
+    expect(dashboardAttentionItems([{ status: 'downloading' }], 0)).toEqual([]);
   });
-});
 
-describe('DashboardActionCenter', () => {
-  it('liste les imports bloques et les echecs, ou dit qu il n y a rien', () => {
-    const calm = mount(DashboardActionCenter, { global });
-    expect(calm.text()).not.toContain('Demandes à valider');
-    expect(calm.text()).toContain('Rien à signaler');
+  it('donne a chaque telechargement bloque sa cause et le lien de la file, puis les echecs', () => {
+    const items = dashboardAttentionItems([{ id: 1, title: 'The Bear', tracked_state: 'importPending', instance: 'Sonarr' }], 2);
+    expect(items.map((item) => [item.severity, item.area])).toEqual([['warn', 'downloads'], ['error', 'library']]);
+    expect(items[0].title).toBe('The Bear');
+    expect(items[0].detail).toBe('Sonarr · Téléchargé, pas encore importé');
+    expect(items[0].action.to).toContain('/downloads');
+    expect(items[1].title).toBe('2 demandes en échec');
+    expect(items[1].action.to).toBe('/library?status=failed');
+  });
 
-    const busy = mount(DashboardActionCenter, {
-      props: { queue: [{ id: 1, title: 'The Bear', tracked_state: 'importPending' }], failedCount: 2 },
-      global,
-    });
-    expect(busy.text()).toContain('The Bear');
-    expect(busy.text()).toContain('Téléchargé, pas encore importé');
-    expect(busy.text()).toContain('2 demandes en échec');
-    expect(busy.text()).toContain('1 bloqué · 2 échecs');
+  it('resume les telechargements bloques au-dela de quatre', () => {
+    const queue = Array.from({ length: 7 }, (_, index) => ({ id: index, title: `Titre ${index}`, error: 'x' }));
+    const items = dashboardAttentionItems(queue, 0);
+    expect(items).toHaveLength(5);
+    expect(items[4].title).toBe('3 autres téléchargements bloqués');
   });
 });
 

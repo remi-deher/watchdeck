@@ -63,7 +63,7 @@ export function buildMonthGrid(month: Date): CalendarDay[] {
   }));
 }
 
-export function grainFor(count: number): Grain {
+function grainFor(count: number): Grain {
   if (count > 750) return 'month';
   if (count > 120) return 'week';
   return 'day';

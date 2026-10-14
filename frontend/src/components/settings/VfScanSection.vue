@@ -1,41 +1,37 @@
 <template>
-  <div class="settings-rows">
-    <SettingsSection
-      title="Analyse VF"
-      subtitle="Détecte automatiquement la présence d'une piste VF dans les fichiers Plex, et synchronise la bibliothèque musique sans analyse VF."
-      :status="form.vff_enabled ? 'active' : 'inactive'"
-    >
-      <template #actions>
-        <UiButton @click="vff('/api/vff/scan?force=true')"><ScanSearch />Scanner maintenant</UiButton>
-        <UiButton @click="vff('/api/vff/sync-plex')"><RefreshCw />Synchroniser Plex</UiButton>
-      </template>
+  <!-- Contenu de la section « Analyse VF » des réglages des améliorations : la section porte le titre. -->
+  <div class="vf-scan">
+    <div class="vf-scan__actions">
+      <UiButton @click="vff('/api/vff/scan?force=true')"><ScanSearch />Scanner maintenant</UiButton>
+      <UiButton @click="vff('/api/vff/sync-plex')"><RefreshCw />Synchroniser Plex</UiButton>
+    </div>
 
-      <SettingsRow
+      <ConfigureField
         label="Analyse active"
-        description="Désactiver arrête l'analyse VO/VF : la bibliothèque et les notifications ne distingueront plus les langues disponibles."
+        help="Désactiver arrête l'analyse VO/VF : la bibliothèque et les notifications ne distingueront plus les langues disponibles."
       >
         <ToggleSwitch v-model="form.vff_enabled" title="Analyse active" />
-      </SettingsRow>
-      <SettingsRow
+      </ConfigureField>
+      <ConfigureField
         label="Nouvelle analyse"
-        description="Fréquence à laquelle un média déjà détecté en VO uniquement est ré-analysé, au cas où la VF aurait été ajoutée depuis."
+        help="Fréquence à laquelle un média déjà détecté en VO uniquement est ré-analysé, au cas où la VF aurait été ajoutée depuis."
       >
         <IntervalPresetInput v-model="form.vff_recheck_interval_minutes" :presets="presetsFor('vff_recheck_interval_minutes')!" />
-      </SettingsRow>
-      <SettingsRow
+      </ConfigureField>
+      <ConfigureField
         label="Recherche automatique"
-        description="Relance une recherche Sonarr/Radarr dès qu'un média est détecté en VO uniquement."
+        help="Relance une recherche Sonarr/Radarr dès qu'un média est détecté en VO uniquement."
       >
         <ToggleSwitch v-model="form.vff_auto_search" title="Recherche automatique" />
-      </SettingsRow>
-      <SettingsRow
+      </ConfigureField>
+      <ConfigureField
         label="Synchronisation Plex complète"
-        description="La bibliothèque est resynchronisée en entier à cette fréquence ; un scan incrémental tourne en continu, voir l'onglet Planification."
+        help="La bibliothèque est resynchronisée en entier à cette fréquence ; un scan incrémental tourne en continu, voir l'onglet Planification."
       >
         <IntervalPresetInput v-model="form.plex_sync_interval_hours" :presets="presetsFor('plex_sync_interval_hours')!" />
-      </SettingsRow>
+      </ConfigureField>
 
-      <SettingsRow label="Bibliothèques analysées" description="Sélectionnez les bibliothèques Plex à parcourir, et le type de contenu de chacune." block>
+      <ConfigureField label="Bibliothèques analysées" help="Sélectionnez les bibliothèques Plex à parcourir, et le type de contenu de chacune." stacked>
         <div v-if="plexSectionsLoading" class="notice">Chargement des bibliothèques Plex...</div>
         <div v-else-if="!plexSections.length" class="notice warning-text">
           Aucune bibliothèque Plex trouvée. Vérifiez la connexion Plex ci-dessus.
@@ -59,9 +55,9 @@
             </div>
           </div>
         </div>
-      </SettingsRow>
+      </ConfigureField>
 
-      <SettingsRow label="État" description="Dernier résultat des tâches d'analyse et de synchronisation." block>
+      <ConfigureField label="État" help="Dernier résultat des tâches d'analyse et de synchronisation." stacked>
         <!-- Les statuts arrivaient bruts de la base (« running », « idle ») dans une
              interface francaise, et le nombre d'echecs ne menait nulle part alors que
              c'est la seule valeur sur laquelle on veut agir. -->
@@ -73,8 +69,7 @@
             <template v-else>0 échec</template>
           </span>
         </div>
-      </SettingsRow>
-    </SettingsSection>
+      </ConfigureField>
   </div>
 </template>
 
@@ -118,8 +113,7 @@ import { form } from '@/settingsForm';
 import { presetsFor } from '@/settingsPresets';
 import { mediaTypeLabel } from '@/utils/labels';
 import IntervalPresetInput from './IntervalPresetInput.vue';
-import SettingsRow from './SettingsRow.vue';
-import SettingsSection from './SettingsSection.vue';
+import ConfigureField from '@/components/templates/configure/ConfigureField.vue';
 
 
 const queryClient = useQueryClient();
@@ -160,11 +154,8 @@ useRealtime(['vff.updated'], () => queryClient.invalidateQueries({ queryKey: ['s
 </script>
 
 <style scoped lang="scss">
-.settings-rows {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
+.vf-scan { display: grid; gap: var(--space-4); }
+.vf-scan__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .status-failed-link {
   color: var(--red-text);
   font-weight: 700;

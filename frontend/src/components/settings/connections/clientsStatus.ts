@@ -21,10 +21,10 @@ export interface ClientsPayload {
   items: ClientLine[];
 }
 
-export const CLIENTS_STATUS_KEY = ['settings', 'download-clients', 'status'] as const;
+const CLIENTS_STATUS_KEY = ['settings', 'download-clients', 'status'] as const;
 
 /** Ce que la ligne d'un client affiche : sa réponse, ou la cause de l'échec. */
-export function clientRow(line: ClientLine | undefined): RowState {
+function clientRow(line: ClientLine | undefined): RowState {
   if (!line) return { status: 'neutral', text: '', detail: '' };
   if (line.state === 'off') return { status: 'inactive', text: 'Désactivé', detail: '' };
   if (line.state === 'error') return { status: 'error', text: 'Erreur', detail: line.message || 'Connexion impossible' };

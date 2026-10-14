@@ -52,6 +52,9 @@ export interface TrackItem {
   /** Fiche de l'element. */
   to?: string | Record<string, any> | null;
   actions?: TrackAction[];
+  /** Ce que la page sait de plus pour la carte « en cours » (faits, client, logo, fond…) :
+      champs de LiveItem, qui priment sur ceux deduits des champs ci-dessus. */
+  live?: Record<string, any>;
 }
 
 /** Un element termine recemment : ce qui vient de passer, avant l'historique complet. */

@@ -1,4 +1,4 @@
-import { flushPromises, mount } from '@vue/test-utils';
+import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { VueQueryPlugin } from '@tanstack/vue-query';
 import { createQueryClient } from '@/queryClient';
@@ -23,10 +23,9 @@ function mountView() {
     global: {
       plugins: [[VueQueryPlugin, { queryClient: createQueryClient() }]],
       stubs: {
+        RouterLink: RouterLinkStub,
         UiFeedback: true,
         OnboardingChecklist: true,
-        DashboardActionCenter: true,
-        MetricGrid: true,
         LiveSessionsPanel: true,
         DownloadQueuePanel: true,
         RecentJobsPanel: true,

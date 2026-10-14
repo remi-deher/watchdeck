@@ -157,7 +157,7 @@ export function srcSetFor(url?: string | null, options: ProxyUrlOptions = {}): s
    precharge a ces memes largeurs et qualite (voir CAST_PROXY_* dans app/utils.py), de sorte
    qu'une fiche ne les attend pas sur le CDN de TMDB. Source `h632` : assez grande pour deux
    fois la taille d'affichage, bien plus legere que l'original. */
-export const CAST_WIDTHS = [185, 370];
+const CAST_WIDTHS = [185, 370];
 const CAST_QUALITY = 92;
 const TMDB_ANY_SIZE = /\/t\/p\/(w\d+|h\d+|original)\//;
 

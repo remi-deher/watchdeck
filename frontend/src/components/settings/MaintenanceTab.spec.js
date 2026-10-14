@@ -27,7 +27,7 @@ function mountTab() {
 }
 
 const runButton = (wrapper, label) => wrapper
-  .findAll('.settings-item')
+  .findAll('.resource')
   .find((row) => row.text().includes(label))
   .get('button');
 

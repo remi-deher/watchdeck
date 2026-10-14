@@ -1,37 +1,33 @@
 <template>
-    <AppPage
+    <!-- Inventaire de la médiathèque : deux vues dans l'adresse (fichiers, insights) ; la recherche
+         et tous les filtres sont ceux de la barre du haut. L'export est l'action du contexte, le
+         choix des colonnes un outil de page. -->
+    <PageTemplate
       :title="activeTab === 'table' ? 'Inventaire' : 'Insights de la médiathèque'"
+      class="analytics-page"
+      :tabs="TABS"
+      :active-tab="activeTab"
+      tabs-label="Vue de l’inventaire"
       v-model:query="filters.search"
-      search-scope="Bibliothèque"
-      placeholder="Filtrer par titre, série ou studio…"
-      search-kind="filter"
+      :search="{ placeholder: 'Filtrer par titre, série ou studio…', scope: 'Bibliothèque', kind: 'filter' }"
       :match-count="tableTotal"
-      :has-filters="true"
-      :active-count="activeCount"
-      :filters-open="filtersOpen"
-      @toggle-filters="filtersOpen = !filtersOpen" page-class="analytics-page">
-
+      :filter-count="activeCount"
+      :filter-chips="activeChips"
+      :state="pageState"
+      :error="activeTab === 'insights' ? error : ''"
+      skeleton="cards"
+      loading-message="Analyse du catalogue Plex…"
+      @retry="load()"
+      @reset-filters="reset"
+    >
       <template #tools>
-        <UiSegmentedControl :model-value="activeTab" :options="TAB_OPTIONS" ariaLabel="Vue de l’inventaire" @update:model-value="setTab(String($event))" />
-        <UiButton variant="primary" :href="exportUrl"><template #icon><FileDown /></template>Exporter CSV</UiButton>
         <UiButton v-if="activeTab === 'table'" icon-only title="Personnaliser les colonnes" aria-label="Personnaliser les colonnes" @click="mediaTable?.openColumnPicker()"><Columns /></UiButton>
       </template>
+      <template #quick-action>
+        <UiButton variant="primary" :href="exportUrl"><template #icon><FileDown /></template>Exporter CSV</UiButton>
+      </template>
 
-    <UiFeedback v-if="loading && !data.summary" type="loading" message="Analyse du catalogue Plex…" />
-    <UiFeedback v-if="error" type="error" :message="error" retry @retry="load()" />
-
-    <!-- En-tete de la page : l'etat de l'analyse. La bascule Fichiers / Insights, qui
-         remplace l'entree « Analyses » de la navigation, est dans les actions de la page. -->
-    <header class="inventory-head">
-      <div class="inventory-head__titles">
-        <span class="inventory-head__eyebrow"><span class="status-dot" aria-hidden="true"></span>{{ data.generated_at ? `Catalogue Plex analysé ${formatRelativeDate(data.generated_at)}` : 'Catalogue Plex' }}</span>
-        <h2>{{ activeTab === 'table' ? 'Inventaire' : 'Insights' }}</h2>
-        <p>{{ activeTab === 'table' ? 'Chaque fichier de la médiathèque, avec sa qualité, ses pistes et son audience.' : 'Cliquez sur une carte ou une catégorie pour filtrer la page.' }}</p>
-      </div>
-    </header>
-
-    <div class="psh-layout">
-      <FilterSidebar :open="filtersOpen" :active-count="activeCount" :chips="activeChips" :match-count="tableTotal" @close="filtersOpen=false" @reset="reset">
+      <template #filters>
         <FilterGroup label="Type de média">
           <UiChipGroup label="Type de média" :options="[{ value: '', label: 'Tous les types' }, { value: 'movie', label: 'Films' }, { value: 'episode', label: 'Épisodes' }, { value: 'track', label: 'Musique' }]" v-model="filters.media_type" />
         </FilterGroup>
@@ -61,101 +57,81 @@
           <UiNumberField v-model="filters.min_size_gb" :min="0" :step="0.5" placeholder="Min. (Go)" aria-label="Poids minimal en Go" />
           <UiNumberField v-model="filters.max_size_gb" :min="0" :step="0.5" placeholder="Max. (Go)" aria-label="Poids maximal en Go" />
         </FilterGroup>
-      </FilterSidebar>
-      <div class="psh-main">
+      </template>
 
-    <section v-if="activeTab === 'table'" class="workspace-section inventory-section">
-      <!-- Chiffres du filtre courant, puis deux raccourcis : ce sont des filtres de la
-           page (visionnage, sous-titres), pas une vue a part. -->
-      <div class="inventory-overview">
-        <section class="panel inventory-kpis" aria-label="Chiffres du filtre actuel">
-          <div><span>Fichiers</span><strong>{{ data.summary ? number(data.summary.items) : '—' }}</strong><small>sur le filtre actuel</small></div>
-          <div><span>Poids</span><strong>{{ data.summary ? bytes(data.summary.size_bytes) : '—' }}</strong><small>stockage observé</small></div>
-          <div><span>Durée</span><strong>{{ data.summary ? duration(data.summary.duration_ms) : '—' }}</strong><small>contenu cumulé</small></div>
-          <div><span>Lectures</span><strong>{{ data.summary ? number(data.summary.plays) : '—' }}</strong><small>{{ data.summary ? `par ${data.summary.viewers} spectateur(s)` : '' }}</small></div>
+    <!-- Fichiers (gabarit Explorer, en tableau) : le compteur et les filtres actifs sont ceux du
+         gabarit ; au-dessus du tableau, le type et les raccourcis qui filtrent ce qu'il liste. -->
+    <ExploreTemplate
+      v-if="activeTab === 'table'"
+      view="table"
+      :items="tableItems"
+      :total="tableTotal"
+      :unit="['fichier', 'fichiers']"
+      :chips="activeChips"
+      :has-more="tableHasMore"
+      :loading="loading"
+      :loading-more="loadingMore"
+      :error="error"
+      empty-title="Aucun fichier"
+      empty-message="Aucun fichier ne correspond aux filtres."
+      @reset="reset"
+      @load-more="loadTable(true)"
+      @retry="load()"
+    >
+      <template #table>
+        <section class="panel inventory-table">
+          <div class="inventory-toolbar">
+            <UiSegmentedControl :model-value="filters.media_type || 'all'" :options="TYPE_OPTIONS" ariaLabel="Type de média" @update:model-value="filters.media_type = $event === 'all' ? '' : String($event)" />
+            <UiMenu v-for="menu in quickMenus" :key="menu.key" :label="menu.label" align="start" content-class="quick-filter-menu">
+              <template #trigger>
+                <button type="button" class="quick-filter" :class="{ active: Boolean(filters[menu.key]) }">
+                  {{ filters[menu.key] ? `${menu.label} · ${menu.display(filters[menu.key])}` : menu.label }}<ChevronDown aria-hidden="true" />
+                </button>
+              </template>
+              <UiMenuItem @select="filters[menu.key] = ''"><Check :style="{ visibility: filters[menu.key] ? 'hidden' : 'visible' }" />{{ menu.all }}</UiMenuItem>
+              <UiMenuSeparator />
+              <UiMenuItem v-for="option in menu.options" :key="option.value" :text-value="option.label" @select="filters[menu.key] = option.value">
+                <Check :style="{ visibility: filters[menu.key] === option.value ? 'visible' : 'hidden' }" />{{ option.label }}
+              </UiMenuItem>
+            </UiMenu>
+            <button v-for="lead in leads" :key="lead.key" type="button" class="quick-filter" :class="{ active: lead.active }" :aria-pressed="lead.active" @click="lead.toggle()">
+              <component :is="lead.icon" aria-hidden="true" />{{ lead.label }} · {{ lead.value }}
+            </button>
+          </div>
+          <MediaRowsTable
+            ref="mediaTable"
+            :items="visibleItems"
+            :sort-key="sort.key"
+            :sort-direction="sort.direction"
+            @update:sort="setSort"
+          />
         </section>
-        <div class="inventory-leads">
-          <button v-for="lead in leads" :key="lead.key" type="button" class="inventory-lead" :class="[`is-${lead.tone}`, { active: lead.active }]" :aria-pressed="lead.active" @click="lead.toggle()">
-            <span class="inventory-lead__icon" aria-hidden="true"><component :is="lead.icon" /></span>
-            <span class="inventory-lead__text"><span>{{ lead.label }}</span><strong>{{ lead.value }}</strong></span>
-            <X v-if="lead.active" class="inventory-lead__end" aria-hidden="true" />
-            <ChevronRight v-else class="inventory-lead__end" aria-hidden="true" />
-          </button>
+      </template>
+    </ExploreTemplate>
+
+    <!-- Insights (gabarit Analyser, sans periode : c'est l'etat du catalogue) : les chiffres du
+         filtre actuel, les insights comme pistes, les repartitions ; une piste ou une categorie
+         ouvre la liste des fichiers concernes. -->
+    <AnalyzeTemplate
+      v-else
+      period=""
+      :periods="[]"
+      :kpis="insightKpis"
+      :leads="insightLeads"
+      :drill="drill"
+      :loading="loading && !data.summary"
+      @drill="selectLead"
+      @close-drill="closeDrill"
+    >
+      <template #drill>
+        <div class="insight-results" aria-live="polite">
+          <strong>{{ number(insightTotal) }} fichier(s)</strong>
+          <MediaRowsTable :items="selectedVisibleRows" :sort-key="sort.key" :sort-direction="sort.direction" @update:sort="setSort" />
+          <UiButton v-if="insightHasMore" :loading="loadingMore" @click="loadInsight(true)">Afficher 100 lignes de plus</UiButton>
+          <UiEmptyState v-if="!selectedRows.length" title="Aucun fichier" message="Aucun fichier pour cet insight." compact />
         </div>
-      </div>
-
-      <section class="panel inventory-table">
-        <!-- Les filtres courants en acces direct ; le reste (studio, codecs, poids...)
-             dans le panneau « Plus de filtres ». -->
-        <div class="inventory-toolbar">
-          <UiSegmentedControl :model-value="filters.media_type || 'all'" :options="TYPE_OPTIONS" ariaLabel="Type de média" @update:model-value="filters.media_type = $event === 'all' ? '' : String($event)" />
-          <UiMenu v-for="menu in quickMenus" :key="menu.key" :label="menu.label" align="start" content-class="quick-filter-menu">
-            <template #trigger>
-              <button type="button" class="quick-filter" :class="{ active: Boolean(filters[menu.key]) }">
-                {{ filters[menu.key] ? `${menu.label} · ${menu.display(filters[menu.key])}` : menu.label }}<ChevronDown aria-hidden="true" />
-              </button>
-            </template>
-            <UiMenuItem @select="filters[menu.key] = ''"><Check :style="{ visibility: filters[menu.key] ? 'hidden' : 'visible' }" />{{ menu.all }}</UiMenuItem>
-            <UiMenuSeparator />
-            <UiMenuItem v-for="option in menu.options" :key="option.value" :text-value="option.label" @select="filters[menu.key] = option.value">
-              <Check :style="{ visibility: filters[menu.key] === option.value ? 'visible' : 'hidden' }" />{{ option.label }}
-            </UiMenuItem>
-          </UiMenu>
-          <button type="button" class="quick-filter" :class="{ active: filtersOpen }" @click="filtersOpen = true"><SlidersHorizontal aria-hidden="true" />Plus de filtres</button>
-        </div>
-        <div v-if="activeChips.length" class="inventory-active">
-          <span class="inventory-active__label">Filtres actifs</span>
-          <ul aria-label="Filtres actifs">
-            <li v-for="chip in activeChips" :key="chip.key"><button type="button" :aria-label="`Retirer le filtre ${chip.label}`" @click="chip.onRemove()">{{ chip.label }}<X aria-hidden="true" /></button></li>
-          </ul>
-          <button type="button" class="inventory-active__reset" @click="reset">Tout effacer</button>
-          <span class="inventory-active__count"><strong>{{ number(tableTotal) }} fichier(s)</strong><template v-if="data.summary"> · {{ bytes(data.summary.size_bytes) }}</template></span>
-        </div>
-        <MediaRowsTable
-          ref="mediaTable"
-          :items="visibleItems"
-          :sort-key="sort.key"
-          :sort-direction="sort.direction"
-          @update:sort="setSort"
-        />
-        <UiEmptyState v-if="!loading && !tableItems.length" title="Aucun fichier" message="Aucun fichier ne correspond aux filtres." compact />
-        <footer v-if="tableItems.length" class="inventory-foot">
-          <span>{{ number(tableItems.length) }} sur {{ number(tableTotal) }} fichier(s)<template v-if="data.generated_at"> · {{ date(data.generated_at) }}</template></span>
-          <UiButton v-if="tableHasMore" :loading="loadingMore" @click="loadTable(true)">Afficher 100 lignes de plus</UiButton>
-        </footer>
-      </section>
-    </section>
-
-    <section v-else class="workspace-section insights-section">
-      <header class="section-heading">
-        <div><span class="eyebrow">Exploration</span><h2>Insights interactifs</h2></div>
-        <small>Cliquez sur une carte ou une catégorie pour actualiser le tableau.</small>
-      </header>
-
-      <MetricGrid v-if="data.summary" class="analytics-metrics">
-        <MetricCard label="Fichiers" :value="number(data.summary.items)" detail="filtre actuel" />
-        <MetricCard label="Poids total" :value="bytes(data.summary.size_bytes)" detail="stockage observé" />
-        <MetricCard label="Durée" :value="duration(data.summary.duration_ms)" detail="contenu cumulé" />
-        <MetricCard label="Lectures" :value="number(data.summary.plays)" :detail="`${data.summary.viewers} spectateur(s)`" />
-      </MetricGrid>
-
-      <div class="insight-grid">
-        <button
-          v-for="insight in data.insights || []"
-          :key="insight.kind"
-          type="button"
-          class="panel insight-card"
-          :class="{ active: selectedInsight.kind === insight.kind }"
-          :aria-pressed="selectedInsight.kind === insight.kind"
-          @click="selectInsight(insight)"
-        >
-          <Lightbulb />
-          <div><span>{{ insight.title }}</span><strong>{{ insight.unit === 'bytes' ? bytes(insight.value) : number(insight.value) }}</strong></div>
-          <ChevronRight />
-        </button>
-      </div>
-
-      <div class="analytics-grid">
+      </template>
+      <template #blocks>
         <BreakdownPanel
           v-for="chart in charts"
           :key="chart.key"
@@ -167,21 +143,9 @@
           :items="breakdown(chart.key)"
           @select="selectDistribution(chart, $event)"
         />
-      </div>
-
-      <section class="panel insight-results" aria-live="polite">
-        <div class="panel-head">
-          <div><span class="eyebrow">Sélection active</span><h2>{{ selectedInsight.title }}</h2></div>
-          <strong>{{ number(insightTotal) }} fichier(s)</strong>
-        </div>
-        <MediaRowsTable :items="selectedVisibleRows" :sort-key="sort.key" :sort-direction="sort.direction" @update:sort="setSort" />
-        <UiButton v-if="insightHasMore" :loading="loadingMore" @click="loadInsight(true)">Afficher 100 lignes de plus</UiButton>
-        <UiEmptyState v-if="!selectedRows.length" title="Aucun fichier" message="Aucun fichier pour cet insight." compact />
-      </section>
-    </section>
-      </div><!-- .psh-main -->
-    </div><!-- .psh-layout -->
-  </AppPage>
+      </template>
+    </AnalyzeTemplate>
+    </PageTemplate>
 </template>
 
 <script setup lang="ts">
@@ -189,21 +153,23 @@ import FilterGroup from '@/components/ui/FilterGroup.vue';
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import UiCombobox from '@/components/ui/UiCombobox.vue';
 import UiNumberField from '@/components/ui/UiNumberField.vue';
-import { computed, defineAsyncComponent, reactive, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, reactive, ref } from 'vue';
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { useRoute, useRouter } from 'vue-router';
-import { Captions, Check, ChevronDown, ChevronRight, Columns, EyeOff, FileDown, Lightbulb, SlidersHorizontal, X } from '@lucide/vue';
+import { useRoute } from 'vue-router';
+import { Captions, Check, ChevronDown, Columns, EyeOff, FileDown } from '@lucide/vue';
 import UiMenu from '@/components/ui/UiMenu.vue';
 import UiMenuItem from '@/components/ui/UiMenuItem.vue';
 import UiMenuSeparator from '@/components/ui/UiMenuSeparator.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
+import AnalyzeTemplate from '@/components/templates/AnalyzeTemplate.vue';
+import ExploreTemplate from '@/components/templates/ExploreTemplate.vue';
+import PageTemplate from '@/components/templates/PageTemplate.vue';
+import type { AnalyzeDrill, AnalyzeKpi, AnalyzeLead } from '@/components/templates/AnalyzeTemplate.vue';
 import type { FilterChip } from '@/composables/useFiltersDrawer';
 import { resolutionLabel } from '@/utils/mediaTechnical';
 
 import { api } from '@/api';
 import BreakdownPanel from '@/components/activity/BreakdownPanel.vue';
-import MetricCard from '@/components/ui/MetricCard.vue';
-import MetricGrid from '@/components/ui/MetricGrid.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 const MediaRowsTable = defineAsyncComponent(() => import('@/components/library/MediaRowsTable.vue'));
@@ -216,25 +182,22 @@ import {
   insightSelection,
 } from '@/libraryAnalyticsInsights';
 import {
-  formatDateTime,
-  formatRelativeDate,
   formatDurationRoundHours as duration,
   formatFileSize as bytes,
   formatInteger as number,
 } from '@/utils/format';
 
 const route=useRoute();
-const router = useRouter();
 const activeTab = computed<'table' | 'insights'>(()=>route.query.view==='insights'?'insights':'table');
-const TAB_OPTIONS = [{ value: 'table' as const, label: 'Fichiers' }, { value: 'insights' as const, label: 'Insights' }];
-/* Les insights ne sont plus une entree de navigation : la bascule de la page les ouvre,
-   avec leur propre adresse (?view=insights) pour qu'un lien y mene toujours. */
-function setTab(tab: string): void {
-  const query = { ...route.query };
-  if (tab === 'insights') query.view = 'insights'; else delete query.view;
-  void router.replace({ query });
-}
-const filtersOpen = ref(false);
+/* Les insights ne sont plus une entree de navigation : ils sont la seconde vue de la page, avec leur
+   propre adresse (?view=insights) pour qu'un lien y mene toujours. */
+const TABS = computed(() => {
+  const { view: _view, ...rest } = route.query;
+  return [
+    { key: 'table', label: 'Fichiers', to: { path: route.path, query: rest } },
+    { key: 'insights', label: 'Insights', to: { path: route.path, query: { ...rest, view: 'insights' } } },
+  ];
+});
 const selectedInsight = ref<any>({ ...DEFAULT_INSIGHT });
 const mediaTable = ref<any>(null);
 const filters = reactive<Record<string, any>>({
@@ -385,6 +348,25 @@ function breakdown(key: string): any[] {
     detail: `${item.percent} % du catalogue filtré`,
   }));
 }
+/* Les chiffres du filtre actuel, les insights comme pistes, et la liste ouverte. */
+const insightKpis = computed<AnalyzeKpi[]>(() => (data.value.summary ? [
+  { key: 'items', label: 'Fichiers', value: number(data.value.summary.items), detail: 'filtre actuel' },
+  { key: 'size', label: 'Poids total', value: bytes(data.value.summary.size_bytes), detail: 'stockage observé' },
+  { key: 'duration', label: 'Durée', value: duration(data.value.summary.duration_ms), detail: 'contenu cumulé' },
+  { key: 'plays', label: 'Lectures', value: number(data.value.summary.plays), detail: `${data.value.summary.viewers} spectateur(s)` },
+] : []));
+const insightLeads = computed<AnalyzeLead[]>(() => (data.value.insights || []).map((insight: any) => ({
+  key: insight.kind,
+  text: `${insight.title} : ${insight.unit === 'bytes' ? bytes(insight.value) : number(insight.value)}`,
+})));
+const drill = computed<AnalyzeDrill>(() => ({ key: selectedInsight.value.kind, title: selectedInsight.value.title }));
+function selectLead(request: { key: string }): void {
+  const insight = (data.value.insights || []).find((entry: any) => entry.kind === request.key);
+  if (insight) selectInsight(insight);
+}
+function closeDrill(): void { selectedInsight.value = { ...DEFAULT_INSIGHT }; }
+const pageState = computed(() => (loading.value && !data.value.summary ? 'loading' : 'ready'));
+
 function selectInsight(insight: any): void {
   selectedInsight.value = insightSelection(insight);
 }
@@ -432,53 +414,12 @@ function load(): Promise<void> { return queryClient.invalidateQueries({ queryKey
 function reset(): void {
   Object.keys(filters).forEach(key => { filters[key] = ''; });
 }
-function date(value: string): string {
-  return value ? `Actualisé ${formatDateTime(value)}` : '';
-}
 
-watch(activeTab, () => { filtersOpen.value = false; });
 useRealtime(['library.analytics.updated'], () => load());
 </script>
 
 <style scoped lang="scss">
-@use '@/styles/foundations/breakpoints' as bp;
-.export-link{display:inline-flex;align-items:center;gap: var(--space-2);text-decoration:none}
-.workspace-section{display:grid;gap: var(--space-4);padding-top:4px}
-.section-heading{display:flex;align-items:flex-end;justify-content:space-between;gap: var(--space-5)}
-.section-heading h2{margin:3px 0 0}.section-heading small,.panel-head small{color:var(--muted)}
-.analytics-metrics{grid-template-columns:repeat(4,minmax(0,1fr))}
-.insight-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap: var(--space-3)}
-.insight-card{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap: var(--space-3);width:100%;color:var(--text);text-align:left;cursor:pointer;transition:border-color var(--motion-duration-fast), transform var(--motion-duration-fast), background var(--motion-duration-fast)}
-.insight-card:hover,.insight-card.active{transform:translateY(-2px);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
-.insight-card>svg:first-child{width:22px;color:var(--muted)}.insight-card>svg:last-child{width:16px;color:var(--muted)}
-.insight-card>div,.media-title{display:grid;min-width:0}.insight-card span{color:var(--muted);font-size:var(--fs-xs)}.insight-card strong{font-size:var(--fs-lg)}
-.analytics-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap: var(--space-4)}
-.insight-results{display:grid;gap: var(--space-3)}.panel-head>strong{color:var(--text)}
-.load-more{justify-self:center}
-.inventory-head{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--space-4);margin-bottom:var(--space-4)}
-.inventory-head__titles{display:grid;gap:6px;min-width:0}
-.inventory-head__eyebrow{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase}
-.status-dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
-.inventory-head h2{margin:0;font-family:var(--font-display);font-size:var(--fs-3xl);letter-spacing:-.01em;line-height:1.1}
-.inventory-head p{margin:0;color:var(--muted)}
-.inventory-overview{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:var(--space-4)}
-.inventory-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:0}
-.inventory-kpis>div{display:grid;gap:4px;align-content:start;padding:16px 18px}
-.inventory-kpis>div+div{border-left:1px solid var(--border)}
-.inventory-kpis span{color:var(--muted);font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase}
-.inventory-kpis strong{font-family:var(--font-display);font-size:var(--fs-2xl);font-variant-numeric:tabular-nums;white-space:nowrap}
-.inventory-kpis small{color:var(--muted);font-size:var(--fs-xs)}
-.inventory-leads{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:var(--space-3)}
-.inventory-lead{--lead:var(--accent);display:flex;align-items:center;gap:var(--space-3);width:100%;padding:14px 16px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2);color:var(--text);font:inherit;text-align:left;cursor:pointer;transition:border-color var(--motion-duration-fast),background-color var(--motion-duration-fast)}
-.inventory-lead.is-blue{--lead:var(--blue)}
-.inventory-lead:hover,.inventory-lead.active{border-color:color-mix(in srgb,var(--lead) 55%,transparent);background:color-mix(in srgb,var(--lead) 8%,var(--surface-2))}
-.inventory-lead:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.inventory-lead__icon{display:grid;flex:none;place-items:center;width:34px;height:34px;border-radius:var(--radius-sm);background:color-mix(in srgb,var(--lead) 16%,transparent);color:var(--lead)}
-.inventory-lead__icon svg{width:18px}
-.inventory-lead__text{display:grid;flex:1;min-width:0}
-.inventory-lead__text span{color:var(--muted);font-size:var(--fs-xs)}
-.inventory-lead__text strong{font-family:var(--font-display);font-size:var(--fs-lg)}
-.inventory-lead__end{flex:none;width:16px;color:var(--muted)}
+.insight-results{display:grid;gap: var(--space-3)}
 .inventory-table{display:grid;gap:0;padding:0;overflow:hidden}
 .inventory-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);padding:14px 16px;border-bottom:1px solid var(--border)}
 .quick-filter{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 12px;border:1px solid var(--border-control,var(--border));border-radius:var(--radius-pill);background:transparent;color:var(--text-secondary,var(--text));font:inherit;font-size:var(--fs-sm);font-weight:500;white-space:nowrap;cursor:pointer}
@@ -486,21 +427,6 @@ useRealtime(['library.analytics.updated'], () => load());
 .quick-filter:hover{border-color:var(--border-hover,var(--border-strong))}
 .quick-filter.active{border-color:var(--accent);color:var(--accent)}
 .quick-filter:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.inventory-active{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);padding:10px 16px;border-bottom:1px solid var(--border)}
-.inventory-active__label{color:var(--muted);font-size:var(--fs-xs)}
-.inventory-active ul{display:contents;list-style:none}
-.inventory-active li button{display:inline-flex;align-items:center;gap:4px;min-height:30px;padding:0 8px 0 12px;border:0;border-radius:var(--radius-pill);background:var(--surface-3);color:var(--text);font:inherit;font-size:var(--fs-xs);font-weight:600;cursor:pointer}
-.inventory-active li button svg{width:14px}
-.inventory-active li button:hover{background:color-mix(in srgb,var(--accent) 14%,var(--surface-3));color:var(--accent)}
-.inventory-active__reset{padding:0 4px;border:0;background:none;color:var(--accent);font:inherit;font-size:var(--fs-xs);font-weight:600;cursor:pointer}
-.inventory-active__count{margin-left:auto;color:var(--muted);font-size:var(--fs-xs)}
-.inventory-active__count strong{color:var(--text)}
 .inventory-table :deep(.media-rows-table){border:0;border-radius:0;box-shadow:none}
-.inventory-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-3);padding:14px 20px;color:var(--muted);font-size:var(--fs-sm)}
 :global(.quick-filter-menu){max-height:min(360px,60dvh);overflow-y:auto}
-@container page (max-width: 1100px) {.inventory-overview{grid-template-columns:1fr}}
-@container page (max-width: 757px) {.inventory-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.inventory-kpis>div:nth-child(3){border-left:0}.inventory-kpis>div:nth-child(n+3){border-top:1px solid var(--border)}.inventory-head{flex-direction:column;align-items:stretch}.inventory-active__count{margin-left:0;width:100%}.analytics-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.insight-grid{grid-template-columns:1fr}.section-heading{align-items:flex-start}}
-@include bp.until(tablet) {.analytics-grid{grid-template-columns:1fr}.section-heading{display:grid}}
-@include bp.until(phablet) {.export-link{width:100%;justify-content:center}}
-@include bp.until(mobile-wide) {.analytics-metrics{grid-template-columns:1fr}}
 </style>

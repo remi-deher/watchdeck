@@ -1,70 +1,63 @@
 <template>
-  <div class="settings-merged system-version">
-    <UiFeedback v-if="error" type="error" title="Impossible de récupérer les informations de version" :message="error" retry @retry="load"/>
-    <template v-else-if="info">
-      <!-- Le verdict d'abord : à jour, mise à jour disponible, ou image différente du tag. -->
-      <section class="version-verdict" :class="`is-${verdict.tone}`" aria-live="polite">
-        <div>
-          <h2>{{ verdict.title }}</h2>
-          <p>{{ verdict.detail }}</p>
-        </div>
+  <ConfigureTemplate :sections="sections" v-bind="page.bind.value" @save="page.save" @cancel="page.cancel">
+    <template #section-verdict>
+      <div class="version-verdict" :class="`is-${verdict.tone}`" aria-live="polite">
+        <p>{{ verdict.detail }}</p>
         <UiButton size="sm" :loading="checking" @click="checkNow"><template #icon><RefreshCw/></template>Vérifier maintenant</UiButton>
-        <small v-if="info.release_checked_at" class="version-checked">GitHub vérifié {{ formatRelative(info.release_checked_at) }}</small>
-      </section>
-
-      <!-- Watchdeck ne se met pas à jour tout seul : on dit comment, là où on en a besoin. -->
-      <section v-if="verdict.tone !== 'success' && verdict.tone !== 'info'" class="panel version-update">
-        <h3>Mettre à jour</h3>
-        <p>Watchdeck ne se met pas à jour tout seul : tirez la nouvelle image puis redémarrez.</p>
-        <UiSegmentedControl v-model="installKind" ariaLabel="Type d’installation" :options="[{ value: 'compose', label: 'Docker Compose' }, { value: 'truenas', label: 'TrueNAS' }]" />
-        <pre class="version-command"><code>{{ installCommand }}</code></pre>
-        <UiButton size="sm" @click="copy(installCommand, 'command')"><Check v-if="copied === 'command'" :size="14"/><Copy v-else :size="14"/>{{ copied === 'command' ? 'Copié' : 'Copier' }}</UiButton>
-      </section>
-
-      <section class="panel">
-        <h3 class="version-h3">Ce qui tourne</h3>
-        <dl class="version-grid">
-          <div><dt>Version</dt><dd>{{ info.version }}</dd></div>
-          <div><dt>Branche</dt><dd><span class="branch-badge" :class="`branch-${info.branch}`">{{ info.branch }}</span></dd></div>
-          <div>
-            <dt>Commit</dt>
-            <dd class="commit-cell">
-              <a v-if="info.repo_url" class="mono" :href="`${info.repo_url}/commit/${info.git_sha}`" target="_blank" rel="noopener noreferrer">{{ shortSha(info.git_sha) }}</a>
-              <span v-else class="mono">{{ shortSha(info.git_sha) }}</span>
-              <UiButton variant="ghost" size="sm" icon-only v-if="isRealSha(info.git_sha)" title="Copier le SHA complet" aria-label="Copier le SHA complet" @click="copy(info.git_sha, 'sha')">
-                <Check v-if="copied === 'sha'" :size="14"/><Copy v-else :size="14"/>
-              </UiButton>
-            </dd>
-          </div>
-          <div><dt>Construite</dt><dd :title="formatDate(info.build_date)">{{ formatRelative(info.build_date) }}</dd></div>
-          <div><dt>Image</dt><dd>{{ info.docker_repositories.join(', ') }}</dd></div>
-        </dl>
-        <p v-if="info.main_comparison" class="version-comparison">{{ mainComparisonMessage(info.main_comparison) }}</p>
-      </section>
-
-      <section v-if="releases.length" class="panel">
-        <h3 class="version-h3">{{ newer.length ? 'Nouveautés depuis votre version' : `Notes de ${releases[0].tag_name}` }}</h3>
-        <CollapsibleRoot v-for="(release, index) in releases" :key="release.tag_name" class="version-release" :default-open="index === 0">
-          <CollapsibleTrigger class="version-release__head">
-            <strong>{{ release.name || release.tag_name }}</strong>
-            <small v-if="release.published_at" :title="formatDate(release.published_at)">{{ formatRelative(release.published_at) }}</small>
-            <ChevronDown class="version-release__chevron" aria-hidden="true"/>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div class="release-body" v-html="renderMarkdown(release.body || 'Aucune note de version.')"/>
-            <a v-if="release.html_url" class="version-release__link" :href="release.html_url" target="_blank" rel="noopener noreferrer">Voir sur GitHub<ExternalLink/></a>
-          </CollapsibleContent>
-        </CollapsibleRoot>
-      </section>
+        <small v-if="info?.release_checked_at" class="version-checked">GitHub vérifié {{ formatRelative(info.release_checked_at) }}</small>
+      </div>
     </template>
-  </div>
+
+    <!-- Watchdeck ne se met pas à jour tout seul : on dit comment, là où on en a besoin. -->
+    <template #section-update>
+      <UiSegmentedControl v-model="installKind" ariaLabel="Type d’installation" :options="[{ value: 'compose', label: 'Docker Compose' }, { value: 'truenas', label: 'TrueNAS' }]" />
+      <pre class="version-command"><code>{{ installCommand }}</code></pre>
+      <div><UiButton size="sm" @click="copy(installCommand, 'command')"><Check v-if="copied === 'command'" :size="14"/><Copy v-else :size="14"/>{{ copied === 'command' ? 'Copié' : 'Copier' }}</UiButton></div>
+    </template>
+
+    <template v-if="info" #section-running>
+      <dl class="version-grid">
+        <div><dt>Version</dt><dd>{{ info.version }}</dd></div>
+        <div><dt>Branche</dt><dd><span class="branch-badge" :class="`branch-${info.branch}`">{{ info.branch }}</span></dd></div>
+        <div>
+          <dt>Commit</dt>
+          <dd class="commit-cell">
+            <a v-if="info.repo_url" class="mono" :href="`${info.repo_url}/commit/${info.git_sha}`" target="_blank" rel="noopener noreferrer">{{ shortSha(info.git_sha) }}</a>
+            <span v-else class="mono">{{ shortSha(info.git_sha) }}</span>
+            <UiButton variant="ghost" size="sm" icon-only v-if="isRealSha(info.git_sha)" title="Copier le SHA complet" aria-label="Copier le SHA complet" @click="copy(info.git_sha, 'sha')">
+              <Check v-if="copied === 'sha'" :size="14"/><Copy v-else :size="14"/>
+            </UiButton>
+          </dd>
+        </div>
+        <div><dt>Construite</dt><dd :title="formatDate(info.build_date)">{{ formatRelative(info.build_date) }}</dd></div>
+        <div><dt>Image</dt><dd>{{ info.docker_repositories.join(', ') }}</dd></div>
+      </dl>
+      <p v-if="info.main_comparison" class="version-comparison">{{ mainComparisonMessage(info.main_comparison) }}</p>
+    </template>
+
+    <template #section-notes>
+      <CollapsibleRoot v-for="(release, index) in releases" :key="release.tag_name" class="version-release" :default-open="index === 0">
+        <CollapsibleTrigger class="version-release__head">
+          <strong>{{ release.name || release.tag_name }}</strong>
+          <small v-if="release.published_at" :title="formatDate(release.published_at)">{{ formatRelative(release.published_at) }}</small>
+          <ChevronDown class="version-release__chevron" aria-hidden="true"/>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div class="release-body" v-html="renderMarkdown(release.body || 'Aucune note de version.')"/>
+          <a v-if="release.html_url" class="version-release__link" :href="release.html_url" target="_blank" rel="noopener noreferrer">Voir sur GitHub<ExternalLink/></a>
+        </CollapsibleContent>
+      </CollapsibleRoot>
+    </template>
+
+    <UiFeedback v-if="error" type="error" title="Impossible de récupérer les informations de version" :message="error" retry @retry="load"/>
+  </ConfigureTemplate>
 </template>
 
 <script setup lang="ts">
 import { formatDateTimeSeconds, parseApiDate } from '@/utils/format';
 import { computed, ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
-import { Check, ChevronDown, Copy, ExternalLink, RefreshCw } from '@lucide/vue';
+import { Check, ChevronDown, Copy, ExternalLink, FileText, Info, RefreshCw, Server, Download } from '@lucide/vue';
 import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import { useQueryClient } from '@tanstack/vue-query';
@@ -72,6 +65,8 @@ import { api } from '@/api';
 import { humanizeError } from '@/utils/apiError';
 import UiFeedback from '@/components/ui/UiFeedback.vue';
 import UiButton from '@/components/ui/UiButton.vue';
+import ConfigureTemplate from '@/components/templates/ConfigureTemplate.vue';
+import { useSettingsPage } from '@/composables/useSettingsPage';
 
 interface LatestRelease {
   tag_name: string;
@@ -107,7 +102,6 @@ const versionQuery = useQuery({
   queryFn: ({ signal }) => api<VersionInfo>('/api/system/version', { signal }),
 });
 const info = computed(() => versionQuery.data.value ?? null);
-const loading = computed(() => versionQuery.isFetching.value);
 const error = computed(() => (versionQuery.error.value ? humanizeError(versionQuery.error.value) : ''));
 const copied = ref<string | null>(null);
 const queryClient = useQueryClient();
@@ -140,6 +134,18 @@ const verdict = computed<{ tone: 'success' | 'warning' | 'error' | 'info'; title
   }
   if (v.is_latest) return { tone: 'success', title: 'Watchdeck est à jour', detail: `Vous exécutez ${v.version}, la dernière version publiée${v.commit_matches_release ? ', et son commit correspond au tag' : ''}.` };
   return { tone: 'info', title: `Version ${v.version}`, detail: 'Dernière release GitHub introuvable : pas de connexion à GitHub, ou aucune release publiée.' };
+});
+const page = useSettingsPage();
+/* Une section par partie ; le verdict (a jour, mise a jour, image differente) en tete. */
+const sections = computed(() => {
+  if (!info.value) return [];
+  return [
+    { key: 'verdict', title: verdict.value.title, description: 'Où en est cette installation par rapport à la dernière version publiée.', icon: Info, keywords: ['version', 'à jour', 'mise à jour'] },
+    ...(verdict.value.tone !== 'success' && verdict.value.tone !== 'info'
+      ? [{ key: 'update', title: 'Mettre à jour', description: 'Watchdeck ne se met pas à jour tout seul : tirez la nouvelle image puis redémarrez.', icon: Download, keywords: ['docker', 'compose', 'truenas', 'image'] }] : []),
+    { key: 'running', title: 'Ce qui tourne', description: 'Version, branche, commit et image de cette instance.', icon: Server, keywords: ['commit', 'branche', 'build', 'sha'] },
+    ...(releases.value.length ? [{ key: 'notes', title: newer.value.length ? 'Nouveautés depuis votre version' : `Notes de ${releases.value[0].tag_name}`, description: 'Les notes de version publiées sur GitHub.', icon: FileText, keywords: ['notes', 'changelog', 'release'] }] : []),
+  ];
 });
 const installKind = ref<'compose' | 'truenas'>('compose');
 const installCommand = computed(() => (installKind.value === 'compose'
@@ -268,13 +274,8 @@ function load(): void {
 .release-body :deep(ul) { margin: 0 0 var(--space-2); padding-left: 1.3em; }
 .release-body :deep(p) { margin: 0 0 var(--space-2); }
 .release-body :deep(code) { padding: 1px 5px; border-radius: var(--radius-sm); background: var(--surface-1); font-family: var(--font-mono, monospace); font-size: .9em; }
-.version-verdict { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface); }
-.version-verdict > div { flex: 1 1 16rem; min-width: 0; }
-.version-verdict h2 { margin: 0 0 2px; font-size: var(--fs-md); }
-.version-verdict p { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
-.version-verdict.is-success { border-color: color-mix(in srgb, var(--green) 45%, var(--border)); background: color-mix(in srgb, var(--green) 7%, var(--surface)); }
-.version-verdict.is-warning { border-color: color-mix(in srgb, var(--amber) 45%, var(--border)); background: color-mix(in srgb, var(--amber) 7%, var(--surface)); }
-.version-verdict.is-error { border-color: color-mix(in srgb, var(--red) 45%, var(--border)); background: color-mix(in srgb, var(--red) 7%, var(--surface)); }
+.version-verdict { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+.version-verdict p { flex: 1 1 16rem; min-width: 0; margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 .version-checked { color: var(--muted); font-size: var(--fs-xs); }
 .version-update { display: grid; gap: var(--space-2); justify-items: start; }
 .version-update h3, .version-h3 { margin: 0 0 var(--space-2); font-size: var(--fs-md); }

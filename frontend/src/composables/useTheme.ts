@@ -40,7 +40,7 @@ function effectiveTheme(value: ThemeChoice): 'dark' | 'light' {
 
 /** Pose le theme sur <html>. index.html fait la meme chose avant le premier rendu,
  *  pour eviter un flash du mauvais theme : les deux doivent rester d'accord. */
-export function applyTheme(value: ThemeChoice): void {
+function applyTheme(value: ThemeChoice): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
   if (value === 'system') root.removeAttribute('data-theme');

@@ -1,4 +1,4 @@
-import { computed, reactive, ref } from 'vue';
+import { computed } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
 
@@ -7,9 +7,10 @@ export interface CrudResourceMessages {
   confirmMessage?: (name: string) => string;
 }
 
+/* La liste d'une ressource REST (`basePath`) et ses actions de ligne : activer / desactiver
+   et supprimer. La saisie (ajout, modification) passe par une definition du gabarit Creer. */
 export function useCrudResource<T extends { id?: any; name?: string } = any>(
   basePath: string,
-  defaults: Partial<T> | Record<string, any>,
   messages: CrudResourceMessages = {}
 ) {
   const {
@@ -24,17 +25,7 @@ export function useCrudResource<T extends { id?: any; name?: string } = any>(
     queryFn: () => api<T[]>(basePath),
   });
   const items = computed<T[]>(() => listQuery.data.value || []);
-  const editingId = ref<any>(null);
-  const form = reactive<Record<string, any>>({ ...defaults });
 
-  const saveMutation = useMutation({
-    mutationFn: ({ editing, payload }: { editing: any; payload: Record<string, any> }) => api(
-      editing ? `${basePath}/${editing}` : basePath,
-      { method: editing ? 'PUT' : 'POST', body: JSON.stringify(payload) },
-    ),
-    retry: 0,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
-  });
   const toggleMutation = useMutation({
     mutationFn: (item: T) => api(`${basePath}/${item.id}/toggle`, { method: 'PATCH' }),
     retry: 0,
@@ -45,32 +36,10 @@ export function useCrudResource<T extends { id?: any; name?: string } = any>(
     retry: 0,
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });
-  const busy = computed(() => saveMutation.isPending.value || toggleMutation.isPending.value || removeMutation.isPending.value);
+  const busy = computed(() => toggleMutation.isPending.value || removeMutation.isPending.value);
 
   async function load(): Promise<void> {
     await listQuery.refetch();
-  }
-
-  function reset(): void {
-    editingId.value = null;
-    for (const key of Object.keys(form)) {
-      if (!(key in defaults)) delete form[key];
-    }
-    Object.assign(form, defaults);
-  }
-
-  /** Charge un element (ou rien, pour une creation) dans le formulaire. */
-  function edit(item?: T | null): void {
-    reset();
-    if (item) {
-      editingId.value = item.id;
-      Object.assign(form, defaults, item);
-    }
-  }
-
-  /** Enregistre le formulaire ; l'erreur remonte a l'appelant, qui l'affiche ou il veut. */
-  async function saveOrThrow(): Promise<any> {
-    return saveMutation.mutateAsync({ editing: editingId.value, payload: { ...form } });
   }
 
   async function toggle(item: T): Promise<void> {
@@ -91,13 +60,8 @@ export function useCrudResource<T extends { id?: any; name?: string } = any>(
   return {
     items,
     loaded: computed(() => listQuery.isSuccess.value),
-    edit,
-    saveOrThrow,
-    editingId,
     busy,
-    form,
     load,
-    reset,
     toggle,
     remove,
   };

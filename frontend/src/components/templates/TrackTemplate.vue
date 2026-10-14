@@ -57,6 +57,8 @@
         </li>
       </ul>
     </section>
+    <!-- Un bloc complementaire sous le suivi (taches du serveur…). -->
+    <slot name="after" />
   </div>
 </template>
 
@@ -132,6 +134,7 @@ function toLive(item: TrackItem): LiveItem {
     facts: (item.tags || []).map((tag) => ({ key: tag, label: tag })),
     note: item.note || '',
     to: item.to || null,
+    ...item.live,
   };
 }
 
