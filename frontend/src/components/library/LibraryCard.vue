@@ -175,6 +175,12 @@ const badges = computed(() => {
 </script>
 
 <style scoped lang="scss">
+.status-tag.sent_to_arr {
+  color: var(--on-lang-mixed);
+  background: var(--lang-mixed);
+  text-shadow: none;
+}
+
 :deep(.catalog-status-badge) {
   justify-content: space-between;
   align-items: flex-start;

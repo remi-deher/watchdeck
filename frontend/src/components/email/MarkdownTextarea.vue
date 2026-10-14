@@ -108,3 +108,39 @@ function insertLink(): void {
   updateValue(target.value.slice(0, start) + value + target.value.slice(end), start + value.length, start + value.length);
 }
 </script>
+
+<style scoped lang="scss">
+.markdown-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-height: 42px;
+  padding: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.markdown-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.markdown-menu-trigger svg { width: 15px; height: 15px; }
+
+.markdown-menu-trigger[data-state="open"] { border-color: var(--accent); }
+
+.markdown-menu-trigger.variable-picker { margin-left: auto; }
+</style>

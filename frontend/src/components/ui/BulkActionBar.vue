@@ -36,6 +36,17 @@ defineEmits<{ clear: [] }>();
 </script>
 
 <style scoped lang="scss">
+.bulk-bar {
+  position: sticky;
+  top: calc(12px + var(--safe-top));
+  z-index: 5;
+  justify-content: flex-start;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+}
+
 .bulk-bar { overflow-x: auto; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
 .bulk-action-count { flex: 0 0 auto; }
 </style>
