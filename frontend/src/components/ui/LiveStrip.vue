@@ -15,7 +15,7 @@
   <section class="panel live-strip" :class="{ 'is-idle': !items.length }" :aria-labelledby="titleId">
     <template v-if="items.length">
       <header class="live-strip-head">
-        <span class="live-strip-badge"><i aria-hidden="true"></i><span>{{ liveLabel }}<span v-if="liveExtra" class="live-strip-badge-extra"> {{ liveExtra }}</span></span></span>
+        <span class="live-strip-badge"><i aria-hidden="true"></i><span>{{ liveLabel }}<span v-if="liveExtra" class="live-strip-badge-extra">&nbsp;{{ liveExtra }}</span></span></span>
         <h2 :id="titleId">{{ title }}</h2>
         <p v-if="summary" class="live-strip-summary">{{ summary }}</p>
         <RouterLink v-if="link" :to="link.to" class="panel-link">{{ link.label }}</RouterLink>
