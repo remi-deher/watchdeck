@@ -3,7 +3,7 @@
 import { api } from '@/api';
 import type { CreateDefinition } from '@/components/templates/create/types';
 
-export const DEFAULT_TERMINATE_REASON = 'La lecture a été arrêtée par l’administrateur du serveur.';
+const DEFAULT_TERMINATE_REASON = 'La lecture a été arrêtée par l’administrateur du serveur.';
 const MAX_REASON_LENGTH = 300;
 
 export function terminatePlaybackForm(sessionId: number | string, subtitle = ''): CreateDefinition {
