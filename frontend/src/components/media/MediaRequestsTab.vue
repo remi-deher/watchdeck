@@ -274,7 +274,6 @@ const directSubtitle = computed(() => {
 
 /* ----- Carte « Parcours » ----- */
 .journey-card {
-  container: parcours / inline-size;
   display: flex;
   flex-direction: column;
   gap: 22px;
