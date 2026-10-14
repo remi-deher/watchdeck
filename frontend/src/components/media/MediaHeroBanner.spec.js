@@ -67,18 +67,18 @@ describe('MediaHeroBanner', () => {
       },
     });
 
-    const dots = wrapper.findAll('.hero-dot');
+    const dots = wrapper.findAll('.ui-carousel-dots__dot');
     expect(dots).toHaveLength(2);
-    expect(dots[0].classes()).toContain('active');
+    expect(dots[0].classes()).toContain('is-active');
     expect(wrapper.text()).toContain('Film 1');
 
     await dots[1].trigger('click');
-    expect(wrapper.findAll('.hero-dot')[1].classes()).toContain('active');
+    expect(wrapper.findAll('.ui-carousel-dots__dot')[1].classes()).toContain('is-active');
     expect(wrapper.text()).toContain('Film 2');
 
     // Navigation au clavier
     await wrapper.find('.media-hero-banner').trigger('keydown', { key: 'ArrowLeft' });
-    expect(wrapper.findAll('.hero-dot')[0].classes()).toContain('active');
+    expect(wrapper.findAll('.ui-carousel-dots__dot')[0].classes()).toContain('is-active');
     expect(wrapper.text()).toContain('Film 1');
   });
 

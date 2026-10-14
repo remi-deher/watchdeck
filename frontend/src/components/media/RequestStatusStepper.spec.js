@@ -9,7 +9,7 @@ it('affiche le parcours serveur sans déduire Plex du statut historique', () => 
       { key: 'plex', label: 'Confirmation Plex attendue', state: 'current', occurred_at: null },
     ] },
   } } });
-  expect(wrapper.findAll('.journey-step')).toHaveLength(2);
+  expect(wrapper.findAll('.step-timeline__step')).toHaveLength(2);
   expect(wrapper.find('.is-current').text()).toContain('Confirmation Plex attendue');
   expect(wrapper.find('.is-current').attributes('aria-current')).toBe('step');
   expect(wrapper.findAll('time')).toHaveLength(0);

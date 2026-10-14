@@ -3,16 +3,16 @@
     v-if="activeItem"
     class="media-hero-banner"
     tabindex="0"
-    @mouseenter="pauseAutoplay"
-    @mouseleave="resumeAutoplay"
-    @focusin="pauseAutoplay"
-    @focusout="resumeAutoplay"
-    @keydown.left="prev"
-    @keydown.right="next"
-    @pointerdown="onPointerDown"
-    @pointermove="onPointerMove"
-    @pointerup="onPointerUp"
-    @pointercancel="onPointerCancel"
+    @mouseenter="carousel.pause"
+    @mouseleave="carousel.resume"
+    @focusin="carousel.pause"
+    @focusout="carousel.resume"
+    @keydown.left="carousel.prev"
+    @keydown.right="carousel.next"
+    @pointerdown="carousel.onPointerDown"
+    @pointermove="carousel.onPointerMove"
+    @pointerup="carousel.onPointerUp"
+    @pointercancel="carousel.onPointerCancel"
   >
     <div class="hero-slider">
       <Transition :name="transitionName">
@@ -23,7 +23,7 @@
           zoom-on-hover
         >
           <div class="hero-content">
-            <span class="eyebrow">{{ eyebrowText }}</span>
+            <span class="eyebrow">{{ eyebrow || 'À la une' }}</span>
             <h1>{{ activeItem.title || activeItem.name }}</h1>
             <p v-if="activeItem.overview" class="hero-overview">{{ activeItem.overview }}</p>
             <div class="hero-meta">
@@ -38,27 +38,18 @@
             </div>
           </div>
           <template #overlay>
-            <div
+            <UiCarouselDots
               v-if="normalizedItems.length > 1"
               class="hero-dots"
-              role="tablist"
-              aria-label="Sélection à la une"
+              :count="normalizedItems.length"
+              :model-value="activeIndex"
+              label="Sélection à la une"
+              :item-label="(i) => `Voir la sélection ${i + 1}`"
+              @update:model-value="carousel.goTo"
               @pointerdown.stop
               @pointermove.stop
               @pointerup.stop
-            >
-              <button
-                v-for="(_, i) in normalizedItems"
-                :key="i"
-                type="button"
-                role="tab"
-                class="hero-dot"
-                :class="{ active: i === activeIndex }"
-                :aria-selected="i === activeIndex"
-                :aria-label="`Voir la sélection ${i + 1}`"
-                @click.stop="goTo(i)"
-              />
-            </div>
+            />
           </template>
         </UiHeroBackdrop>
       </Transition>
@@ -70,12 +61,14 @@
 <script setup lang="ts">
 import type { MediaRef } from '@/types';
 import UiButton from '@/components/ui/UiButton.vue';
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, watch } from 'vue';
 import { mediaDetailPath } from '@/mediaUrl';
 import { useRoute, useRouter } from 'vue-router';
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { memoriserApercu } from '@/composables/useFicheApercu';
+import { useCarousel } from '@/composables/useCarousel';
 import MediaStatusBadge from '@/components/media/MediaStatusBadge.vue';
+import UiCarouselDots from '@/components/ui/UiCarouselDots.vue';
 import UiHeroBackdrop from '@/components/ui/UiHeroBackdrop.vue';
 import { proxyUrl } from '@/utils/mediaImage';
 
@@ -104,7 +97,6 @@ defineEmits<{
   (e: 'open', item: any): void;
 }>();
 
-const AUTOPLAY_MS = 7000;
 const LABELS: Record<string, string> = { movie: 'Film', show: 'Série', artist: 'Artiste', album: 'Album', track: 'Titre' };
 
 const normalizedItems = computed(() => {
@@ -114,11 +106,15 @@ const normalizedItems = computed(() => {
   return [];
 });
 
-const activeIndex = ref(0);
-const direction = ref<'next' | 'prev'>('next');
+/* Defilement, clavier et glissement : la mecanique commune des carrousels. Un appui sur
+   les pastilles ou le bouton ne lance pas de glissement. */
+const carousel = useCarousel(() => normalizedItems.value.length, {
+  ignoreSwipeFrom: 'button, a, .hero-dots, .hero-actions',
+});
+const activeIndex = carousel.index;
 const activeItem = computed(() => normalizedItems.value[activeIndex.value] || null);
 
-const transitionName = computed(() => `hero-slide-${direction.value}`);
+const transitionName = computed(() => `hero-slide-${carousel.direction.value}`);
 
 const itemKey = computed(() => {
   if (!activeItem.value) return 0;
@@ -142,11 +138,6 @@ watch(normalizedItems, (items) => {
     prechargees.set(url, img);
   }
 }, { immediate: true });
-
-const eyebrowText = computed(() => {
-  if (props.eyebrow) return props.eyebrow;
-  return 'À la une';
-});
 
 const mediaTypeLabel = computed(() => {
   const type = activeItem.value?.media_type;
@@ -181,124 +172,6 @@ const to = computed(() => {
       : 'library');
   return mediaDetailPath(item, kind, { discover: props.discoverContext });
 });
-
-let timer: any = null;
-const reducedMotion = typeof window !== 'undefined' && window.matchMedia
-  ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  : false;
-
-const SWIPE_THRESHOLD = 35;
-let dragStartX: number | null = null;
-let dragStartY: number | null = null;
-let isHorizontal: boolean | null = null;
-let dragging = false;
-
-function onPointerDown(event: PointerEvent): void {
-  if (normalizedItems.value.length <= 1) return;
-  if ((event.target as HTMLElement)?.closest('button, a, .hero-dots, .hero-actions')) return;
-  dragStartX = event.clientX;
-  dragStartY = event.clientY;
-  isHorizontal = null;
-  dragging = true;
-  pauseAutoplay();
-}
-
-function onPointerMove(event: PointerEvent): void {
-  if (!dragging || dragStartX === null || dragStartY === null) return;
-  const diffX = event.clientX - dragStartX;
-  const diffY = event.clientY - dragStartY;
-
-  if (isHorizontal === null && (Math.abs(diffX) > 8 || Math.abs(diffY) > 8)) {
-    isHorizontal = Math.abs(diffX) > Math.abs(diffY);
-  }
-
-  if (isHorizontal && event.cancelable) {
-    event.preventDefault();
-  }
-}
-
-function onPointerUp(event: PointerEvent): void {
-  if (!dragging || dragStartX === null) return;
-  const delta = event.clientX - dragStartX;
-  if (isHorizontal && Math.abs(delta) >= SWIPE_THRESHOLD) {
-    if (delta < 0) next();
-    else prev();
-  } else {
-    resumeAutoplay();
-  }
-  dragging = false;
-  dragStartX = null;
-  dragStartY = null;
-  isHorizontal = null;
-}
-
-function onPointerCancel(): void {
-  dragging = false;
-  dragStartX = null;
-  dragStartY = null;
-  isHorizontal = null;
-  resumeAutoplay();
-}
-
-function goTo(index: number): void {
-  if (index === activeIndex.value) return;
-  direction.value = index > activeIndex.value ? 'next' : 'prev';
-  activeIndex.value = index;
-  resetAutoplay();
-}
-
-function next(): void {
-  if (normalizedItems.value.length <= 1) return;
-  direction.value = 'next';
-  activeIndex.value = (activeIndex.value + 1) % normalizedItems.value.length;
-  resetAutoplay();
-}
-
-function prev(): void {
-  if (normalizedItems.value.length <= 1) return;
-  direction.value = 'prev';
-  activeIndex.value = (activeIndex.value - 1 + normalizedItems.value.length) % normalizedItems.value.length;
-  resetAutoplay();
-}
-
-function startAutoplay(): void {
-  if (reducedMotion || normalizedItems.value.length <= 1) return;
-  stopAutoplay();
-  timer = setInterval(() => {
-    direction.value = 'next';
-    activeIndex.value = (activeIndex.value + 1) % normalizedItems.value.length;
-  }, AUTOPLAY_MS);
-}
-
-function stopAutoplay(): void {
-  if (timer) {
-    clearInterval(timer);
-    timer = null;
-  }
-}
-
-function pauseAutoplay(): void {
-  stopAutoplay();
-}
-
-function resumeAutoplay(): void {
-  startAutoplay();
-}
-
-function resetAutoplay(): void {
-  stopAutoplay();
-  startAutoplay();
-}
-
-watch(() => normalizedItems.value.length, (length) => {
-  if (activeIndex.value >= length) {
-    activeIndex.value = 0;
-  }
-  resetAutoplay();
-});
-
-onMounted(startAutoplay);
-onUnmounted(stopAutoplay);
 </script>
 
 <style scoped lang="scss">
@@ -406,81 +279,12 @@ onUnmounted(stopAutoplay);
   .hero-btn { min-height: var(--touch-target); }
 }
 
+/* Les pastilles se posent en bas a droite, au-dessus de l'image. */
 .hero-dots {
   position: absolute;
   right: var(--space-4);
   bottom: var(--space-4);
   z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  border-radius: var(--radius-pill);
-  background: rgba(10, 12, 16, 0.65);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-}
-
-.hero-dot {
-  position: relative;
-  display: block;
-  box-sizing: border-box;
-  width: 8px;
-  min-width: 8px;
-  max-width: 8px;
-  height: 8px;
-  min-height: 8px;
-  max-height: 8px;
-  flex: 0 0 8px;
-  flex-shrink: 0;
-  border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.38);
-  border: none;
-  padding: 0;
-  margin: 0;
-  font-size: 0;
-  line-height: 0;
-  cursor: pointer;
-  outline: none;
-  appearance: none;
-  -webkit-appearance: none;
-  transition: width var(--motion-duration-fast) var(--motion-ease-standard), background-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
-}
-
-/* Zone de clic tactile élargie */
-.hero-dot::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-}
-
-.hero-dot:hover,
-.hero-dot:focus-visible {
-  background: rgba(255, 255, 255, 0.85);
-}
-
-.hero-dot:focus-visible {
-  box-shadow: 0 0 0 2px var(--accent);
-}
-
-.hero-dot.active {
-  width: 26px;
-  min-width: 26px;
-  max-width: 26px;
-  height: 8px;
-  min-height: 8px;
-  max-height: 8px;
-  flex: 0 0 26px;
-  background: var(--accent);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 60%, transparent);
-  transform: none;
 }
 
 .hero-loading {
@@ -540,23 +344,6 @@ onUnmounted(stopAutoplay);
   .hero-dots {
     right: var(--space-3);
     bottom: var(--space-3);
-    gap: 6px;
-    padding: 4px 8px;
-  }
-  .hero-dot {
-    width: 6px;
-    min-width: 6px;
-    max-width: 6px;
-    height: 6px;
-    min-height: 6px;
-    max-height: 6px;
-    flex: 0 0 6px;
-  }
-  .hero-dot.active {
-    width: 20px;
-    min-width: 20px;
-    max-width: 20px;
-    flex: 0 0 20px;
   }
 }
 </style>
