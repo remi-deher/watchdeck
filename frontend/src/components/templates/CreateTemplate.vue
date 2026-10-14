@@ -44,6 +44,7 @@
       <p v-if="entering" class="create__entering" role="status">{{ loadingOf(current) }}</p>
       <template v-for="field in (entering ? [] : visibleFields(current))" :key="field.key">
         <p v-if="field.type === 'note'" class="create__note" :class="`is-${field.tone || 'info'}`" role="note">{{ noteOf(field) }}</p>
+        <img v-else-if="field.type === 'image'" class="create__image" :src="noteOf(field)" :alt="field.label">
         <UiField v-else-if="field.type === 'lookup'" v-slot="{ id }" :label="field.label" :hint="field.help" :error="errors[field.key]" :required="field.required">
           <UiLookupField v-model="values[field.key]" :id="id" :search="field.search!" :placeholder="field.placeholder" />
         </UiField>
@@ -287,7 +288,7 @@ async function browseFor(field: CreateField): Promise<void> {
 
 /* Recapitulatif : chaque champ rempli, avec l'etape ou le modifier. */
 const summaryRows = computed(() => steps.value.flatMap((entry, index) => visibleFields(entry)
-  .filter((field) => field.summary !== 'hide' && field.type !== 'note')
+  .filter((field) => field.summary !== 'hide' && field.type !== 'note' && field.type !== 'image')
   .map((field) => {
     const raw = values[field.key];
     let value = raw === true ? 'Oui' : raw === false ? 'Non' : raw instanceof File ? raw.name : raw && typeof raw === 'object' && 'title' in raw ? String(raw.title) : String(raw ?? '—');
@@ -325,6 +326,7 @@ function close(): void {
 .create__step h3, .create__summary h3 { margin: 0; font-size: var(--fs-md); }
 .create__description { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 .create__entering { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.create__image { display: block; width: 180px; height: 180px; border-radius: var(--radius-sm); background: #fff; }
 .create__note { margin: 0; padding: var(--space-3); border: 1px solid transparent; border-radius: var(--radius-sm); font-size: var(--fs-sm); line-height: 1.5; overflow-wrap: anywhere; white-space: pre-line; }
 .create__note.is-info { background: var(--surface-2); color: var(--muted); }
 .create__note.is-warning { border-color: color-mix(in srgb, var(--accent) 32%, transparent); background: color-mix(in srgb, var(--accent) 9%, transparent); color: var(--text); }

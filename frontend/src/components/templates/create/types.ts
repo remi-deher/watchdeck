@@ -8,9 +8,10 @@ export type { LookupItem };
 export type CreateValues = Record<string, any>;
 
 /* `suggest` : texte libre avec propositions ; `file` : un fichier, par glisser-deposer ou parcours. */
-/* `lookup` : cherche puis retient un element (UiLookupField) ; `note` : un texte pour lire, sans saisie. */
+/* `lookup` : cherche puis retient un element (UiLookupField) ; `note` : un texte pour lire, sans saisie ;
+   `image` : une image pour regarder (QR code…), dont `text` donne l'adresse et `label` le texte alternatif. */
 /* `checklist` : plusieurs elements a cocher (valeur : la liste des cles cochees), chacun avec une action facultative. */
-export type CreateFieldType = 'checklist' | 'text' | 'textarea' | 'url' | 'email' | 'secret' | 'number' | 'select' | 'cards' | 'toggle' | 'file' | 'suggest' | 'lookup' | 'note';
+export type CreateFieldType = 'checklist' | 'text' | 'textarea' | 'url' | 'email' | 'secret' | 'number' | 'select' | 'cards' | 'toggle' | 'file' | 'suggest' | 'lookup' | 'note' | 'image';
 
 export interface CreateOption {
   value: string;
