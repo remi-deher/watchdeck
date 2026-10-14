@@ -40,3 +40,9 @@ withDefaults(
   }
 );
 </script>
+
+<style scoped lang="scss">
+.gap-10 {
+  gap: var(--space-3);
+}
+</style>
