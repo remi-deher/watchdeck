@@ -1,5 +1,7 @@
 # Changelog
 
+## 1.90.7 — 2026-10-14
+
 ## 1.90.6 — 2026-10-14
 
 
@@ -12,6 +14,7 @@
 - bump sass from 1.105.0 to 1.105.1 (#840) ([00f03f9](https://github.com/remi-deher/watchdeck/commit/00f03f98f0bc85620ad0e4a54e937ed77dcdebf5))
 - bump @tanstack/vue-query from 5.103.2 to 5.104.1 (#846) ([dc77011](https://github.com/remi-deher/watchdeck/commit/dc770119b4a567dccc910ecc7fed71b477c238e9))
 - bump @tanstack/query-persist-client-core from 5.104.0 to 5.104.1 (#844) ([74308ae](https://github.com/remi-deher/watchdeck/commit/74308ae3d787181e8bf15b024fc4edcbbbb4bed4))
+- v1.90.6 (#851) ([aa87623](https://github.com/remi-deher/watchdeck/commit/aa876233b4844f435bc86c4529b902a88f98638b))
 ## 1.90.5 — 2026-10-11
 
 
