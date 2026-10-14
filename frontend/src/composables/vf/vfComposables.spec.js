@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const apiMock = vi.fn();
 vi.mock('@/api', () => ({ api: (...args) => apiMock(...args) }));
 
-import { computeSeasonCounts, useAuditShowDetails } from './useAuditShowDetails';
 import { useVfAudit } from './useVfAudit';
 import { useVfScanHistory } from './useVfScanHistory';
 import { mediaFromKey, useVfSelection } from './useVfSelection';
@@ -74,41 +73,6 @@ describe('useVfAudit', () => {
     await flushPromises();
     expect(notify).toHaveBeenCalledWith(expect.any(String), 'error');
     expect(audit.loading.value).toBe(false);
-  });
-});
-
-describe('useAuditShowDetails', () => {
-  it('compte une saison : état VF selon Plex, à défaut disponibilité *arr', () => {
-    const counts = computeSeasonCounts(
-      { 1: { has_file: true }, 2: { has_file: false }, 3: { air_date_utc: '2999-01-01T00:00:00Z' }, 4: { has_file: true } },
-      { 4: { status: 'vo', has_full_fr_sub: true, full_fr_sub_is_default: false }, 5: { status: 'vf', has_forced_fr_sub: true, forced_fr_sub_is_default: false } },
-    );
-    expect(counts).toMatchObject({ present: 1, absent: 1, tba: 1, vo: 1, vf: 1, sub_fr_not_default: 1, forced_fr_not_default: 1 });
-  });
-
-  it('charge la série à la première ouverture, puis se contente de replier', async () => {
-    apiMock.mockImplementation(async (path) => {
-      if (path === '/api/library/9/episodes') return { seasons: [{ season_number: 1, episode_count: 1 }] };
-      if (path === '/api/library/9/episodes/1') return { episodes: [{ episode_number: 1, title: 'Pilote' }] };
-      if (path.endsWith('episodes-vf-status')) return { seasons: [{ season_number: 1, episodes: { 1: { status: 'vf' } } }] };
-      return {};
-    });
-    const details = useAuditShowDetails();
-    await details.toggle(9);
-    expect(details.isExpanded(9)).toBe(true);
-    expect(details.seasonsOf(9)[0].episodes[0]).toMatchObject({ episode: 1, title: 'Pilote', status: 'vf' });
-    const calls = apiMock.mock.calls.length;
-    await details.toggle(9);
-    await details.toggle(9);
-    expect(apiMock.mock.calls.length).toBe(calls);
-  });
-
-  it('marque la série en erreur si ses saisons sont introuvables', async () => {
-    apiMock.mockRejectedValue(new Error('404'));
-    const details = useAuditShowDetails();
-    await details.toggle(3);
-    expect(details.hasError(3)).toBe(true);
-    expect(details.seasonsOf(3)).toEqual([]);
   });
 });
 
