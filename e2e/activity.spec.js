@@ -68,12 +68,12 @@ test("les utilisateurs forment un annuaire ; une carte ouvre la vue d'ensemble r
   await expect(page).not.toHaveURL(/view=users/);
 });
 
-test("l'en direct est une page Suivre : en cours, en pause, lien vers l'historique", async ({ page }) => {
+test("l'en direct est une page Suivre : bandeau de l'Accueil, lecture en pause, lien vers l'historique", async ({ page }) => {
   await mockApi(page);
   await page.goto("/activity?view=live");
   await expect(page.locator(".track")).toBeVisible({ timeout: 15000 });
   await expect(page.locator(".track")).toContainText("Interstellar");
-  await expect(page.getByRole("heading", { name: "En pause" })).toBeVisible();
+  await expect(page.locator(".track")).toContainText("En pause");
   await page.getByRole("link", { name: "Historique des lectures" }).click();
   await expect(page).toHaveURL(/view=history/);
 });
