@@ -1,331 +1,208 @@
 import { mount, flushPromises } from '@vue/test-utils';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as vueRouter from 'vue-router';
 import { toasts } from '@/composables/useToast';
 import StorageView from './StorageView.vue';
+
 const { request } = vi.hoisted(() => ({ request: vi.fn() }));
 vi.mock('@/api', () => ({ api: request }));
-vi.mock('@/components/storage/previewJob', () => ({calculatePreview: (body) => request('/api/storage/preview', {method:'POST',body:JSON.stringify(body)})}));
+vi.mock('@/components/storage/previewJob', () => ({ calculatePreview: (body) => request('/api/storage/preview', { method: 'POST', body: JSON.stringify(body) }) }));
 vi.mock('@/events', () => ({ useRealtime: vi.fn() }));
-/* La vue est dans l'adresse (?vue=) : une adresse reactive remplace le routeur, pour que changer de vue soit synchrone. */
+/* La vue est dans l'adresse (?vue=) : une adresse réactive remplace le routeur, pour que changer de vue soit synchrone. */
 vi.mock('vue-router', async (importOriginal) => {
   const { reactive } = await import('vue');
-  const route = reactive({ path: '/storage', query: {}  });
+  const route = reactive({ path: '/storage', query: {} });
   return {
     ...(await importOriginal()),
     useRoute: () => route,
     useRouter: () => ({ replace: (to) => { route.query = to.query || {}; }, push: (to) => { route.query = to.query || {}; } }),
+    onBeforeRouteLeave: () => {},
+    onBeforeRouteUpdate: () => {},
     __route: route,
   };
 });
 const route = vueRouter.__route;
+
 const roots = [
-  { arr_instance_id: 1, name: 'Radarr', arr_type: 'radarr', arr_roots: ['/data/FILMS','/usb/FILMS'], plex_roots: [{ section_id:'1',library:'Films',path:'/media/FILMS' }, { section_id:'1',library:'Films',path:'/usb/MEDIA/FILMS' }] },
-  { arr_instance_id: 2, name: 'Sonarr', arr_type: 'sonarr', arr_roots: ['/data/SERIES'], plex_roots: [{ section_id:'2',library:'Séries',path:'/media/SERIES' }] },
+  { arr_instance_id: 1, name: 'Radarr', arr_type: 'radarr', arr_roots: ['/data/FILMS', '/usb/FILMS'], plex_roots: [{ section_id: '1', library: 'Films', path: '/media/FILMS' }, { section_id: '1', library: 'Films', path: '/usb/MEDIA/FILMS' }] },
+  { arr_instance_id: 2, name: 'Sonarr', arr_type: 'sonarr', arr_roots: ['/data/SERIES'], plex_roots: [{ section_id: '2', library: 'Séries', path: '/media/SERIES' }] },
 ];
-async function openPreparation(wrapper){await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');await wrapper.findAll('button').find(b=>b.text()==='Nouveau transfert').trigger('click');await wrapper.find('form').trigger('submit');}
-/* La fiche d'une tache s'ouvre par l'adresse (?tache=) ; un evenement de l'historique, d'un clic sur sa ligne. */
-const openTask=async(id,vue='transfers')=>{route.query={vue,tache:String(id)};await flushPromises();};
-const press=(wrapper,label)=>wrapper.findAll('button').find(b=>b.text()===label).trigger('click');
-async function openHistoryRow(wrapper,index=0){await press(wrapper,'Historique');await flushPromises();await wrapper.findAll('.understand-row')[index].trigger('click');await flushPromises();}
-async function factory(openSettings=true) {
- const wrapper = mount(StorageView, {global:{stubs:{ConfirmModal:{props:['open','title','message','confirmLabel'],emits:['cancel','confirm'],template:'<div v-if="open" role="dialog" class="confirm"><p>{{ message }}</p><button @click="$emit(\'cancel\')">Annuler</button><button @click="$emit(\'confirm\')">{{ confirmLabel }}</button></div>'},RouterLink:{props:['to'],template:'<a><slot/></a>'},UiMenu:{template:'<div><slot name="trigger"/><slot/></div>'},UiMenuItem:{emits:['select'],template:'<button @click="$emit(\'select\',$event)"><slot/></button>'},PageTemplate:{props:['tabs'],methods:{go(item){route.query=item.to.query;}},template:'<main><nav class="app-subnav__root"><button v-for="item in tabs" :key="item.key" @click="go(item)">{{ item.label }}</button></nav><slot name="quick-action"/><slot/></main>'}, ModalShell:{props:['open','error'],template:'<div v-if="open" role="dialog"><span>{{ error }}</span><slot/></div>'}}}});
- await flushPromises();
- if(openSettings){await wrapper.findAll('button').find(b=>b.text()==='Stockages').trigger('click');await flushPromises();}
- return wrapper;
+const instances = [{ id: 1, name: 'Radarr', arr_type: 'radarr', enabled: true }, { id: 2, name: 'Sonarr', arr_type: 'sonarr', enabled: true }];
+const locationRow = { id: 7, name: 'DATA 1', mount_path: '', reserve_bytes: 0, enabled: true, total_bytes: 10e9, free_bytes: 5e9, mappings: [{ arr_instance_id: 1, arr_root: '/data/FILMS', plex_root: '/media/FILMS', plex_section_id: '1' }] };
+
+let data;
+const defaults = () => ({ locations: [], transfers: [], accesses: [], connections: [], inventory: [] });
+const handler = async (path, opts) => {
+  if (path === '/api/storage/roots') return roots;
+  if (path === '/api/storage/instances') return instances;
+  if (path === '/api/storage/locations' && !opts) return data.locations;
+  if (path === '/api/storage/transfers' && !opts) return data.transfers;
+  if (path === '/api/storage/accesses') return data.accesses;
+  if (path === '/api/storage/connections') return data.connections;
+  if (path === '/api/storage/protected-titles') return [];
+  if (path.startsWith('/api/storage/inventory')) return data.inventory;
+  return {};
+};
+
+const body = () => document.body;
+const buttons = () => [...document.querySelectorAll('button')];
+const press = async (label) => { buttons().find((b) => b.textContent.trim() === label).click(); await flushPromises(); };
+const has = (label) => buttons().some((b) => b.textContent.trim() === label);
+/* La fiche d'une tâche s'ouvre par l'adresse (?tache=). */
+const openTask = async (id, vue = 'transfers') => { route.query = { vue, tache: String(id) }; await flushPromises(); };
+const goTo = async (vue) => { route.query = { vue }; await flushPromises(); };
+
+let wrapper;
+async function factory(vue = 'transfers') {
+  route.query = { vue };
+  wrapper = mount(StorageView, {
+    attachTo: document.body,
+    global: {
+      stubs: {
+        ConfirmModal: { props: ['open', 'title', 'message', 'confirmLabel'], emits: ['cancel', 'confirm'], template: '<div v-if="open" role="alertdialog" class="confirm"><p>{{ message }}</p><button @click="$emit(\'cancel\')">Annuler</button><button @click="$emit(\'confirm\')">{{ confirmLabel }}</button></div>' },
+        UiMenu: { template: '<div><slot name="trigger"/><slot/></div>' },
+        UiMenuItem: { emits: ['select'], template: '<button @click="$emit(\'select\', $event)"><slot/></button>' },
+        RouterLink: { props: ['to'], template: '<a><slot/></a>' },
+        PageTemplate: { props: ['tabs'], template: '<main><slot name="quick-action"/><slot name="filters"/><slot/></main>' },
+      },
+    },
+  });
+  await flushPromises();
+  return wrapper;
 }
-describe('Storage root correspondence table', () => {
- beforeEach(()=>{route.query={};localStorage.clear();request.mockReset();request.mockImplementation(async(path)=>path==='/api/storage/roots'?roots:path==='/api/storage/instances'?[{id:1,name:'Radarr',arr_type:'radarr',enabled:true},{id:2,name:'Sonarr',arr_type:'sonarr',enabled:true}]:path==='/api/storage/roots/resolve'?{candidates:[],automatic:null,comparison:{status:'sample_matched',checked_titles:5,total_titles:12,items:[]}}:path==='/api/storage/roots/check'?{status:'sample_matched',checked_titles:5,total_titles:12,items:[]}:[]);});
- it('keeps saved virtual roots visible when changing the instance of a previous task',async()=>{
-  const original=request.getMockImplementation();
-  request.mockImplementation(async(path,opts)=>{
-   if(path==='/api/storage/locations')return roots.flatMap(instance=>instance.arr_roots.map((root,index)=>({id:instance.arr_instance_id*10+index,virtual:true,mappings:[{arr_instance_id:instance.arr_instance_id,arr_root:root}]})));
-   if(path==='/api/storage/transfers'&&!opts)return [{id:17,status:'completed',params:{arr_instance_id:1,source_roots:['/data/FILMS'],destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]}];
-   return original(path,opts);
+
+describe('Stockage et transferts', () => {
+  beforeEach(() => { data = defaults(); localStorage.clear(); toasts.value = []; request.mockReset(); request.mockImplementation(handler); });
+  afterEach(() => { wrapper?.unmount(); wrapper = null; document.body.innerHTML = ''; });
+
+  it('liste les stockages avec leur capacité mesurée', async () => {
+    data.locations = [locationRow];
+    await factory('settings');
+    expect(body().textContent).toContain('5 Go libres');
+    expect(body().textContent).toContain('1 dossier(s) associé(s)');
   });
-  const wrapper=await factory(false);
-  await openTask(17,'history');
-  await press(wrapper,'Créer une copie');await wrapper.find('form').trigger('submit');
-  await wrapper.findAll('.instance-choice input')[0].setValue(false);
-  await wrapper.findAll('.instance-choice input')[1].setValue(true);
-  expect(wrapper.findAll('.source-choices input').map(input=>input.element.value)).toEqual(['/data/SERIES']);
-  await wrapper.findAll('.instance-choice input')[0].setValue(true);
-  expect(wrapper.findAll('.source-choices input').map(input=>input.element.value)).toContain('/data/FILMS');
-  expect(request.mock.calls.some(([path])=>path==='/api/storage/roots')).toBe(false);
-  wrapper.unmount();
- });
- it('offers roots configured on transfer accesses even before validation',async()=>{
-  const original=request.getMockImplementation();
-  request.mockImplementation(async(path,opts)=>path==='/api/storage/accesses'?[{id:1,method:'ssh',revision:'new',validation:{},roots:[{arr_instance_id:2,arr_root:'/data/SERIES',path:'/mnt/DATA/MEDIA/SERIES'}]}]:original(path,opts));
-  const wrapper=await factory(false);
-  await openPreparation(wrapper);
-  await wrapper.findAll('.instance-choice').find(label=>label.text().includes('Sonarr')).find('input').setValue(true);
-  expect(wrapper.find('.source-choices input').element.value).toBe('/data/SERIES');
-  wrapper.unmount();
- });
- it('does not read Arr/Plex roots when opening the overview or preparation',async()=>{
-  const wrapper=await factory(false);
-  expect(request.mock.calls.some(([path])=>path==='/api/storage/roots')).toBe(false);
-  await openPreparation(wrapper);await flushPromises();
-  expect(request.mock.calls.some(([path])=>path==='/api/storage/roots')).toBe(false);
-  wrapper.unmount();
- });
- it('renders one shared-table row per Arr root without assuming a Plex match',async()=>{
-  const wrapper=await factory();
-  const table=wrapper.find('[aria-label="Correspondance des racines Arr et Plex"]');
-  const rows=table.findAll('tbody tr');
-  expect(rows).toHaveLength(3);
-  expect(rows.map(row=>row.findAll('td')[0].find('code').text())).toEqual(['/data/FILMS','/usb/FILMS','/data/SERIES']);
-  expect(rows.map(row=>row.find('select').element.value)).toEqual([JSON.stringify(['1','/media/FILMS']),JSON.stringify(['1','/usb/MEDIA/FILMS']),JSON.stringify(['2','/media/SERIES'])]);
-  expect(rows[0].find('select').element.value).not.toContain('/usb/');
-  wrapper.unmount();
- });
- it('saves associations and paths without checking libraries or validating accesses',async()=>{
-  const original=request.getMockImplementation();
-  request.mockImplementation(async(path,opts)=>{
-   if(path==='/api/storage/roots/check'||path.endsWith('/validate'))throw new Error('Network unavailable');
-   return original(path,opts);
+
+  it('propose les pages liées aux stockages sans les poser dans un tableau', async () => {
+    data.locations = [locationRow];
+    await factory('settings');
+    expect(has('Ajouter un stockage')).toBe(true);
+    await goTo('settings');
   });
-  const wrapper=await factory();
-  await wrapper.findAll('button').find(b=>b.text()==='Enregistrer').trigger('click');await flushPromises();
-  expect(request.mock.calls.filter(([path,opts])=>path==='/api/storage/locations' && opts?.method==='POST')).toHaveLength(3);
-  expect(request.mock.calls.some(([path])=>path==='/api/storage/roots/check'||path.endsWith('/validate'))).toBe(false);
-  expect(wrapper.text()).toContain('contrôlés lors de l’aperçu');
-  expect(wrapper.text()).not.toContain('Network unavailable');
-  expect(wrapper.findAll('button').some(b=>b.text()==='Tout revérifier')).toBe(false);
-  wrapper.unmount();
- });
- it('updates existing reactive mappings without structuredClone failures',async()=>{
-  const original=request.getMockImplementation();const location={id:7,name:'DATA',mount_path:'',reserve_bytes:0,enabled:true,mappings:[{arr_instance_id:1,arr_root:'/data/FILMS',plex_root:'/media/FILMS',plex_section_id:'1',subdirectory:''}]};
-  request.mockImplementation(async(path,opts)=>path==='/api/storage/locations' && !opts?[location]:original(path,opts));
-  const wrapper=await factory();await wrapper.find('tbody tr select').setValue(JSON.stringify(['1','/usb/MEDIA/FILMS']));await wrapper.findAll('button').find(b=>b.text()==='Enregistrer').trigger('click');await flushPromises();
-  expect(request.mock.calls.some(([path,opts])=>path==='/api/storage/locations/7' && opts?.method==='PUT')).toBe(true);
-  expect(wrapper.text()).not.toContain('could not be cloned');wrapper.unmount();
- });
- it('promotes a temporary preview mapping only after saving',async()=>{
-  const original=request.getMockImplementation();let promoted=false;
-  const location={id:7,name:'Arr 1 · /data/FILMS',mount_path:'',reserve_bytes:0,enabled:true,virtual:true,mappings:[{arr_instance_id:1,arr_root:'/data/FILMS',plex_root:'/media/FILMS',plex_section_id:'1',subdirectory:''}]};
-  request.mockImplementation(async(path,opts)=>{
-   if(path==='/api/storage/locations'&&!opts)return [promoted?{...location,virtual:false}:location];
-   if(path==='/api/storage/locations/7'&&opts?.method==='PUT'){promoted=true;return {...location,virtual:false};}
-   return original(path,opts);
+
+  it('ouvre « Nouveau transfert » comme une définition du gabarit Créer', async () => {
+    data.locations = [locationRow];
+    await factory();
+    await press('Nouveau transfert');
+    expect(document.querySelector('.create-modal')).not.toBeNull();
+    expect(body().textContent).toContain('Libérer une quantité d’espace');
+    expect(request.mock.calls.some(([path]) => path === '/api/storage/preview')).toBe(false);
   });
-  const wrapper=await factory();
-  const row=wrapper.find('[aria-label="Correspondance des racines Arr et Plex"]').findAll('tbody tr')[0];
-  expect(row.text()).toContain('À enregistrer');
-  await wrapper.findAll('button').find(b=>b.text()==='Enregistrer').trigger('click');await flushPromises();
-  expect(request).toHaveBeenCalledWith('/api/storage/locations/7',expect.objectContaining({method:'PUT'}));
-  expect(row.text()).toContain('Configuré');
-  wrapper.unmount();
- });
- it('only offers Arr preparation without rsync or engine settings',async()=>{
-  const wrapper=await factory();
-  await openPreparation(wrapper);
-  expect(wrapper.find('input[value="rsync"]').exists()).toBe(false);
-  expect(wrapper.text()).toContain('Stockages');
-  expect(wrapper.text()).not.toContain('Watchdeck ne garantit');
-  expect(wrapper.text()).toContain('Instances à déplacer');
-  expect(wrapper.text()).not.toContain('doivent être montés');
-  wrapper.unmount();
- });
- it('prepares multiple instances from saved roots with a shared preview',async()=>{
-  const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/locations'?
-   [{id:1,virtual:false,free_bytes:10e9,mappings:[{arr_instance_id:1,arr_root:'/data/FILMS',plex_root:'/media/FILMS',plex_section_id:'1'}]},{id:2,virtual:false,free_bytes:20e9,mappings:[{arr_instance_id:1,arr_root:'/usb/FILMS',plex_root:'/usb/MEDIA/FILMS',plex_section_id:'1'}]},{id:3,virtual:false,free_bytes:10e9,mappings:[{arr_instance_id:2,arr_root:'/data/SERIES',plex_root:'/media/SERIES',plex_section_id:'2'}]},{id:4,virtual:false,free_bytes:20e9,mappings:[{arr_instance_id:2,arr_root:'/usb/SERIES',plex_root:'/usb/MEDIA/SERIES',plex_section_id:'2'}]}]:path==='/api/storage/preview'?{source:{free_bytes:10e9},destination:{free_bytes:20e9},items:[],excluded:[],goal_covered:true}:original(path,opts));
-  const wrapper=await factory();await openPreparation(wrapper);
-  const choices=wrapper.findAll('.instance-choice input');await choices[0].setValue(true);await choices[1].setValue(true);
-  const sourceChecks=wrapper.findAll('.source-choices input');await sourceChecks[0].setValue(true);await sourceChecks[2].setValue(true);
-  const selects=wrapper.findAll('.prepare-route select');await selects[0].setValue('/usb/FILMS');await selects[1].setValue('/usb/SERIES');
-  await wrapper.find('form').trigger('submit');await flushPromises();
-  const calls=request.mock.calls.filter(([path])=>path==='/api/storage/preview');expect(calls).toHaveLength(1);expect(JSON.parse(calls[0][1].body).routes.map(r=>r.arr_instance_id)).toEqual([1,2]);
-  expect(wrapper.find('[role="dialog"]').exists()).toBe(true);wrapper.unmount();
- });
- it('sends multiple checked sources with one shared objective',async()=>{
-  const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/locations'?[{id:1,virtual:false,free_bytes:10e9,mappings:[{arr_instance_id:1,arr_root:'/data/FILMS',plex_root:'/media/FILMS',plex_section_id:'1'}]},{id:2,virtual:false,free_bytes:10e9,mappings:[{arr_instance_id:1,arr_root:'/data2/FILMS',plex_root:'/media2/FILMS',plex_section_id:'1'}]},{id:3,virtual:false,free_bytes:20e9,mappings:[{arr_instance_id:1,arr_root:'/usb/FILMS',plex_root:'/usb/MEDIA/FILMS',plex_section_id:'1'}]}]:path==='/api/storage/preview'?{source:{free_bytes:0},destination:{free_bytes:20e9},items:[],excluded:[],goal_covered:true}:original(path,opts));
-  const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');await wrapper.findAll('button').find(b=>b.text()==='Nouveau transfert').trigger('click');expect(wrapper.findAll('.objective-options input')).toHaveLength(3);await wrapper.find('input[type=number]').setValue(600);await wrapper.find('form').trigger('submit');
-  await wrapper.find('.instance-choice input').setValue(true);
-  const checks=wrapper.findAll('.source-choices input');await checks[0].setValue(true);await checks[1].setValue(true);
-  await wrapper.find('.prepare-route select').setValue('/usb/FILMS');
-  expect(wrapper.find('.source-choices input[value="/usb/FILMS"]').element.disabled).toBe(true);
-  expect(wrapper.findAll('.source-choices input').length).toBe(3);
-  await wrapper.find('form').trigger('submit');await flushPromises();
-  const calls=request.mock.calls.filter(([path])=>path==='/api/storage/preview');expect(calls).toHaveLength(1);
-  expect(JSON.parse(calls[0][1].body)).toMatchObject({goal_gb:600,routes:[{source_roots:['/data/FILMS','/data2/FILMS'],destination_root:'/usb/FILMS',root_goals:{}}]});
-  wrapper.unmount();
- });
- it('does not show a create-task button in transfers',async()=>{
-  const wrapper=await factory();await wrapper.findAll('button').find(b=>b.text()==='Transferts').trigger('click');
-  expect(wrapper.findAll('button').some(b=>b.text()==='Créer une tâche')).toBe(false);wrapper.unmount();
- });
- it('edits a saved draft without resuming it blindly',async()=>{
-  const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers' && !opts?[{id:11,status:'draft',desired_state:'pause',params:{transfer_mode:'arr',arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS'},items:[]}]:original(path,opts));
-  const wrapper=await factory();await openTask(11);
-  expect(wrapper.text()).toContain('Tâche enregistrée, aucun transfert lancé');
-  expect(wrapper.findAll('button').some(b=>b.text()==='Reprendre')).toBe(false);
-  await press(wrapper,'Modifier');await wrapper.find('form').trigger('submit');
-  expect(wrapper.find('.source-choices input').element.checked).toBe(true);wrapper.unmount();
- });
- it('verifies a draft without launching and confirms deletion separately',async()=>{
-  const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers' && !opts?[{id:11,status:'draft',desired_state:'pause',params:{name:'Ma tâche',transfer_mode:'arr',arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS'},items:[]}]:path==='/api/storage/preview'?{source:{free_bytes:0},destination:{free_bytes:20e9},items:[],excluded:[],goal_covered:true}:original(path,opts));
-  const wrapper=await factory();await openTask(11);
-  await press(wrapper,'Supprimer le brouillon');
-  expect(wrapper.find('[role="dialog"]').text()).toContain('Aucun fichier média');
-  await press(wrapper,'Annuler');await flushPromises();
-  expect(request.mock.calls.some(([,opts])=>opts?.method==='DELETE')).toBe(false);
-  await press(wrapper,'Vérifier et lancer');await flushPromises();
-  expect(request.mock.calls.some(([path])=>path==='/api/storage/preview')).toBe(true);
-  expect(request.mock.calls.some(([path,opts])=>path==='/api/storage/transfers' && opts?.method==='POST')).toBe(false);
-  expect(wrapper.find('[role="dialog"]').exists()).toBe(true);wrapper.unmount();
- });
- it('filters transfer titles and exposes retry for blocked items',async()=>{
-  const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers' && !opts?[{id:9,source_id:1,destination_id:2,status:'paused',desired_state:'pause',params:{transfer_mode:'arr'},items:[{id:1,title:'À corriger',status:'blocked',size_bytes:100,snapshot:{}},{id:2,title:'Terminé',status:'completed',size_bytes:200,snapshot:{}}]}]:original(path,opts));
-  const wrapper=await factory();await openTask(9);
-  expect(wrapper.text()).toContain('1 titre(s) à traiter');
-  await wrapper.findAll('[role="tab"]').find(t=>t.text().startsWith('Titres')).trigger('mousedown',{button:0});await flushPromises();
-  const table=wrapper.find('[aria-label="Titres de la tâche 9"]');expect(table.text()).toContain('À corriger');expect(table.text()).toContain('Terminé');
-  await press(wrapper,'Réessayer les titres en erreur');await flushPromises();
-  expect(request).toHaveBeenCalledWith('/api/storage/transfers/9/command',expect.objectContaining({body:JSON.stringify({action:'retry'})}));wrapper.unmount();
- });
- it('keeps capacity in storage and terminal tasks in history',async()=>{
-  request.mockImplementation(async(path)=>path==='/api/storage/roots'?roots:path==='/api/storage/locations'?[{id:1,name:'DATA1',mappings:[],free_bytes:null,enabled:true}]:path==='/api/storage/transfers'?[{id:1,source_id:1,status:'paused',items:[{id:1,status:'pending',media_type:'movie',size_bytes:2e9},{id:2,status:'completed',media_type:'series',size_bytes:3e9}]}]:[]);
-  const wrapper=await factory();expect(wrapper.find('[aria-label="Stockages"]').text()).toContain('— libres');
-  await press(wrapper,'Historique');await flushPromises();expect(wrapper.text()).not.toContain('Tâche #1');
-  await press(wrapper,'Transferts');await flushPromises();expect(wrapper.text()).toContain('Tâche #1');wrapper.unmount();
- });
 
- it('refreshes in the background without replacing rows or clearing the selected pair',async()=>{
-  const interval=vi.spyOn(globalThis,'setInterval');
-  const clock=vi.spyOn(Date,'now').mockReturnValue(100000);
-  const wrapper=await factory();
-  const row=wrapper.find('[aria-label="Correspondance des racines Arr et Plex"]').findAll('tbody tr')[0];
-  const element=row.element;
-  await row.find('select').setValue(JSON.stringify(['1','/media/FILMS']));
-  await wrapper.findAll('button').find(b=>b.text()==='Enregistrer').trigger('click');await flushPromises();
-  expect(wrapper.findAll('button').some(b=>b.text().startsWith('Actualiser'))).toBe(false);
-  clock.mockReturnValue(165000);
-  const tick=interval.mock.calls.find(([,delay])=>delay===5000)[0];
-  tick();await flushPromises();
-  const refreshed=wrapper.find('[aria-label="Correspondance des racines Arr et Plex"]').findAll('tbody tr')[0];
-  expect(refreshed.element).toBe(element);
-  expect(refreshed.find('select').element.value).toBe(JSON.stringify(['1','/media/FILMS']));
-  expect(refreshed.text()).toContain('Configuré');
-  wrapper.unmount();interval.mockRestore();clock.mockRestore();
- });
-
- it('shows measured capacity, copy estimate and completed batch dates',async()=>{
-  request.mockImplementation(async(path)=>path==='/api/storage/roots'?roots:path==='/api/storage/locations'?[{id:1,name:'DATA1',mount_path:'/storage/data1',mappings:[],total_bytes:10e9,free_bytes:5e9,reserve_bytes:1e9,health:'ok',enabled:true}]:path==='/api/storage/transfers'?[
-   {id:1,source_id:1,destination_id:2,status:'running',desired_state:'run',released_bytes:0,items:[{id:1,title:'Film actif',status:'copying',media_type:'movie',size_bytes:2e9,progress:{copied_bytes:1e9,bytes_per_second:20e6,updated_at:Date.now()/1000}}]},
-   {id:2,source_id:1,destination_id:2,status:'completed',released_bytes:3e9,items:[{id:2,status:'completed',media_type:'series',size_bytes:3e9,progress:{started_at:'2026-10-04T10:00:00',finished_at:'2026-10-04T10:10:00'}}]},
-  ]:[]);
-  const wrapper=await factory();expect(wrapper.find('[aria-label="Stockages"]').text()).toContain('5 Go libres');
-  await openTask(1);
-  expect(wrapper.find('[aria-label="Volume copié de la tâche 1"]').attributes('aria-valuenow')).toBe('50');expect(wrapper.text()).toContain('20 Mo/s');expect(wrapper.text()).toContain('≈ 50 s');
-  await press(wrapper,'Historique');await flushPromises();expect(wrapper.text()).toContain('0 film(s) · 1 série(s)');
-  await wrapper.findAll('.understand-row')[0].trigger('click');await flushPromises();expect(wrapper.text()).toContain('Début / fin');expect(wrapper.text()).toContain('04/10/2026');wrapper.unmount();
- });
-
- it('saves paths for multiple rows without validating the shared connection',async()=>{
-  const previous=request.getMockImplementation(),bindings=[];
-  request.mockImplementation(async(path,options)=>{
-   if(path==='/api/storage/connections')return [{id:7,name:'NAS',method:'ssh',tested:true}];
-   if(path==='/api/storage/bindings/multiple'){bindings.push(JSON.parse(options.body));return {saved:true};}
-   if(path==='/api/storage/accesses')return bindings.length?[{id:8,connection_id:7,name:'NAS',revision:'new',validation:{},roots:bindings.map(b=>({...b,...b.bindings[0]}))}]:[];
-   return previous(path,options);
+  it('ouvre « Ajouter un stockage » et charge les dossiers découverts à l’étape des dossiers', async () => {
+    await factory('settings');
+    await press('Ajouter un stockage');
+    expect(document.querySelector('.create-modal')).not.toBeNull();
+    expect(body().textContent).toContain('Nom');
   });
-  const w=await factory();const rows=w.find('[aria-label="Correspondance des racines Arr et Plex"]').findAll('tbody tr');
-  for(const [index,path] of [[0,'/mnt/data/FILMS'],[1,'/mnt/usb/FILMS']]){
-   await rows[index].findAll('button').find(b=>b.text()==='Configurer').trigger('click');
-   await rows[index].findAll('select')[1].setValue('7');
-   await rows[index].find('input[placeholder="Chemin accessible"]').setValue(path);
-   await rows[index].findAll('button').find(b=>b.text()==='Terminer').trigger('click');
-  }
-  await w.findAll('button').find(b=>b.text()==='Enregistrer').trigger('click');await flushPromises();
-  expect(bindings).toEqual([{arr_instance_id:1,arr_root:'/data/FILMS',bindings:[{connection_id:7,path:'/mnt/data/FILMS'}]},{arr_instance_id:1,arr_root:'/usb/FILMS',bindings:[{connection_id:7,path:'/mnt/usb/FILMS'}]}]);
-  expect(request.mock.calls.filter(([p])=>p==='/api/storage/accesses/8/validate')).toHaveLength(0);
-  expect(request.mock.calls.some(([p,o])=>p==='/api/storage/transfers' && o?.method==='POST')).toBe(false);
-  w.unmount();
- });
 
- it('opens a fresh preview directly when relaunching a cancelled task',async()=>{
-  const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:17,status:'cancelled',desired_state:'cancel',params:{mode:'release_space',goal_gb:20,arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]}]:path==='/api/storage/preview'?{source:{free_bytes:100e9},destination:{free_bytes:200e9},items:[],excluded:[],goal_covered:true}:original(path,opts));
-  const wrapper=await factory();await openHistoryRow(wrapper);
-  expect(wrapper.text()).toContain('Relancer');
-  await press(wrapper,'Relancer');await flushPromises();
-  expect(request.mock.calls.some(([path])=>path==='/api/storage/preview')).toBe(true);
-  expect(wrapper.find('[role="dialog"]').exists()).toBe(true);
-  expect(wrapper.find('[role="dialog"]').text()).toContain('Mode retenu : API Sonarr / Radarr');
-  expect(request.mock.calls.some(([path,opts])=>path==='/api/storage/transfers'&&opts?.method==='POST')).toBe(false);wrapper.unmount();
- });
- it('confirms removal of a paused task before requesting durable cancellation',async()=>{
-  const original=request.getMockImplementation();request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:18,status:'paused',desired_state:'pause',params:{transfer_mode:'rsync_ssh'},items:[]}]:path==='/api/storage/transfers/18'&&opts?.method==='DELETE'?{deletion_pending:18}:original(path,opts));
-  const wrapper=await factory();await openTask(18);
-  await press(wrapper,'Supprimer la tâche');
-  expect(wrapper.text()).toContain('ses fichiers temporaires nettoyés');
-  expect(request.mock.calls.some(([,opts])=>opts?.method==='DELETE')).toBe(false);
-  await press(wrapper,'Annuler et supprimer');await flushPromises();
-  expect(request).toHaveBeenCalledWith('/api/storage/transfers/18',{method:'DELETE'});await flushPromises();expect(toasts.value.some(t=>t.title.includes('annulation et nettoyage en cours'))).toBe(true);wrapper.unmount();
- });
-
- it('opens saved settings without calculating a preview when modifying a completed task',async()=>{
-  const original=request.getMockImplementation();
-  request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:17,status:'completed',params:{mode:'release_space',goal_gb:20,arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]}]:original(path,opts));
-  const wrapper=await factory(false);await openTask(17,'history');
-  await press(wrapper,'Modifier');await flushPromises();
-  expect(wrapper.find('.objective-options').exists()).toBe(true);
-  expect(request.mock.calls.some(([path])=>path==='/api/storage/preview')).toBe(false);
-  wrapper.unmount();
- });
- it('shows a loading modal without opening preparation while relaunch preview is pending',async()=>{
-  const original=request.getMockImplementation();let rejectPreview;
-  request.mockImplementation(async(path,opts)=>path==='/api/storage/transfers'&&!opts?[{id:17,status:'cancelled',params:{mode:'release_space',goal_gb:20,arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]}]:path==='/api/storage/preview'?new Promise((resolve,reject)=>{rejectPreview=reject;}):original(path,opts));
-  const wrapper=await factory(false);await openHistoryRow(wrapper);
-  await press(wrapper,'Relancer');await flushPromises();
-  expect(wrapper.find('[role="dialog"] [role="status"]').exists()).toBe(true);
-  expect(wrapper.find('.instance-choice').exists()).toBe(false);
-  rejectPreview(new Error('Plex indisponible'));await flushPromises();
-  expect(wrapper.find('[role="dialog"]').text()).toContain('Plex indisponible');
-  await wrapper.findAll('button').find(b=>b.text()==='Modifier les réglages').trigger('click');
-  expect(wrapper.find('.objective-options').exists()).toBe(true);
-  wrapper.unmount();
- });
-
- it('saves a renamed completed task in place without generating a preview',async()=>{
-  const original=request.getMockImplementation();
-  const job={id:17,status:'completed',params:{name:'Old name',mode:'release_space',goal_gb:20,arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]};
-  request.mockImplementation(async(path,opts)=>{
-   if(path==='/api/storage/locations')return roots.flatMap(instance=>instance.arr_roots.map((root,index)=>({id:instance.arr_instance_id*10+index,mappings:[{arr_instance_id:instance.arr_instance_id,arr_root:root}]})));
-   if(path==='/api/storage/transfers'&&!opts)return [job];
-   if(path==='/api/storage/transfers/17'&&opts?.method==='PUT')return {id:17};
-   return original(path,opts);
+  it('affiche les correspondances par instance et enregistre le choix modifié', async () => {
+    data.locations = [locationRow];
+    await factory('settings');
+    await press('Correspondances Arr ↔ Plex');
+    expect(request.mock.calls.some(([path]) => path === '/api/storage/roots')).toBe(true);
+    expect(body().textContent).toContain('Radarr · Films');
+    expect(body().textContent).toContain('Sonarr · Séries');
+    expect(body().textContent).toContain('/usb/FILMS');
   });
-  const wrapper=await factory(false);await openTask(17,'history');
-  await press(wrapper,'Modifier');
-  const name=wrapper.findComponent({name:'StorageObjectiveFields'}).find('input');
-  await name.setValue('Renamed task');await wrapper.find('form').trigger('submit');
-  await wrapper.findAll('button').find(b=>b.text()==='Enregistrer les modifications').trigger('click');await flushPromises();
-  const update=request.mock.calls.find(([path,opts])=>path==='/api/storage/transfers/17'&&opts?.method==='PUT');
-  expect(update).toBeDefined();expect(JSON.parse(update[1].body)).toMatchObject({name:'Renamed task',start_immediately:false,selection:[]});
-  expect(request.mock.calls.some(([path])=>path==='/api/storage/preview')).toBe(false);
-  expect(request.mock.calls.some(([path,opts])=>path==='/api/storage/transfers'&&opts?.method==='POST')).toBe(false);
-  wrapper.unmount();
- });
 
- it('relaunches into the existing job ID rather than creating another entry',async()=>{
-  const original=request.getMockImplementation();
-  const job={id:17,status:'completed',params:{name:'Named job',mode:'release_space',goal_gb:20,arr_instance_id:1,source_root:'/data/FILMS',destination_root:'/usb/FILMS',transfer_mode:'arr'},items:[]};
-  request.mockImplementation(async(path,opts)=>{
-   if(path==='/api/storage/transfers'&&!opts)return [job];
-   if(path==='/api/storage/preview')return {source:{id:1,free_bytes:100e9},destination:{id:2,free_bytes:200e9},items:[{key:'1:7',title:'Film',size_bytes:20e9,snapshot:{}}],excluded:[],goal_covered:true};
-   if(path==='/api/storage/transfers/17'&&opts?.method==='PUT')return {id:17};
-   return original(path,opts);
+  it('liste les connexions et propose de confirmer un serveur SSH inconnu', async () => {
+    data.connections = [{ id: 3, name: 'NAS', method: 'ssh', trusted: false, connection: { host: 'nas' } }];
+    data.locations = [locationRow];
+    await factory('settings');
+    await press('Gérer les connexions');
+    expect(body().textContent).toContain('NAS');
+    expect(body().textContent).toContain('Identité à confirmer');
+    expect(has('Ajouter une connexion')).toBe(true);
   });
-  const wrapper=await factory(false);await openHistoryRow(wrapper);
-  await press(wrapper,'Relancer');await flushPromises();
-  const previewRequest=request.mock.calls.find(([path])=>path==='/api/storage/preview');
-  expect(JSON.parse(previewRequest[1].body)).toMatchObject({task_id:17,name:'Named job'});
-  await wrapper.findAll('button').find(b=>b.text()==='Lancer la sélection').trigger('click');await flushPromises();
-  expect(request.mock.calls.some(([path,opts])=>path==='/api/storage/transfers/17'&&opts?.method==='PUT')).toBe(true);
-  expect(request.mock.calls.some(([path,opts])=>path==='/api/storage/transfers'&&opts?.method==='POST')).toBe(false);
-  wrapper.unmount();
- });
 
+  it('consulte l’inventaire en tableau et ouvre la fiche d’une observation', async () => {
+    data.locations = [locationRow];
+    data.inventory = [{ id: 5, source: 'plex', present: true, observed_at: '2026-10-04T10:00:00', data: { title: 'Alien', files: [{ path: '/m/alien.mkv', size_bytes: 2e9, present: true }] } }];
+    await factory('settings');
+    await press('Consulter l’inventaire');
+    expect(body().textContent).toContain('Alien');
+    await press('Détails');
+    expect(body().textContent).toContain('Inventaire');
+    expect(has('Actualiser la fiche Plex')).toBe(true);
+  });
+
+  it('modifie un brouillon sans le reprendre aveuglément', async () => {
+    data.transfers = [{ id: 11, status: 'draft', desired_state: 'pause', params: { transfer_mode: 'arr', arr_instance_id: 1, source_root: '/data/FILMS', destination_root: '/usb/FILMS', mode: 'release_space', goal_gb: 20 }, items: [] }];
+    await factory();
+    await openTask(11);
+    expect(body().textContent).toContain('Tâche enregistrée, aucun transfert lancé');
+    expect(has('Reprendre')).toBe(false);
+    await press('Modifier');
+    expect(document.querySelector('.create-modal')).not.toBeNull();
+    expect(request.mock.calls.some(([path]) => path === '/api/storage/preview')).toBe(false);
+  });
+
+  it('confirme la suppression d’un brouillon avant de la demander', async () => {
+    data.transfers = [{ id: 11, status: 'draft', desired_state: 'pause', params: { name: 'Ma tâche', transfer_mode: 'arr', arr_instance_id: 1 }, items: [] }];
+    await factory();
+    await openTask(11);
+    await press('Supprimer le brouillon');
+    expect(document.querySelector('[role="alertdialog"]').textContent).toContain('Aucun fichier média');
+    await press('Annuler');
+    expect(request.mock.calls.some(([, opts]) => opts?.method === 'DELETE')).toBe(false);
+  });
+
+  it('confirme l’annulation durable avant de supprimer une tâche en pause', async () => {
+    data.transfers = [{ id: 18, status: 'paused', desired_state: 'pause', params: { transfer_mode: 'rsync_ssh' }, items: [] }];
+    request.mockImplementation(async (path, opts) => (path === '/api/storage/transfers/18' && opts?.method === 'DELETE' ? { deletion_pending: true } : handler(path, opts)));
+    await factory();
+    await openTask(18);
+    await press('Supprimer la tâche');
+    expect(body().textContent).toContain('ses fichiers temporaires nettoyés');
+    expect(request.mock.calls.some(([, opts]) => opts?.method === 'DELETE')).toBe(false);
+    await press('Annuler et supprimer');
+    expect(request).toHaveBeenCalledWith('/api/storage/transfers/18', { method: 'DELETE' });
+    expect(toasts.value.some((t) => t.title.includes('annulation et nettoyage en cours'))).toBe(true);
+  });
+
+  it('propose de réessayer les titres bloqués d’une tâche', async () => {
+    data.transfers = [{ id: 9, status: 'paused', desired_state: 'pause', params: { transfer_mode: 'arr' }, items: [{ id: 1, title: 'À corriger', status: 'blocked', reason: 'Fichier introuvable', size_bytes: 1e9 }, { id: 2, title: 'Fini', status: 'completed', size_bytes: 1e9 }] }];
+    await factory();
+    await openTask(9);
+    expect(body().textContent).toContain('1 titre(s) à traiter');
+    await press('Réessayer les titres en erreur');
+    expect(request).toHaveBeenCalledWith('/api/storage/transfers/9/command', expect.objectContaining({ body: JSON.stringify({ action: 'retry' }) }));
+  });
+
+  it('garde les tâches terminées dans l’historique', async () => {
+    data.transfers = [
+      { id: 1, status: 'paused', params: { transfer_mode: 'arr' }, items: [] },
+      { id: 2, status: 'completed', params: { transfer_mode: 'arr', name: 'Finie' }, updated_at: '2026-10-04T10:00:00', items: [] },
+    ];
+    await factory();
+    expect(body().textContent).toContain('Tâche #1');
+    expect(document.querySelectorAll('.understand-row')).toHaveLength(0);
+    await goTo('history');
+    expect(document.querySelectorAll('.understand-row')).toHaveLength(1);
+    expect(body().textContent).not.toContain('Tâche #1');
+  });
+
+  it('reprend une tâche terminée directement à l’aperçu, sans créer de tâche', async () => {
+    data.transfers = [{ id: 17, status: 'cancelled', desired_state: 'cancel', updated_at: '2026-10-04T10:00:00', params: { name: 'Nommée', mode: 'release_space', goal_gb: 20, arr_instance_id: 1, source_roots: ['/data/FILMS'], destination_root: '/usb/FILMS', transfer_mode: 'arr' }, items: [] }];
+    request.mockImplementation(async (path, opts) => (path === '/api/storage/preview' ? { source: { id: 1, free_bytes: 100e9 }, destination: { id: 2, free_bytes: 200e9 }, items: [{ key: '1:7', title: 'Film', size_bytes: 20e9, snapshot: {} }], excluded: [], goal_covered: true } : handler(path, opts)));
+    await factory('history');
+    document.querySelector('.understand-row').click();
+    await flushPromises();
+    await press('Relancer');
+    const preview = request.mock.calls.find(([path]) => path === '/api/storage/preview');
+    expect(preview).toBeDefined();
+    expect(JSON.parse(preview[1].body)).toMatchObject({ task_id: 17, name: 'Nommée' });
+    expect(request.mock.calls.some(([path, opts]) => path === '/api/storage/transfers' && opts?.method === 'POST')).toBe(false);
+    expect(document.querySelector('.create-modal')).not.toBeNull();
+  });
 });

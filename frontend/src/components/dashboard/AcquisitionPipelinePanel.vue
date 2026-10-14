@@ -1,118 +1,29 @@
 <template>
-  <div class="pipeline-wrapper">
-    <div class="pipeline-flow">
-      <!-- Étape 1 : Demandes -->
-      <RouterLink
-        to="/library?status=pending_approval"
-        class="pipeline-step"
-        :class="{ 'has-items': pendingCount > 0 }"
-      >
-        <div class="step-badge-num">1</div>
-        <div class="step-icon-wrap pending">
-          <Clock3 aria-hidden="true" />
-        </div>
-        <div class="step-info">
-          <span class="step-label">À approuver</span>
-          <strong class="step-value">{{ pendingCount }}</strong>
-          <small class="step-detail">Demandes en attente</small>
-        </div>
-      </RouterLink>
-
-      <div class="pipeline-arrow" aria-hidden="true">
-        <ArrowRight />
-      </div>
-
-      <!-- Étape 2 : Téléchargements -->
-      <RouterLink
-        to="/downloads?status=downloading"
-        class="pipeline-step"
-        :class="{ 'has-items': downloadingCount > 0 }"
-      >
-        <div class="step-badge-num">2</div>
-        <div class="step-icon-wrap downloading">
-          <Download aria-hidden="true" />
-        </div>
-        <div class="step-info">
-          <span class="step-label">En téléchargement</span>
-          <strong class="step-value">{{ downloadingCount }}</strong>
-          <small class="step-detail">Acquisitions actives</small>
-        </div>
-      </RouterLink>
-
-      <div class="pipeline-arrow" aria-hidden="true">
-        <ArrowRight />
-      </div>
-
-      <!-- Étape 3 : Imports -->
-      <RouterLink
-        to="/downloads?status=unmatched"
-        class="pipeline-step"
-        :class="{ 'has-items': importPendingCount > 0 }"
-      >
-        <div class="step-badge-num">3</div>
-        <div class="step-icon-wrap import-pending">
-          <RefreshCw aria-hidden="true" />
-        </div>
-        <div class="step-info">
-          <span class="step-label">À importer</span>
-          <strong class="step-value">{{ importPendingCount }}</strong>
-          <small class="step-detail">Traitement *arr</small>
-        </div>
-      </RouterLink>
-
-      <div class="pipeline-arrow" aria-hidden="true">
-        <ArrowRight />
-      </div>
-
-      <!-- Étape 4 : Disponibles -->
-      <RouterLink
-        to="/library?status=library&sort=added_desc"
-        class="pipeline-step is-available"
-      >
-        <div class="step-badge-num">4</div>
-        <div class="step-icon-wrap available">
-          <CheckCircle2 aria-hidden="true" />
-        </div>
-        <div class="step-info">
-          <span class="step-label">Disponibles</span>
-          <strong class="step-value">{{ availableCount }}</strong>
-          <small class="step-detail">Médiathèque Plex</small>
-        </div>
-      </RouterLink>
-    </div>
-
-    <!-- Alerte latérale : Bloqués / Échecs -->
-    <RouterLink
-      v-if="blockedCount > 0"
-      to="/downloads?status=error"
-      class="pipeline-alert is-danger"
-    >
-      <div class="alert-icon-wrap">
-        <AlertTriangle aria-hidden="true" />
-      </div>
-      <div class="alert-info">
-        <span class="alert-label">Anomalies</span>
-        <strong class="alert-value">{{ blockedCount }} bloqué{{ blockedCount > 1 ? 's' : '' }}</strong>
-        <small class="alert-detail">Intervention requise</small>
-      </div>
-    </RouterLink>
-    <div v-else class="pipeline-alert is-ok">
-      <div class="alert-icon-wrap">
-        <Check aria-hidden="true" />
-      </div>
-      <div class="alert-info">
-        <span class="alert-label">Santé du flux</span>
-        <strong class="alert-value">0 bloqué</strong>
-        <small class="alert-detail">Acquisitions fluides</small>
-      </div>
-    </div>
-  </div>
+  <!-- Chaine d'acquisition : du souhait a la mediatheque, de gauche a droite. Chaque etape
+       mene a la page qui la detaille ; ce qui bloque se lit sous « À importer ». -->
+  <section class="pipeline" aria-labelledby="pipeline-title">
+    <header class="pipeline__head">
+      <h2 id="pipeline-title">Chaîne d’acquisition</h2>
+      <RouterLink to="/downloads" class="pipeline__more">Ouvrir Acquisition →</RouterLink>
+    </header>
+    <ol class="pipeline__steps">
+      <li v-for="step in steps" :key="step.key" class="pipeline__step">
+        <RouterLink :to="step.to" class="pipeline__link" :class="`is-${step.tone}`">
+          <span class="pipeline__track" aria-hidden="true"><span class="pipeline__dot" /><span class="pipeline__line" /></span>
+          <strong class="pipeline__value">{{ step.value }}</strong>
+          <span class="pipeline__label">{{ step.label }}</span>
+          <small class="pipeline__note" :class="{ 'is-alert': step.alert }">{{ step.note }}</small>
+        </RouterLink>
+      </li>
+    </ol>
+  </section>
 </template>
 
 <script setup lang="ts">
-import { AlertTriangle, ArrowRight, Check, CheckCircle2, Clock3, Download, RefreshCw } from '@lucide/vue';
+import { computed } from 'vue';
+import { RouterLink } from 'vue-router';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     pendingCount?: number;
     downloadingCount?: number;
@@ -120,275 +31,72 @@ withDefaults(
     availableCount?: number | string;
     blockedCount?: number;
   }>(),
-  {
-    pendingCount: 0,
-    downloadingCount: 0,
-    importPendingCount: 0,
-    availableCount: '-',
-    blockedCount: 0,
-  }
+  { pendingCount: 0, downloadingCount: 0, importPendingCount: 0, availableCount: '-', blockedCount: 0 },
 );
+
+const steps = computed(() => [
+  { key: 'pending', label: 'À approuver', value: props.pendingCount, note: props.pendingCount ? 'Demandes en attente' : 'Aucune en attente', tone: props.pendingCount ? 'warn' : 'ok', alert: false, to: '/library?status=pending_approval' },
+  { key: 'downloading', label: 'En téléchargement', value: props.downloadingCount, note: 'Acquisitions actives', tone: props.downloadingCount ? 'info' : 'ok', alert: false, to: '/downloads?status=downloading' },
+  {
+    key: 'import', label: 'À importer', value: props.importPendingCount,
+    note: props.blockedCount ? `${props.blockedCount} bloqué${props.blockedCount > 1 ? 's' : ''}` : '0 bloqué',
+    tone: props.blockedCount ? 'error' : 'ok', alert: props.blockedCount > 0,
+    to: props.blockedCount ? '/downloads?status=error' : '/downloads?status=unmatched',
+  },
+  { key: 'available', label: 'Disponibles', value: props.availableCount, note: 'Médiathèque Plex', tone: 'ok', alert: false, to: '/library?status=library&sort=added_desc' },
+]);
 </script>
 
 <style scoped lang="scss">
-.pipeline-wrapper {
-  /* Les bascules suivent la place reellement disponible, pas l'ecran : sur tablette
-     le rail lateral retire 72 a 232px, et une media query de viewport laissait les
-     quatre etapes (678px minimum) deborder de leur bande. */
-  container: pipeline / inline-size;
-  display: grid;
-  grid-template-columns: 1fr 220px;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-}
+@use '@/styles/foundations/breakpoints' as bp;
 
-.pipeline-flow {
-  display: flex;
-  /* Toutes les etapes a la hauteur de la plus haute : une legende sur deux lignes ne
-     decale plus une seule tuile. */
-  align-items: stretch;
-  gap: var(--space-2);
-  padding: 10px 14px;
-  background: var(--surface);
+.pipeline {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
   border: 1px solid var(--border);
   border-radius: var(--panel-radius);
-  overflow-x: auto;
-}
-
-.pipeline-step {
-  position: relative;
-  flex: 1;
-  min-width: 140px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 20px 8px 12px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  text-decoration: none;
-  color: var(--text);
-  transition: border-color var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard), background var(--motion-duration-instant) var(--motion-ease-standard);
-}
-
-.pipeline-step:hover {
-  border-color: var(--accent);
-  transform: translateY(-1px);
-}
-
-.step-badge-num {
-  position: absolute;
-  top: 4px;
-  right: 6px;
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  color: var(--muted);
-  opacity: 0.6;
-}
-
-.step-icon-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-xs);
   background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--muted);
-  flex-shrink: 0;
-}
-
-.step-icon-wrap svg {
-  width: 16px;
-  height: 16px;
-}
-
-.step-icon-wrap.pending {
-  color: var(--accent);
-}
-
-.step-icon-wrap.downloading {
-  color: var(--blue-text);
-}
-
-.step-icon-wrap.import-pending {
-  color: #fb923c;
-}
-
-.step-icon-wrap.available {
-  color: var(--green-text);
-}
-
-.pipeline-step.has-items {
-  border-color: var(--border-hover, var(--border));
-}
-
-.pipeline-step.is-available:hover {
-  border-color: var(--success);
-}
-
-.step-info {
-  display: flex;
-  flex-direction: column;
   min-width: 0;
 }
+.pipeline__head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2); }
+.pipeline__head h2 { margin: 0; font-family: var(--font-display); font-size: var(--fs-lg); }
+.pipeline__more { color: var(--accent); font-size: var(--fs-sm); font-weight: 600; text-decoration: none; }
+.pipeline__more:hover { text-decoration: underline; }
 
-.step-label {
-  font-size: var(--fs-xs);
-  color: var(--muted);
-  /* Coupe « En télécharge-ment » a la syllabe, pas au caractere pres. */
-  overflow-wrap: normal;
-  hyphens: auto;
-}
-
-.step-value {
-  font-size: var(--fs-md);
-  font-weight: 700;
-  line-height: 1.2;
+.pipeline__steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; }
+.pipeline__link {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 4px var(--space-3) 4px 0;
   color: var(--text);
-}
-
-/* La legende dit ce que compte l'etape : coupee en plein mot (« Demandes en a… »,
-   « Médiathèque Pl… »), elle ne renseigne plus rien. Elle passe donc sur deux lignes
-   plutot que de se tronquer, comme les tuiles d'indicateurs des autres pages. */
-.step-detail {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
-  font-size: var(--fs-xs);
-  line-height: 1.3;
-  color: var(--muted);
-}
-
-.pipeline-arrow {
-  align-self: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--muted);
-  opacity: 0.4;
-  flex-shrink: 0;
-}
-
-.pipeline-arrow svg {
-  width: 14px;
-  height: 14px;
-}
-
-.pipeline-alert {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: var(--radius-md);
   text-decoration: none;
-  transition: transform var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard);
-}
-
-.pipeline-alert.is-danger {
-  background: color-mix(in srgb, var(--red) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
-  color: var(--red-text);
-}
-
-.pipeline-alert.is-danger:hover {
-  background: color-mix(in srgb, var(--red) 12%, transparent);
-  border-color: var(--red);
-  transform: translateY(-1px);
-}
-
-.pipeline-alert.is-ok {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
-}
-
-.alert-icon-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-xs);
-  flex-shrink: 0;
-}
-
-.pipeline-alert.is-danger .alert-icon-wrap {
-  background: color-mix(in srgb, var(--red) 15%, transparent);
-  color: var(--red-text);
-}
-
-.pipeline-alert.is-ok .alert-icon-wrap {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--green-text);
-}
-
-.alert-icon-wrap svg {
-  width: 16px;
-  height: 16px;
-}
-
-.alert-info {
-  display: flex;
-  flex-direction: column;
   min-width: 0;
 }
+.pipeline__link:hover .pipeline__value { color: var(--accent); }
+.pipeline__link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-sm); }
+.pipeline__track { display: flex; align-items: center; gap: var(--space-2); margin-bottom: 4px; }
+.pipeline__dot { flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); }
+.pipeline__line { flex: 1; height: 2px; background: var(--border); }
+.pipeline__step:last-child .pipeline__line { background: transparent; }
+.is-ok .pipeline__dot { background: var(--green); }
+.is-info .pipeline__dot { background: var(--blue-text, var(--accent)); }
+.is-warn .pipeline__dot { background: var(--amber); }
+.is-error .pipeline__dot { background: var(--red); }
+.pipeline__value { font-family: var(--font-display); font-size: var(--fs-xl); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.pipeline__label { font-size: var(--fs-sm); font-weight: 600; }
+.pipeline__note { color: var(--muted); font-size: var(--fs-xs); line-height: 1.3; }
+.pipeline__note.is-alert { color: var(--red-text); font-weight: 650; }
 
-.alert-label {
-  font-size: var(--fs-xs);
-  color: var(--muted);
-}
-
-.alert-value {
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-.pipeline-alert.is-danger .alert-value {
-  color: var(--red-text);
-}
-
-.alert-detail {
-  font-size: var(--fs-xs);
-  color: var(--muted);
-}
-
-/* Sur le conteneur `page` : une container query ne peut pas styler son propre
-   conteneur, or c'est la grille de `.pipeline-wrapper` qui doit basculer. */
-@container page (max-width: 959px) {
-  .pipeline-wrapper {
-    grid-template-columns: 1fr;
-  }
-}
-
-@container pipeline (max-width: 689px) {
-  .pipeline-flow {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .pipeline-step {
-    min-width: 0;
-  }
-  .pipeline-arrow {
-    display: none;
-  }
-}
-
-@container pipeline (max-width: 459px) {
-  .pipeline-flow {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .pipeline-arrow {
-    display: flex;
-    transform: rotate(90deg);
-    padding: 2px 0;
-  }
+@include bp.until(phablet) {
+  .pipeline__steps { grid-template-columns: minmax(0, 1fr); }
+  .pipeline__link { grid-template-columns: auto 1fr auto; align-items: center; column-gap: var(--space-3); min-height: 48px; padding-block: 6px; border-top: 1px solid var(--divider); }
+  .pipeline__step:first-child .pipeline__link { border-top: 0; }
+  .pipeline__track { margin: 0; }
+  .pipeline__line { display: none; }
+  .pipeline__value { grid-column: 3; grid-row: 1 / span 2; font-size: var(--fs-lg); }
+  .pipeline__label { grid-column: 2; }
+  .pipeline__note { grid-column: 2; }
 }
 </style>

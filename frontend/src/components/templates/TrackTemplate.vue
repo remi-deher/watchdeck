@@ -10,9 +10,14 @@
     <!-- Pas de filtre d'etat : chaque groupe porte deja son titre et son nombre. -->
     <small v-if="updated" class="track__updated" aria-live="polite">{{ updated }}</small>
 
-    <p v-if="loading && !items.length" class="track__loading">Chargement des {{ text.items }}…</p>
+    <!-- Ce qui tourne, fourni par la page quand elle a son propre bandeau (lectures Plex) :
+         il remplace le groupe « En cours » et l'état vide. -->
+    <slot name="live" />
+
+    <p v-if="loading && !items.length && !$slots.live" class="track__loading">Chargement des {{ text.items }}…</p>
     <template v-else-if="groups.length">
       <template v-for="group in groups" :key="group.state">
+
       <!-- Ce qui tourne : le bandeau commun (LiveStrip), image, etape et progression ; un
            clic ouvre la fiche de l'element. -->
       <LiveStrip
@@ -41,7 +46,7 @@
       </section>
       </template>
     </template>
-    <UiEmptyState v-else :icon="CheckCircle2" :title="text.empty" :message="text.emptyDetail" />
+    <UiEmptyState v-else-if="!$slots.live" :icon="CheckCircle2" :title="text.empty" :message="text.emptyDetail" />
 
     <section v-if="recent.length" class="track__recent" aria-labelledby="track-recent">
       <header class="track__group-head">
@@ -51,6 +56,7 @@
       </header>
       <ul class="track__recent-list">
         <li v-for="entry in recent" :key="entry.key" :class="{ 'is-failed': entry.failed }">
+          <MediaCover v-if="entry.media || entry.poster" :media="entry.media" :src="entry.poster" size="sm" />
           <component :is="entry.failed ? XCircle : CheckCircle2" aria-hidden="true" />
           <component :is="entry.to ? RouterLink : 'span'" :to="entry.to || undefined" class="track__recent-title">{{ entry.title }}</component>
           <small v-if="entry.detail">{{ entry.detail }}</small>
@@ -67,6 +73,7 @@ import { computed } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import LiveStrip, { type LiveItem } from '@/components/ui/LiveStrip.vue';
 import { AlertTriangle, CheckCircle2, Clock, History, Loader, PauseCircle, XCircle } from '@lucide/vue';
+import MediaCover from '@/components/ui/MediaCover.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import TrackCard from './track/TrackCard.vue';
 import TrackQueue from './track/TrackQueue.vue';

@@ -19,7 +19,7 @@
       <UiButton variant="primary" to="/discover"><template #icon><Plus /></template>Nouvelle demande</UiButton>
     </template>
 
-    <MonitorTemplate :items="attentionItems" :kpis="kpis" :zones="zones" :icons="AREA_ICONS" :loading="false" :labels="labels">
+    <MonitorTemplate board :items="attentionItems" :kpis="kpis" :zones="zones" :icons="AREA_ICONS" :loading="false" :labels="labels">
       <!-- Activite Plex en direct, sur toute la largeur, juste sous le verdict. -->
       <template #live>
         <DashboardLiveStrip
@@ -37,6 +37,7 @@
         <OnboardingChecklist :onboarding="onboarding" :show="showOnboarding" @dismiss="dismissOnboarding" />
         <div ref="healthZone" class="dashboard-details">
           <ServiceHealthPanel v-if="healthShown" />
+          <DiskSpacePanel v-if="healthShown" :volumes="diskSpace" />
           <DashboardFileflowsPanel />
           <ScanStatusPanel
             :vff-scan="vffScan"
@@ -49,7 +50,6 @@
             @sync-arr="triggerArrSync"
             @sync-watchlist="triggerWatchlistSync"
           />
-          <DiskSpacePanel v-if="healthShown" :volumes="diskSpace" />
         </div>
       </template>
 
@@ -234,6 +234,7 @@ const AREA_ICONS: Record<string, any> = { downloads: markRaw(Download), library:
 const labels: MonitorLabels = {
   okTitle: 'Aucune intervention nécessaire',
   okDetail: 'Imports bloqués et acquisitions en échec s’affichent ici.',
+  attentionTitle: 'Points d’attention',
   kpisLabel: 'Vue d’ensemble de la bibliothèque',
   zonesLabel: 'Aller à',
 };
@@ -246,6 +247,7 @@ const kpis = computed<MonitorKpi[]>(() => {
     { key: 'downloading', label: 'En téléchargement', value: waiting ? '…' : String(queueTotals.value.downloading), status: 'Acquisitions actives', tone: 'info', to: '/downloads?view=queue&sub=active' },
     { key: 'import', label: 'À importer', value: waiting ? '…' : String(queueTotals.value.importPending), status: 'Téléchargements terminés', tone: queueTotals.value.importPending ? 'warn' : 'ok', to: '/downloads?view=queue&sub=intervention' },
     { key: 'available', label: 'Disponibles', value: String(counts.value.available ?? '—'), status: 'Dans votre bibliothèque', tone: 'ok', to: '/library?status=available' },
+    { key: 'requests', label: 'Demandes', value: String(counts.value.pending_approval ?? pending.value.length ?? 0), status: Number(counts.value.pending_approval ?? pending.value.length ?? 0) ? 'À valider' : 'Rien à valider', tone: Number(counts.value.pending_approval ?? pending.value.length ?? 0) ? 'warn' : 'ok', to: '/library?status=pending_approval' },
   ];
 });
 

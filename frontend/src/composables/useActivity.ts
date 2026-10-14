@@ -18,10 +18,9 @@ import { etatDeSerie, etatDeSurface, etatDeVoisins, ouvrirFiche } from '@/compos
 import { episodeLabel } from '@/utils/episode';
 import { usePreference } from '@/composables/usePreference';
 import { exportHistoryCsv, foldPlaybackRuns, playbackDisplayTitle } from '@/activity/playbackRuns';
-import { isPaused as sessionPaused, liveItemOf } from '@/activity/liveSessions';
 import { plexClientName } from '@/utils/plexClient';
 import type { AnalyzeKpi } from '@/components/templates/analyze/types';
-import type { TrackItem, TrackRecent } from '@/components/templates/track/types';
+import type { TrackRecent } from '@/components/templates/track/types';
 import type { UnderstandEvent, UnderstandOutcome } from '@/components/templates/understand/types';
 
 export function useActivity() {
@@ -332,31 +331,6 @@ export function useActivity() {
   },350);
   watch(matchedUser,()=>applyScope());
 
-  /* Les lectures en cours, pour la vue « En direct » (gabarit Suivre) : la carte du bandeau
-     commun porte les faits propres a Plex, l'element suivi dit ce qui sert aux groupes. */
-  const liveReceivedAt=ref(Date.now());
-  watch(()=>liveQuery.dataUpdatedAt.value,()=>{liveReceivedAt.value=Date.now()});
-  const liveTrackItems=computed((): TrackItem[]=>{
-    const ids=liveSessions.value.map((row: any)=>row.id).filter((id: any)=>id!=null);
-    const state=etatDeSurface(route.fullPath);
-    return liveSessions.value.map((session: any)=>{
-      const live=liveItemOf(session,{now:clock.value,receivedAt:liveReceivedAt.value});
-      const paused=sessionPaused(session);
-      return {
-        key:String(session.session_id),
-        state:paused?'paused':'running',
-        title:displayTitle(session),
-        subtitle:[session.user_name,session.player||session.platform].filter(Boolean).join(' · '),
-        poster:session.thumb_url||null,
-        progress:live.progress,
-        step:paused?String(live.status).split(' · ')[0]:undefined,
-        eta:live.status,
-        to:session.id!=null?{path:`/activity/session/${session.id}`,state:{...state,...etatDeVoisins(ids)}}:null,
-        live,
-      } as TrackItem;
-    });
-  });
-
   /* Les dernieres lectures terminees, sous le suivi, avant le lien vers l'historique complet. */
 const liveRecent=computed((): TrackRecent[]=>{
   const surface=etatDeSurface(route.fullPath);
@@ -365,6 +339,7 @@ const liveRecent=computed((): TrackRecent[]=>{
     key:`recent-${sessionKey(row)}`,
     title:displayTitle(row),
     detail:[row.user_name,formatDate(row.started_at)].filter(Boolean).join(' · '),
+    poster:row.thumb_url||null,
     to:row.id!=null?{path:`/activity/session/${row.id}`,state:{...surface,...etatDeVoisins(ids)}}:null,
   }));
 });
@@ -381,6 +356,7 @@ const liveRecent=computed((): TrackRecent[]=>{
     detail:[run.item.user_name||'Utilisateur Plex',run.count>1?`${run.count} lectures consécutives`:'',formatDuration(run.watchedMs)].filter(Boolean).join(' · '),
     tags:run.method?[playbackMethodLabel(run.method,{fallback:run.method==='mixed'?'Lecture mixte':run.method})]:[],
     context:plexClientName(run.item),
+    poster:run.item.thumb_url||null,
   })));
   const historySummary=computed(()=>[{key:'total',label:history.value.total>1?'lectures sur la période':'lecture sur la période',value:String(history.value.total)}]);
   function openHistoryEvent(event: UnderstandEvent): void {
@@ -480,7 +456,6 @@ const liveRecent=computed((): TrackRecent[]=>{
     liveQuery,
     liveSessions,
     liveRecent,
-    liveTrackItems,
     load,
     loadHistory,
     loaded,

@@ -24,9 +24,10 @@ test('les palettes restaurées gardent un accueil lisible et sans débordement',
       const layout = await page.evaluate(() => {
         const live = document.querySelector('.live-strip').getBoundingClientRect();
         const downloads = document.querySelector('.dashboard-downloads').getBoundingClientRect();
+        const page = document.querySelector('.monitor').getBoundingClientRect();
         const color = getComputedStyle(document.documentElement);
         return { overflow: document.documentElement.scrollWidth > innerWidth + 1,
-          liveAbove: live.bottom <= downloads.top, fullWidth: Math.abs(live.width - downloads.width) < 2,
+          liveAbove: live.bottom <= downloads.top, fullWidth: Math.abs(live.width - page.width) < 2,
           text: color.getPropertyValue('--text').trim(), bg: color.getPropertyValue('--bg').trim() };
       });
       expect(layout.overflow).toBe(false);
