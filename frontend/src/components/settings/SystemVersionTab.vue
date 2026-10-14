@@ -36,17 +36,15 @@
     </template>
 
     <template #section-notes>
-      <CollapsibleRoot v-for="(release, index) in releases" :key="release.tag_name" class="version-release" :default-open="index === 0">
-        <CollapsibleTrigger class="version-release__head">
+      <UiCollapsible v-for="(release, index) in releases" :key="release.tag_name" class="version-release" :default-open="index === 0" trigger-class="version-release__head">
+        <template #trigger>
           <strong>{{ release.name || release.tag_name }}</strong>
           <small v-if="release.published_at" :title="formatDate(release.published_at)">{{ formatRelative(release.published_at) }}</small>
           <ChevronDown class="version-release__chevron" aria-hidden="true"/>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
+        </template>
           <div class="release-body" v-html="renderMarkdown(release.body || 'Aucune note de version.')"/>
           <a v-if="release.html_url" class="version-release__link" :href="release.html_url" target="_blank" rel="noopener noreferrer">Voir sur GitHub<ExternalLink/></a>
-        </CollapsibleContent>
-      </CollapsibleRoot>
+        </UiCollapsible>
     </template>
 
     <UiFeedback v-if="error" type="error" title="Impossible de récupérer les informations de version" :message="error" retry @retry="load"/>
@@ -58,7 +56,7 @@ import { formatDateTimeSeconds, parseApiDate } from '@/utils/format';
 import { computed, ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { Check, ChevronDown, Copy, ExternalLink, FileText, Info, RefreshCw, Server, Download } from '@lucide/vue';
-import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
+import UiCollapsible from '@/components/ui/UiCollapsible.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import { useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
@@ -284,10 +282,10 @@ function load(): void {
 .version-comparison { margin: var(--space-3) 0 0; color: var(--muted); font-size: var(--fs-sm); }
 .version-release { border: 1px solid var(--border); border-radius: var(--inset-radius); }
 .version-release + .version-release { margin-top: var(--space-2); }
-.version-release__head { display: flex; width: 100%; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
-.version-release__head small { color: var(--muted); }
+.version-release :deep(.version-release__head) { display: flex; width: 100%; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
+.version-release :deep(.version-release__head small) { color: var(--muted); }
 .version-release__chevron { width: 16px; height: 16px; margin-left: auto; transition: transform var(--motion-duration-fast) var(--motion-ease-standard); }
-.version-release__head[data-state='open'] .version-release__chevron { transform: rotate(180deg); }
+.version-release :deep(.version-release__head[data-state='open']) .version-release__chevron { transform: rotate(180deg); }
 .version-release .release-body { margin: 0 var(--space-3) var(--space-2); }
 .version-release__link { display: inline-flex; gap: 4px; align-items: center; margin: 0 var(--space-3) var(--space-3); font-size: var(--fs-sm); }
 .version-release__link svg { width: 14px; height: 14px; }

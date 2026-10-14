@@ -87,3 +87,15 @@ const scopeLabel = computed(() => {
   return '(Média complet)';
 });
 </script>
+
+<style scoped lang="scss">
+.season-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.season-grid label {
+  min-width: 76px;
+}
+</style>

@@ -183,7 +183,6 @@
     event="cancelled"
     :subtitle="withdrawTarget ? `« ${withdrawTarget.title || detail.title} » sera retiré de Sonarr/Radarr et empêché de revenir automatiquement.` : ''"
     :initial="withdrawTarget?.fulfillment_error || ''"
-    :busy="busy"
     @cancel="settleReason(null)"
     @confirm="settleReason"
   />

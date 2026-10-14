@@ -163,6 +163,11 @@ const countText = computed(() => {
 </script>
 
 <style scoped lang="scss">
+.media-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
 .explore__main { display: grid; align-content: start; gap: var(--space-3); min-width: 0; }
 .explore__summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); min-width: 0; }
 .explore__chips { display: flex; flex: 1 1 auto; align-items: center; gap: var(--space-2); min-width: 0; overflow-x: auto; scrollbar-width: none; }

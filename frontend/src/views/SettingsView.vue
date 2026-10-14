@@ -8,9 +8,8 @@
     <template v-if="formPanels.has(tab)" #quick-action>
       <UiButton variant="primary" :loading="saving" @click="save"><template #icon><Save /></template>{{ saving ? 'Enregistrement…' : 'Enregistrer' }}</UiButton>
     </template>
-    <!-- Un panneau declare ses sections et porte lui-meme le gabarit (enregistrement global,
-         garde de sortie) ; les autres, pas encore ecrits ainsi, sont enveloppes ici. -->
-    <component :is="selfConfiguring.has(tab) ? 'div' : ConfigureTemplate" v-bind="selfConfiguring.has(tab) ? {} : { dirty, saving, onSave: save, onCancel: discardChanges }">
+    <!-- Chaque panneau porte lui-meme son gabarit : Configurer pour les reglages (sections
+         declarees, enregistrement global, garde de sortie), Surveiller pour l'accueil. -->
     <!-- La colonne de navigation a disparu : ses groupes sont devenus des destinations
          du rail et ses entrees leurs sections. Un seul panneau reste ici, sur toute la
          largeur -- c'est ce qui rend enfin possibles les grilles a deux ou trois
@@ -60,8 +59,6 @@
         <SystemVersionTab v-else-if="tab==='system-version'"/>
       </div>
     </div>
-
-    </component>
   </PageTemplate>
 </template>
 <script setup lang="ts">
@@ -71,7 +68,6 @@ import { Save } from '@lucide/vue';
 import SettingsOverview from '@/components/settings/SettingsOverview.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import PageTemplate from '@/components/templates/PageTemplate.vue';
-import ConfigureTemplate from '@/components/templates/ConfigureTemplate.vue';
 import SettingsValidationSummary from '@/components/settings/SettingsValidationSummary.vue';
 import { useToast } from '@/composables/useToast';
 import { load, save, saving, error, message, isDirty, discardChanges } from '@/settingsForm';
@@ -148,8 +144,6 @@ watch(error, (value) => { if (value) toast.error('Enregistrement impossible', va
 watch(message, (value) => { if (value) toast.success(value); });
 
 provideSettingsPage({ query, dirty, saving, save, cancel: discardChanges });
-/* Panneaux ecrits en sections declarees (ils portent leur ConfigureTemplate). */
-const selfConfiguring = new Set<SettingsPanel>(['privacy', 'requests', 'network', 'api', 'downloads', 'subtitles', 'webhooks', 'notifications-channels', 'notifications-rules', 'scheduled-tasks', 'data', 'system-version', 'maintenance', 'reasons', 'plex', 'services', 'media', 'download-clients', 'vf-upgrades']);
 
 watch(tab, (value) => ensureSettingsLoaded(value).catch(() => {}));
 onMounted(() => ensureSettingsLoaded().catch(() => {}));

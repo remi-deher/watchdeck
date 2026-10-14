@@ -292,6 +292,18 @@ const { lengthX, lengthY } = useSwipe(swipeArea, {
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
+.calendar-events {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.today-badge {
+  font-size: var(--fs-md);
+  color: var(--accent);
+  font-weight: 600;
+  margin-left: 8px;
+}
+
 
 /* Styles repris du calendrier en production (CalendarView). */
 .plan { min-width: 0; }

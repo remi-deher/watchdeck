@@ -154,6 +154,49 @@ useRealtime(['vff.updated'], () => queryClient.invalidateQueries({ queryKey: ['s
 </script>
 
 <style scoped lang="scss">
+/* --- VFF Library Picker --- */
+.vff-library-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.vff-library-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: rgb(var(--ink) / 0.03);
+  border: 1px solid rgb(var(--ink) / 0.06);
+  flex-wrap: wrap;
+  transition: background var(--motion-duration-instant);
+}
+
+.vff-library-row:hover {
+  background: rgb(var(--ink) / 0.05);
+}
+
+.vff-lib-check {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.vff-lib-name {
+  font-size: var(--fs-sm);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vff-lib-kind {
+  margin-left: auto;
+}
+
 .vf-scan { display: grid; gap: var(--space-4); }
 .vf-scan__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .status-failed-link {

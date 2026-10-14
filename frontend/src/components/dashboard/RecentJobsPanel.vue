@@ -181,6 +181,20 @@ function jobIcon(job: string) {
 </script>
 
 <style scoped lang="scss">
+.error-detail-box {
+  background: color-mix(in srgb, var(--red) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--red) 15%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  margin: 4px 16px 12px;
+  font-size: var(--fs-sm);
+  color: var(--red-text);
+  text-align: left;
+  overflow-x: auto;
+  font-family: var(--font-mono, monospace);
+  white-space: pre-wrap;
+}
+
 .recent-jobs-panel {
   display: flex;
   flex-direction: column;

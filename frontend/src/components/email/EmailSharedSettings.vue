@@ -1,17 +1,17 @@
 <template>
   <div>
-    <CollapsibleRoot :default-open="true" class="template-settings" :unmount-on-hide="false">
-      <CollapsibleTrigger class="collapsible-trigger">En-tete commun</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
+    <UiCollapsible :default-open="true" class="template-settings" :unmount-on-hide="false" trigger-class="collapsible-trigger" content-class="collapsible-content">
+      <template #trigger>En-tete commun</template>
       <div class="settings-grid two form-section">
         <label>Marque<input v-model="shared.email_header_brand"></label>
         <label>Sous-titre<input v-model="shared.email_header_subtitle"></label>
         <label>Couleur de marque<input v-model="shared.email_brand_color" type="color"></label>
         <UiCheckboxField v-model="shared.email_show_header_subtitle" label="Afficher le sous-titre" />
       </div>
-    </CollapsibleContent></CollapsibleRoot>
+    </UiCollapsible>
 
-    <CollapsibleRoot class="template-settings" :unmount-on-hide="false">
-      <CollapsibleTrigger class="collapsible-trigger">Bloc média et apparence</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
+    <UiCollapsible class="template-settings" :unmount-on-hide="false" trigger-class="collapsible-trigger" content-class="collapsible-content">
+      <template #trigger>Bloc média et apparence</template>
       <div class="settings-grid two form-section">
         <label>Disposition<UiSelect v-model="shared.email_media_layout" :options="[{ value: 'left', label: 'Affiche a gauche' }, { value: 'right', label: 'Affiche a droite' }, { value: 'stacked', label: 'Affiche au-dessus' }]" /></label>
         <label>Police<UiSelect v-model="shared.email_font_family" :options="[{ value: 'arial', label: 'Arial' }, { value: 'georgia', label: 'Georgia' }, { value: 'verdana', label: 'Verdana' }, { value: 'trebuchet', label: 'Trebuchet MS' }]" /></label>
@@ -28,20 +28,20 @@
         <UiCheckboxField v-model="shared.email_show_tmdb_link" label="Afficher le lien TMDB" />
         <UiCheckboxField v-model="shared.email_show_plex_button" label="Afficher le bouton Plex" />
       </div>
-    </CollapsibleContent></CollapsibleRoot>
+    </UiCollapsible>
 
-    <CollapsibleRoot class="template-settings" :unmount-on-hide="false">
-      <CollapsibleTrigger class="collapsible-trigger">Pied de page commun</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
+    <UiCollapsible class="template-settings" :unmount-on-hide="false" trigger-class="collapsible-trigger" content-class="collapsible-content">
+      <template #trigger>Pied de page commun</template>
       <div class="form-section">
         <label>Pied de page HTML / Markdown</label>
         <MarkdownTextarea v-model="shared.email_footer_template" :rows="5" :variables="variables" />
       </div>
-    </CollapsibleContent></CollapsibleRoot>
+    </UiCollapsible>
   </div>
 </template>
 
 <script setup lang="ts">
-import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
+import UiCollapsible from '@/components/ui/UiCollapsible.vue';
 import UiSelect from '@/components/ui/UiSelect.vue';
 import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
 import UiSlider from '@/components/ui/UiSlider.vue';
