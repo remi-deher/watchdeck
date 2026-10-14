@@ -62,6 +62,8 @@ export interface TrackRecent {
   key: string;
   title: string;
   detail?: string;
+  /** Le média entier : sa couverture s'affiche d'office. */
+  media?: MediaRef | null;
   poster?: string | null;
   failed?: boolean;
   to?: string | Record<string, any> | null;

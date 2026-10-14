@@ -56,6 +56,21 @@ describe('MonitorTemplate', () => {
   });
 });
 
+describe('MonitorTemplate · variante tableau de bord', () => {
+  it('range les points d’attention en cartes dans le verdict, sans bloc à part', () => {
+    const wrapper = mount(MonitorTemplate, { props: { board: true, items: [item('a', 'error'), item('b', 'warn')] }, slots: { details: '<p>Services</p>' }, global });
+    expect(wrapper.find('.monitor').classes()).toContain('is-board');
+    expect(wrapper.findAll('.overview-verdict .overview-card')).toHaveLength(2);
+    expect(wrapper.find('.monitor__attention').exists()).toBe(false);
+  });
+
+  it('ne montre ni verdict ni état vide quand tout va bien', () => {
+    const wrapper = mount(MonitorTemplate, { props: { board: true, items: [] }, global });
+    expect(wrapper.find('.overview-verdict').exists()).toBe(false);
+    expect(wrapper.find('.monitor__attention').exists()).toBe(false);
+  });
+});
+
 describe('PageTemplate', () => {
   it('remplace le contenu par l’état non configuré, avec le lien pour configurer', () => {
     const wrapper = mount(PageTemplate, {
@@ -527,6 +542,55 @@ describe('CreateTemplate · champs', () => {
     button('Ajouter le torrent').click(); await flushPromises();
     expect(wrapper.emitted('created')).toHaveLength(1);
     expect(wrapper.emitted('close')).toHaveLength(1);
+    wrapper.unmount();
+  });
+});
+
+describe('CreateTemplate · liste à cocher, champs dynamiques, action secondaire', () => {
+  const button = (label) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === label);
+  const build = (calls) => {
+    const found = { dossiers: ['/a', '/b'] };
+    return {
+      noun: 'une tâche',
+      another: 'une autre tâche',
+      secondaryActions: [{ key: 'save', label: 'Enregistrer sans lancer' }],
+      initial: () => ({ picks: ['/a'], protectedKeys: [] }),
+      steps: [{
+        key: 'choix',
+        label: 'Choix',
+        title: 'Quoi ?',
+        fields: (values) => [
+          { key: 'picks', type: 'checklist', label: 'Dossiers', options: found.dossiers.map((value) => ({ value, label: value, action: 'Conserver ici' })), onAction: (value) => { calls.push(['protect', value]); } },
+          ...(values.picks.length ? [{ key: 'note', type: 'note', label: 'Résumé', text: `${values.picks.length} choisi(s)` }] : []),
+        ],
+      }],
+      submit: async (values, action) => { calls.push(['submit', action, [...values.picks]]); return { message: 'Fait' }; },
+    };
+  };
+
+  it('coche et décoche, déclenche l’action d’un élément, adapte les champs aux réponses', async () => {
+    const { default: CreateTemplate } = await import('./CreateTemplate.vue');
+    const calls = [];
+    const wrapper = mount(CreateTemplate, { props: { open: true, definition: build(calls) }, attachTo: document.body, global });
+    await flushPromises();
+    expect(document.body.textContent).toContain('1 choisi(s)');
+    const boxes = () => [...document.querySelectorAll('.create__checklist [role="checkbox"]')];
+    boxes()[1].click(); await flushPromises();
+    expect(document.body.textContent).toContain('2 choisi(s)');
+    boxes()[0].click(); boxes()[1].click(); await flushPromises();
+    expect(document.body.textContent).not.toContain('choisi(s)');
+    [...document.querySelectorAll('.create__checklist button')].filter((b) => b.textContent.trim() === 'Conserver ici')[1].click();
+    expect(calls).toContainEqual(['protect', '/b']);
+    wrapper.unmount();
+  });
+
+  it('transmet la clé de l’action secondaire à la création', async () => {
+    const { default: CreateTemplate } = await import('./CreateTemplate.vue');
+    const calls = [];
+    const wrapper = mount(CreateTemplate, { props: { open: true, definition: build(calls) }, attachTo: document.body, global });
+    await flushPromises();
+    button('Enregistrer sans lancer').click(); await flushPromises();
+    expect(calls).toContainEqual(['submit', 'save', ['/a']]);
     wrapper.unmount();
   });
 });

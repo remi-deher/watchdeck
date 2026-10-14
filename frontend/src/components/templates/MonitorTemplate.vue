@@ -12,7 +12,7 @@
        taches…), places a cote de l'attention ; `after`, une lecture complementaire sur toute
        la largeur (files, derniers elements). Sur telephone, le verdict et l'attention
        passent d'abord, puis les parties (qui y servent de menu), puis les chiffres. -->
-  <div class="monitor" :class="{ 'has-details': $slots.details }">
+  <div class="monitor" :class="{ 'has-details': $slots.details, 'is-board': board }">
     <!-- Le verdict ne parle que s'il y a quelque chose a dire : quand tout va bien, la
          page commence directement par ce qui tourne et les chiffres. -->
     <MonitorVerdict
@@ -26,13 +26,23 @@
       :checking-detail="labels.checkingDetail"
       :ok-title="labels.okTitle"
       :ok-detail="labels.okDetail"
-    />
+    >
+      <MonitorAttention
+        v-if="board && urgent && !loading"
+        cards
+        :items="items"
+        :icons="icons"
+        :title="labels.attentionTitle"
+      />
+    </MonitorVerdict>
     <!-- Ce qui tourne maintenant (LiveStrip) : facultatif, une page sans en-cours n'en
          fournit pas. -->
     <div v-if="$slots.live" class="monitor__live"><slot name="live" /></div>
     <MonitorKpis v-if="kpis.length" class="monitor__kpis" :kpis="kpis" :label="labels.kpisLabel" />
     <MonitorAttention
+      v-if="!board || (!urgent && (loading || items.length))"
       class="monitor__attention"
+      :cards="board"
       :items="items"
       :loading="loading"
       :icons="icons"
@@ -66,10 +76,16 @@ const props = withDefaults(
     /** Icone par partie (`area` des points d'attention). */
     icons?: Record<string, any>;
     loading?: boolean;
+    /**
+     * Variante « tableau de bord » : les points d'attention sont des cartes dans le verdict
+     * qui les annonce (pas de bloc « À traiter » a part, ni d'etat vide quand tout va bien),
+     * la lecture complementaire (`after`) a gauche et les panneaux (`details`) a droite.
+     */
+    board?: boolean;
     /** Textes propres a la page ; les manquants gardent ceux par defaut des blocs. */
     labels?: MonitorLabels;
   }>(),
-  { kpis: () => [], zones: () => [], icons: () => ({}), loading: false, labels: () => ({}) },
+  { kpis: () => [], zones: () => [], icons: () => ({}), loading: false, board: false, labels: () => ({}) },
 );
 
 const count = (severity: MonitorSeverity) => props.items.filter((item) => item.severity === severity).length;
@@ -92,6 +108,9 @@ const labels = computed(() => Object.fromEntries(Object.entries(props.labels).fi
   grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
   grid-template-areas: 'verdict verdict' 'live live' 'kpis kpis' 'attention details' 'zones zones' 'after after';
 }
+.monitor.is-board.has-details {
+  grid-template-areas: 'verdict verdict' 'live live' 'kpis kpis' 'attention attention' 'after details' 'zones zones';
+}
 .monitor__verdict { grid-area: verdict; }
 .monitor__live { grid-area: live; min-width: 0; }
 .monitor__kpis { grid-area: kpis; }
@@ -105,6 +124,9 @@ const labels = computed(() => Object.fromEntries(Object.entries(props.labels).fi
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: 'verdict' 'live' 'kpis' 'attention' 'details' 'zones' 'after';
   }
+  .monitor.is-board.has-details {
+    grid-template-areas: 'verdict' 'live' 'kpis' 'attention' 'after' 'details' 'zones';
+  }
 }
 
 @include bp.until(shell-medium) {
@@ -113,6 +135,9 @@ const labels = computed(() => Object.fromEntries(Object.entries(props.labels).fi
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: 'verdict' 'attention' 'live' 'zones' 'kpis' 'details' 'after';
     gap: var(--space-4);
+  }
+  .monitor.is-board.has-details {
+    grid-template-areas: 'verdict' 'attention' 'live' 'kpis' 'after' 'details' 'zones';
   }
 }
 </style>

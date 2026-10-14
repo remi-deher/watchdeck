@@ -264,8 +264,6 @@ export function formatTransferDuration(seconds: number | null) {
   return seconds<60?`${Math.ceil(seconds)} s`:minutes<60?`${minutes} min`:`${Math.floor(minutes/60)} h${minutes%60?` ${minutes%60} min`:''}`;
 }
 
-export const formatStorageDuration = (seconds:number)=>seconds<60?`${Math.ceil(seconds)} s`:seconds<3600?`${Math.ceil(seconds/60)} min`:`${Math.floor(seconds/3600)} h ${Math.ceil(seconds%3600/60)} min`;
-
 /** Heure à la seconde pour les contrôles et événements techniques. */
 export function formatTimeSeconds(value?: string | number | Date | null): string {
   return value ? renderDate(value, 'HH:mm:ss') : '';
@@ -285,11 +283,6 @@ export function formatCheckedAgo(checkedAt: Date, now: Date): string {
   if (seconds < 60) return 'Vérifié à l’instant';
   if (seconds < 3600) return `Vérifié il y a ${Math.floor(seconds / 60)} min`;
   return `Vérifié il y a ${Math.floor(seconds / 3600)} h`;
-}
-
-/** Volume décimal utilisé par l’inventaire des stockages. */
-export function formatDecimalGigabytes(bytes: number): string {
-  return `${(bytes / 1e9).toFixed(2)} Go`;
 }
 
 export function formatNextRun(next: Date, now: Date): string {

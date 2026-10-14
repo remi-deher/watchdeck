@@ -1,3 +1,5 @@
+import type { MediaRef } from '@/types';
+
 /* Gabarit « Comprendre » : les donnees qu'une page lui confie. Elle repond a la question
    « que s'est-il passe ? » : une page de lecture, ou le temps structure tout. */
 
@@ -15,6 +17,9 @@ export interface UnderstandEvent {
   tags?: string[];
   /** Contexte court : disque, instance, utilisateur… */
   context?: string;
+  /** Le média concerné : sa couverture s'affiche d'office ; `poster` pour une image hors bibliothèque. */
+  media?: MediaRef | null;
+  poster?: string | null;
 }
 
 /** Un chiffre du bilan de la periode (« 142 traites », « 3 echecs »). Facultatif. */

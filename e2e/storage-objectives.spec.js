@@ -18,11 +18,17 @@ test('space goal and title distribution remain usable on every device',async({pa
  });
  if(process.env.WATCHDECK_E2E_BUILT){await page.route('**/storage',route=>route.fulfill({contentType:'text/html',body:readFileSync('app/static/vue/index.html','utf8')}));await page.route('**/vue/**',route=>{const path=new URL(route.request().url()).pathname;return route.fulfill({contentType:path.endsWith('.js')?'text/javascript':path.endsWith('.css')?'text/css':'application/octet-stream',body:readFileSync('app/static'+path)});});}
  await page.goto('/storage',{waitUntil:'domcontentloaded'});await page.getByRole('button',{name:'Nouveau transfert',exact:true}).click();
- await page.getByLabel(/^Répartition/).selectOption('count');await page.getByLabel(/^Nombre de titres/).fill('5');
- await page.getByRole('button',{name:'Choisir les médias et le trajet'}).click();
- await page.locator('.instance-choice input').check();await page.locator('.source-choices input[value="/data/FILMS"]').check();await page.locator('.prepare-route select').selectOption('/usb/FILMS');
- await page.getByRole('button',{name:'Préparer l’aperçu'}).click();
- await expect(page.getByRole('dialog')).toBeVisible();await expect(page.locator('.objective-result')).toContainText('5 / 5 titres');expect(requested.goal_gb).toBe(20);expect(requested.target_titles).toBe(5);
- const save=page.getByRole('button',{name:'Enregistrer la tâche',exact:true});await save.scrollIntoViewIfNeeded();const box=await save.boundingBox();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(page.viewportSize().width+1);
- await page.getByLabel('Sélectionner Film 0',{exact:true}).uncheck();await expect(page.locator('.objective-result')).toContainText('4 / 5 titres');await expect(page.locator('.objective-result')).toContainText('Il manque');await expect(save).toBeDisabled();await page.screenshot({path:`.codex/objective-${test.info().project.name}.png`,fullPage:true});
+ const dialog=page.getByRole('dialog');const pick=async(locator,name)=>{await locator.click();await page.getByRole('option',{name}).click();};
+ await pick(dialog.getByLabel(/^Répartition/),'Sur un nombre de titres');await dialog.getByLabel(/^Nombre de titres/).fill('5');
+ await dialog.getByRole('button',{name:'Continuer',exact:true}).click();
+ await dialog.getByLabel('Radarr · Films').check();await dialog.getByLabel('/data/FILMS',{exact:false}).first().check();await pick(dialog.getByLabel(/^Destination/),/\/usb\/FILMS/);
+ await dialog.getByRole('button',{name:'Continuer',exact:true}).click();
+ await dialog.getByRole('button',{name:'Continuer',exact:true}).click();
+ await expect(dialog).toContainText('5 / 5 titres');expect(requested.goal_gb).toBe(20);expect(requested.target_titles).toBe(5);
+ await dialog.getByLabel('Film 0',{exact:false}).first().uncheck();await expect(dialog).toContainText('4 / 5 titres');await expect(dialog).toContainText('Il manque');
+ await dialog.getByRole('button',{name:'Continuer',exact:true}).click();await expect(dialog).toContainText('Acceptez la sélection pour continuer.');
+ await dialog.getByLabel(/J’accepte cette sélection/).check();await dialog.getByRole('button',{name:'Continuer',exact:true}).click();
+ const save=dialog.getByRole('button',{name:'Enregistrer la tâche',exact:true});await save.scrollIntoViewIfNeeded();const box=await save.boundingBox();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(page.viewportSize().width+1);
+ await expect(dialog.getByRole('button',{name:'Lancer la sélection',exact:true})).toBeVisible();
+ await page.screenshot({path:`.codex/objective-${test.info().project.name}.png`,fullPage:true});
 });

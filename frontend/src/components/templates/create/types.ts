@@ -9,12 +9,17 @@ export type CreateValues = Record<string, any>;
 
 /* `suggest` : texte libre avec propositions ; `file` : un fichier, par glisser-deposer ou parcours. */
 /* `lookup` : cherche puis retient un element (UiLookupField) ; `note` : un texte pour lire, sans saisie. */
-export type CreateFieldType = 'text' | 'textarea' | 'url' | 'email' | 'secret' | 'number' | 'select' | 'cards' | 'toggle' | 'file' | 'suggest' | 'lookup' | 'note';
+/* `checklist` : plusieurs elements a cocher (valeur : la liste des cles cochees), chacun avec une action facultative. */
+export type CreateFieldType = 'checklist' | 'text' | 'textarea' | 'url' | 'email' | 'secret' | 'number' | 'select' | 'cards' | 'toggle' | 'file' | 'suggest' | 'lookup' | 'note';
 
 export interface CreateOption {
   value: string;
   label: string;
   description?: string;
+  /** Element non selectionnable (checklist, cards). */
+  disabled?: boolean;
+  /** Checklist : libelle d'une action propre a l'element (« Conserver ici »), voir `onAction`. */
+  action?: string;
 }
 
 export interface CreateField {
@@ -37,6 +42,10 @@ export interface CreateField {
   text?: string | ((values: CreateValues) => string);
   /** Ton d'une `note` : `warning` pour ce qui change l'issue. */
   tone?: 'info' | 'warning';
+  /** Champ texte : un bouton « Parcourir… » a cote ; renvoie le chemin choisi (ou rien) pour la valeur actuelle. */
+  browse?: (current: string, values: CreateValues) => Promise<string | null | undefined>;
+  /** Checklist : appele quand l'action d'un element est declenchee. */
+  onAction?: (value: string, values: CreateValues) => void | Promise<void>;
   /** Appele quand la reponse change : peut corriger d'autres reponses (champ lie). */
   onChange?: (value: any, values: CreateValues) => void;
   /** Lignes d'un champ `textarea`. */
@@ -56,9 +65,12 @@ export interface CreateStep {
   /** Le titre dit l'intention : « Ou se trouve votre Radarr ? ». */
   title: string | ((values: CreateValues) => string);
   description?: string;
-  fields: CreateField[];
+  /** Les champs ; une fonction quand ils dependent de ce que l'etape precedente a lu (un champ par dossier decouvert…). */
+  fields: CreateField[] | ((values: CreateValues) => CreateField[]);
   /** Etape presente seulement si… (ex. pas de reglages pour Prowlarr). */
   when?: (values: CreateValues) => boolean;
+  /** Texte affiche pendant `onEnter` (« Calcul de l'apercu… ») ; une fonction quand il avance (secondes ecoulees). */
+  loading?: string | ((values: CreateValues) => string);
   /** Appele en arrivant sur l'etape, avant d'en montrer les champs (lire ce que la reponse precedente rend possible). */
   onEnter?: (values: CreateValues) => Promise<void>;
 }
@@ -93,6 +105,8 @@ export interface CreateDefinition {
   /** Test obligatoire avant de quitter l'etape `test.step` ; tout champ de `test.fields`
       modifie le rend caduc. */
   test?: { step: string; fields: string[]; run: (values: CreateValues) => Promise<CreateTestResult> };
-  /** La creation ; une erreur levee s'affiche dans la fenetre. */
-  submit: (values: CreateValues) => Promise<CreateResult>;
+  /** Boutons de la derniere etape a cote de l'action principale (« Enregistrer sans lancer ») ; leur cle est transmise a `submit`. */
+  secondaryActions?: Array<{ key: string; label: string; /** Etape ou le bouton apparait et cree sans passer par les suivantes (« Enregistrer sans calculer l'apercu ») ; par defaut la derniere. */ from?: string }>;
+  /** La creation ; une erreur levee s'affiche dans la fenetre. `action` : la cle d'une action secondaire. */
+  submit: (values: CreateValues, action?: string) => Promise<CreateResult>;
 }

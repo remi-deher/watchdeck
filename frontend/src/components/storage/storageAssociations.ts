@@ -1,6 +1,3 @@
-export const newAssociationMapping=(instanceId=0)=>({arr_instance_id:instanceId,arr_root:'',plex_root:'',plex_section_id:'',subdirectory:''});
+const newAssociationMapping=(instanceId=0)=>({arr_instance_id:instanceId,arr_root:'',plex_root:'',plex_section_id:'',subdirectory:''});
 export function rootMapping(row:any,choice:string){const [section,path]=choice?JSON.parse(choice):['',''];return {...newAssociationMapping(row.arr_instance_id),arr_root:row.arr_root,plex_root:path,plex_section_id:section};}
-export const plexChoice=(mapping:any)=>mapping.plex_root?JSON.stringify([mapping.plex_section_id,mapping.plex_root]):'';
-export function selectPlexRoot(mapping:any,value:string){const [section,path]=JSON.parse(value);mapping.plex_section_id=section;mapping.plex_root=path;}
-export function resetMappingRoots(mapping:any){mapping.arr_root='';mapping.plex_root='';mapping.plex_section_id='';}
 export function suggestedPlex(path:string,roots:any[]){const identity=(p:string)=>{const first=p.split('/').filter(Boolean)[0];return ({data:'data1',media:'data1'} as Record<string,string>)[first]||first;};const matches=roots.filter(p=>identity(path)===identity(p.path) && path.split('/').at(-1)===p.path.split('/').at(-1));return matches.length===1?JSON.stringify([matches[0].section_id,matches[0].path]):'';}
