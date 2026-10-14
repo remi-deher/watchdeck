@@ -9,9 +9,10 @@ export type CreateValues = Record<string, any>;
 
 /* `suggest` : texte libre avec propositions ; `file` : un fichier, par glisser-deposer ou parcours. */
 /* `lookup` : cherche puis retient un element (UiLookupField) ; `note` : un texte pour lire, sans saisie ;
-   `image` : une image pour regarder (QR code…), dont `text` donne l'adresse et `label` le texte alternatif. */
+   `image` : une image pour regarder (QR code…), dont `text` donne l'adresse et `label` le texte alternatif ;
+   `compare` : avant / apres par ligne (`rows`), pour voir ce qu'une action va changer. */
 /* `checklist` : plusieurs elements a cocher (valeur : la liste des cles cochees), chacun avec une action facultative. */
-export type CreateFieldType = 'checklist' | 'text' | 'textarea' | 'url' | 'email' | 'secret' | 'number' | 'select' | 'cards' | 'toggle' | 'file' | 'suggest' | 'lookup' | 'note' | 'image';
+export type CreateFieldType = 'checklist' | 'text' | 'textarea' | 'url' | 'email' | 'secret' | 'number' | 'select' | 'cards' | 'toggle' | 'file' | 'suggest' | 'lookup' | 'note' | 'image' | 'compare';
 
 export interface CreateOption {
   value: string;
@@ -21,6 +22,32 @@ export interface CreateOption {
   disabled?: boolean;
   /** Checklist : libelle d'une action propre a l'element (« Conserver ici »), voir `onAction`. */
   action?: string;
+  /** Checklist : cle du groupe qui range l'element (voir `groups`). */
+  group?: string;
+}
+
+/* Checklist en groupes repliables (les saisons d'une serie) : le titre porte un compteur et, au besoin, une action. */
+export interface CreateGroup {
+  key: string;
+  label: string;
+  badge?: string | number;
+  /** Libelle de l'action du groupe (« Réanalyser »), voir `onGroupAction`. */
+  action?: string;
+  /** Contenu en cours de chargement. */
+  loading?: boolean;
+  /** Ouvert d'office. */
+  open?: boolean;
+}
+
+/* Ligne d'un champ `compare` : l'etat actuel, l'etat vise, et si cela change. */
+export interface CreateCompareRow {
+  key: string;
+  label: string;
+  current: string;
+  currentDetail?: string;
+  target: string;
+  targetDetail?: string;
+  changed: boolean;
 }
 
 export interface CreateField {
@@ -47,6 +74,17 @@ export interface CreateField {
   browse?: (current: string, values: CreateValues) => Promise<string | null | undefined>;
   /** Checklist : appele quand l'action d'un element est declenchee. */
   onAction?: (value: string, values: CreateValues) => void | Promise<void>;
+  /** Checklist : groupes repliables ; une fonction quand ils dependent des autres reponses. */
+  groups?: CreateGroup[] | ((values: CreateValues) => CreateGroup[]);
+  /** Checklist : appele a l'ouverture d'un groupe (charger son contenu) et au clic sur son action. */
+  onGroupOpen?: (group: string, values: CreateValues) => void | Promise<void>;
+  onGroupAction?: (group: string, values: CreateValues) => void | Promise<void>;
+  /** Checklist : boutons au-dessus de la liste (« Réanalyser toute la série »). */
+  actions?: Array<{ label: string; run: (values: CreateValues) => void | Promise<void> }>;
+  /** Checklist : texte quand rien n'est a cocher ; une fonction quand il depend des reponses. */
+  empty?: string | ((values: CreateValues) => string);
+  /** Lignes d'un champ `compare`. */
+  compareRows?: (values: CreateValues) => CreateCompareRow[];
   /** Appele quand la reponse change : peut corriger d'autres reponses (champ lie). */
   onChange?: (value: any, values: CreateValues) => void;
   /** Lignes d'un champ `textarea`. */
