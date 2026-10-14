@@ -167,6 +167,33 @@ function metaLine(item: any): string {
 <style scoped lang="scss">
 .queue-row {
   display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.queue-row svg {
+  color: var(--muted);
+}
+
+.queue-row div {
+  min-width: 0;
+}
+
+.queue-row strong,
+.queue-row span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-row {
+  display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-3);
   align-items: center;

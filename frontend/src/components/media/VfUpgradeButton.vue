@@ -101,8 +101,8 @@
             <UiButton variant="primary" size="sm" :loading="grabbing===release.guid" :disabled="Boolean(grabbing) || grabDisabled" @click="requestGrab(release)"><template #icon><Download :size="14" /></template>{{ grabbing===release.guid ? 'Envoi…' : 'Grab' }}</UiButton>
           </div>
 
-          <CollapsibleRoot v-if="hasReleaseDetails(release)" class="release-details" :unmount-on-hide="false">
-            <CollapsibleTrigger class="collapsible-trigger">Détails complémentaires</CollapsibleTrigger><CollapsibleContent class="collapsible-content">
+          <UiCollapsible v-if="hasReleaseDetails(release)" class="release-details" :unmount-on-hide="false" trigger-class="collapsible-trigger" content-class="collapsible-content">
+            <template #trigger>Détails complémentaires</template>
             <dl class="vf-upgrade-release-meta release-secondary-meta">
               <div><dt>Publiée le</dt><dd>{{ formatReleaseDate(release.publish_date) }}</dd></div>
               <div><dt>Score CF</dt><dd>{{ release.custom_format_score ?? 0 }}</dd></div>
@@ -117,7 +117,7 @@
               <li v-for="warning in comparisonFor(release).warnings" :key="warning"><TriangleAlert :size="13" /> {{ warning }}</li>
             </ul>
             <p v-if="release.vf_evidence?.length" class="vf-upgrade-evidence">{{ release.vf_evidence.join(' · ') }}</p>
-          </CollapsibleContent></CollapsibleRoot>
+          </UiCollapsible>
         </li>
       </ul>
     </ModalShell>
@@ -136,7 +136,7 @@
 <script setup lang="ts">
 import { formatBytes } from '@/utils/format';
 import UiTooltip from '@/components/ui/UiTooltip.vue';
-import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
+import UiCollapsible from '@/components/ui/UiCollapsible.vue';
 import { humanizeError } from '@/utils/apiError';
 import { computed, onMounted, ref } from 'vue';
 import { ArrowRight, Copy, Download, ExternalLink, RefreshCw, Search, Sparkles, TriangleAlert } from '@lucide/vue';

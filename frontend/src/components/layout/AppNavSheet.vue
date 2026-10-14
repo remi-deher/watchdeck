@@ -1,103 +1,104 @@
 <template>
-  <!-- Reka UI tient le focus, Echap, le clic sur le voile et le defilement verrouille. -->
-  <DialogRoot :open="true" @update:open="(open) => { if (!open) $emit('close'); }">
-    <DialogPortal>
-    <DialogOverlay class="app-sheet__scrim" />
-    <DialogContent class="app-sheet" :aria-describedby="undefined" @interact-outside="laisserAuDock">
-      <header class="app-sheet__head">
-        <DialogTitle as="h2">Navigation</DialogTitle>
-        <button type="button" class="app-sheet__close" aria-label="Fermer la navigation" @click="$emit('close')">
-          <X aria-hidden="true" />
+  <!-- Voile, focus, Echap et clic sur le voile : UiSheet (Reka UI). -->
+  <UiSheet
+    title="Navigation"
+    header-class="app-nav-sheet__head"
+    scrim-class="app-nav-sheet__scrim"
+    content-class="app-nav-sheet"
+    @close="$emit('close')"
+    @interact-outside="laisserAuDock"
+  >
+    <template #head-actions>
+      <button type="button" class="app-sheet__close" aria-label="Fermer la navigation" @click="$emit('close')">
+        <X aria-hidden="true" />
+      </button>
+    </template>
+
+    <div class="app-sheet__body">
+      <!-- Les sections d'une destination que le dock ne porte pas : son entree active
+           n'existe pas la-bas, donc rien ne pourrait les y decouvrir. Elles passent
+           en tete, avant les destinations, parce qu'on vient d'abord voir ou l'on
+           peut aller dans la page ou l'on est. -->
+      <section v-if="sections.length > 1" class="app-sheet__group">
+        <p class="app-sheet__group-label">{{ destinationLabel }}</p>
+        <RouterLink
+          v-for="section in sections"
+          :key="section.key"
+          class="app-nav-link app-sheet__link"
+          :to="section.to!"
+          :aria-current="section.key === activeSectionKey ? 'page' : undefined"
+        >
+          <component :is="section.icon" v-if="section.icon" aria-hidden="true" />
+          <span>{{ section.label }}</span>
+          <small v-if="section.count != null" class="app-sheet__count">{{ section.count }}</small>
+        </RouterLink>
+      </section>
+
+      <!-- La feuille montre la totalité des destinations permises, groupées comme
+           dans le rail : c'est le même modèle, jamais un sous-ensemble arbitraire.
+
+           Les liens ne la referment pas eux-mêmes : c'est le shell qui s'en charge
+           une fois la route changée : la feuille reste visible jusqu'à ce que la page
+           d'arrivée soit là, au lieu de disparaître sur un écran encore inchangé. -->
+      <!-- Dans l'Administration, ses groupes passent avant l'application, avec le
+           retour en tête : c'est l'espace où l'on se trouve. -->
+      <section v-if="isAdmin && space === 'admin'" class="app-sheet__group">
+        <p class="app-sheet__group-label">Administration</p>
+        <RouterLink class="app-nav-link app-sheet__link" :to="backTo">
+          <ArrowLeft aria-hidden="true" /><span>Retour à Watchdeck</span>
+        </RouterLink>
+        <RouterLink
+          v-for="area in adminAreas"
+          :key="area.key"
+          class="app-nav-link app-sheet__link"
+          :to="area.to"
+          :aria-current="area.key === activeKey ? 'page' : undefined"
+        >
+          <component :is="area.icon" aria-hidden="true" />
+          <span>{{ area.label }}</span>
+        </RouterLink>
+      </section>
+
+      <section v-for="group in groups" :key="group.label" class="app-sheet__group">
+        <p class="app-sheet__group-label">{{ group.label }}</p>
+        <RouterLink
+          v-for="destination in group.items"
+          :key="destination.key"
+          class="app-nav-link app-sheet__link"
+          :to="destination.to"
+          :aria-current="destination.key === activeKey ? 'page' : undefined"
+        >
+          <component :is="destination.icon" aria-hidden="true" />
+          <span>{{ destination.label }}</span>
+        </RouterLink>
+      </section>
+
+      <!-- Hors de l'Administration, une seule entrée : ses groupes ne s'affichent
+           qu'une fois dedans. -->
+      <section v-if="isAdmin && space !== 'admin'" class="app-sheet__group">
+        <p class="app-sheet__group-label">Administration</p>
+        <RouterLink class="app-nav-link app-sheet__link" :to="ADMIN_ENTRY.to">
+          <component :is="ADMIN_ENTRY.icon" aria-hidden="true" /><span>{{ ADMIN_ENTRY.label }}</span>
+        </RouterLink>
+      </section>
+
+      <section class="app-sheet__group">
+        <p class="app-sheet__group-label">Compte et outils</p>
+        <button type="button" class="app-nav-link app-sheet__link" @click="$emit('open-palette')">
+          <Search aria-hidden="true" /><span>Recherche globale</span><kbd>{{ shortcutLabel }}</kbd>
         </button>
-      </header>
-
-      <div class="app-sheet__body">
-        <!-- Les sections d'une destination que le dock ne porte pas : son entree active
-             n'existe pas la-bas, donc rien ne pourrait les y decouvrir. Elles passent
-             en tete, avant les destinations, parce qu'on vient d'abord voir ou l'on
-             peut aller dans la page ou l'on est. -->
-        <section v-if="sections.length > 1" class="app-sheet__group">
-          <p class="app-sheet__group-label">{{ destinationLabel }}</p>
-          <RouterLink
-            v-for="section in sections"
-            :key="section.key"
-            class="app-nav-link app-sheet__link"
-            :to="section.to!"
-            :aria-current="section.key === activeSectionKey ? 'page' : undefined"
-          >
-            <component :is="section.icon" v-if="section.icon" aria-hidden="true" />
-            <span>{{ section.label }}</span>
-            <small v-if="section.count != null" class="app-sheet__count">{{ section.count }}</small>
-          </RouterLink>
-        </section>
-
-        <!-- La feuille montre la totalité des destinations permises, groupées comme
-             dans le rail : c'est le même modèle, jamais un sous-ensemble arbitraire.
-
-             Les liens ne la referment pas eux-mêmes : c'est le shell qui s'en charge
-             une fois la route changée : la feuille reste visible jusqu'à ce que la page
-             d'arrivée soit là, au lieu de disparaître sur un écran encore inchangé. -->
-        <!-- Dans l'Administration, ses groupes passent avant l'application, avec le
-             retour en tête : c'est l'espace où l'on se trouve. -->
-        <section v-if="isAdmin && space === 'admin'" class="app-sheet__group">
-          <p class="app-sheet__group-label">Administration</p>
-          <RouterLink class="app-nav-link app-sheet__link" :to="backTo">
-            <ArrowLeft aria-hidden="true" /><span>Retour à Watchdeck</span>
-          </RouterLink>
-          <RouterLink
-            v-for="area in adminAreas"
-            :key="area.key"
-            class="app-nav-link app-sheet__link"
-            :to="area.to"
-            :aria-current="area.key === activeKey ? 'page' : undefined"
-          >
-            <component :is="area.icon" aria-hidden="true" />
-            <span>{{ area.label }}</span>
-          </RouterLink>
-        </section>
-
-        <section v-for="group in groups" :key="group.label" class="app-sheet__group">
-          <p class="app-sheet__group-label">{{ group.label }}</p>
-          <RouterLink
-            v-for="destination in group.items"
-            :key="destination.key"
-            class="app-nav-link app-sheet__link"
-            :to="destination.to"
-            :aria-current="destination.key === activeKey ? 'page' : undefined"
-          >
-            <component :is="destination.icon" aria-hidden="true" />
-            <span>{{ destination.label }}</span>
-          </RouterLink>
-        </section>
-
-        <!-- Hors de l'Administration, une seule entrée : ses groupes ne s'affichent
-             qu'une fois dedans. -->
-        <section v-if="isAdmin && space !== 'admin'" class="app-sheet__group">
-          <p class="app-sheet__group-label">Administration</p>
-          <RouterLink class="app-nav-link app-sheet__link" :to="ADMIN_ENTRY.to">
-            <component :is="ADMIN_ENTRY.icon" aria-hidden="true" /><span>{{ ADMIN_ENTRY.label }}</span>
-          </RouterLink>
-        </section>
-
-        <section class="app-sheet__group">
-          <p class="app-sheet__group-label">Compte et outils</p>
-          <button type="button" class="app-nav-link app-sheet__link" @click="$emit('open-palette')">
-            <Search aria-hidden="true" /><span>Recherche globale</span><kbd>{{ shortcutLabel }}</kbd>
-          </button>
-          <RouterLink class="app-nav-link app-sheet__link" to="/profile" @click="$emit('close')">
-            <UserRound aria-hidden="true" /><span>Profil</span>
-          </RouterLink>
-          <div class="app-sheet__theme">
-            <span><Palette aria-hidden="true" />Thème</span>
-            <ThemeSettings />
-          </div>
-          <a class="app-nav-link app-sheet__link" href="/privacy"><ShieldCheck aria-hidden="true" /><span>Confidentialité</span></a>
-          <a class="app-nav-link app-sheet__link" href="/logout" @click.prevent="seDeconnecter"><LogOut aria-hidden="true" /><span>Déconnexion</span></a>
-        </section>
-      </div>
-    </DialogContent>
-    </DialogPortal>
-  </DialogRoot>
+        <RouterLink class="app-nav-link app-sheet__link" to="/profile" @click="$emit('close')">
+          <UserRound aria-hidden="true" /><span>Profil</span>
+        </RouterLink>
+        <div class="app-sheet__theme">
+          <span><Palette aria-hidden="true" />Thème</span>
+          <ThemeSettings />
+        </div>
+        <a class="app-nav-link app-sheet__link" href="/privacy"><ShieldCheck aria-hidden="true" /><span>Confidentialité</span></a>
+        <a class="app-nav-link app-sheet__link" href="/logout" @click.prevent="seDeconnecter"><LogOut aria-hidden="true" /><span>Déconnexion</span></a>
+      </section>
+    </div>
+  </UiSheet>
 </template>
 
 <script setup lang="ts">
@@ -118,7 +119,7 @@ async function seDeconnecter(): Promise<void> {
   await fetch('/logout', { method: 'POST', credentials: 'same-origin', redirect: 'manual' }).catch(() => undefined);
   window.location.href = '/login';
 }
-import { DialogContent, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui';
+import UiSheet from '@/components/ui/UiSheet.vue';
 import { useBackButtonClose } from '@/composables/useBackButtonClose';
 import { ADMIN_ENTRY, adminAreasFor, destinationsFor, type NavDestination } from '@/navigation';
 import type { SubnavItem } from '@/components/ui/AppSubnav.vue';
@@ -162,40 +163,6 @@ useBackButtonClose(null, () => emit('close'));
 </script>
 
 <style scoped lang="scss">
-.app-sheet__scrim {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-sheet);
-  background: rgba(9, 9, 11, .62);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-
-.app-sheet {
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: calc(var(--z-sheet) + 1);
-  display: flex;
-  flex-direction: column;
-  max-height: min(84dvh, calc(var(--visual-viewport-height) - var(--safe-top)));
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  border-top: 1px solid var(--border);
-  background: var(--surface);
-  box-shadow: 0 -18px 50px rgb(var(--shadow-color) / calc(.55 * var(--shadow-scale)));
-}
-
-.app-sheet__head {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3) max(var(--space-4), var(--safe-right)) var(--space-3) max(var(--space-4), var(--safe-left));
-  border-bottom: 1px solid var(--border);
-}
-.app-sheet__head h2 { margin: 0; font-size: var(--fs-lg); }
 .app-sheet__close {
   display: grid;
   place-items: center;
@@ -282,4 +249,42 @@ useBackButtonClose(null, () => emit('close'));
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   font-weight: 700;
 }
+</style>
+
+<!-- Éléments rendus par UiSheet : hors de la portée du composant. -->
+<style lang="scss">
+.app-nav-sheet__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-sheet);
+  background: rgba(9, 9, 11, .62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.app-nav-sheet {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: calc(var(--z-sheet) + 1);
+  display: flex;
+  flex-direction: column;
+  max-height: min(84dvh, calc(var(--visual-viewport-height) - var(--safe-top)));
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 -18px 50px rgb(var(--shadow-color) / calc(.55 * var(--shadow-scale)));
+}
+
+.app-nav-sheet__head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) max(var(--space-4), var(--safe-right)) var(--space-3) max(var(--space-4), var(--safe-left));
+  border-bottom: 1px solid var(--border);
+}
+.app-nav-sheet__head h2 { margin: 0; font-size: var(--fs-lg); }
 </style>

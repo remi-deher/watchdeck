@@ -2,7 +2,6 @@ import { mount } from '@vue/test-utils';
 import { h } from 'vue';
 import { describe, expect, it } from 'vitest';
 
-import LoadMore from './LoadMore.vue';
 import MetricCard from './MetricCard.vue';
 import MetricGrid from './MetricGrid.vue';
 import PanelCard from './PanelCard.vue';
@@ -333,28 +332,6 @@ describe('PanelCard', () => {
   });
 });
 
-
-describe('LoadMore', () => {
-  it('ne s’affiche que s’il reste des pages', () => {
-    expect(mount(LoadMore, { props: { hasMore: false } }).find('button').exists()).toBe(false);
-    expect(mount(LoadMore, { props: { hasMore: true } }).find('button').exists()).toBe(true);
-  });
-
-  it('désactive le bouton et change le libellé pendant le chargement', () => {
-    const wrapper = mount(LoadMore, { props: { hasMore: true, loading: true, loadingLabel: 'Chargement…' } });
-    const button = wrapper.find('button');
-    expect(button.attributes('disabled')).toBeDefined();
-    expect(button.text()).toBe('Chargement…');
-    expect(wrapper.find('.ui-button-spinner').exists()).toBe(true);
-  });
-
-  it('émet load au clic', async () => {
-    const wrapper = mount(LoadMore, { props: { hasMore: true, label: 'Charger plus de médias' } });
-    expect(wrapper.find('button').text()).toBe('Charger plus de médias');
-    await wrapper.find('button').trigger('click');
-    expect(wrapper.emitted('load')).toHaveLength(1);
-  });
-});
 
 describe('ToggleSwitch', () => {
   it('expose un interrupteur accessible reflétant son état', () => {

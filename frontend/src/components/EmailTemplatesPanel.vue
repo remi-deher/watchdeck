@@ -1,14 +1,6 @@
 <template>
-  <section class="panel email-studio">
-    <div class="panel-head studio-head">
-      <div><h2>Modeles d'emails</h2><p>Declencheurs, contenu et simulation des destinataires.</p></div>
-      <div class="actions">
-        <UiButton v-if="hasPrevious" :disabled="busy" @click="restorePrevious"><Undo2/>Version précédente</UiButton>
-        <UiButton :disabled="busy" @click="reset"><RotateCcw/>Valeurs par défaut</UiButton>
-        <UiButton variant="primary" :disabled="busy||!isDirty" @click="save"><Save/>Enregistrer</UiButton>
-      </div>
-    </div>
-
+  <ConfigureTemplate :sections="sections" v-bind="page.bind.value" :dirty="isDirty" :saving="busy" @save="save" @cancel="cancel">
+    <template #section-simulation>
     <div class="simulation-bar">
       <label>Utilisateur simule
         <UiSelect v-model="previewUser" :options="[{ value: '', label: 'Utilisateur exemple' }, ...(users).map((user) => ({ value: user.id, label: String(userName(user)) }))]" />
@@ -27,6 +19,14 @@
       <div><strong>{{ eligibility.title }}</strong><span>{{ eligibility.detail }}</span></div>
     </div>
 
+    </template>
+    <template #section-models>
+    <div class="studio-head">
+      <div class="actions">
+        <UiButton v-if="hasPrevious" :disabled="busy" @click="restorePrevious"><Undo2/>Version précédente</UiButton>
+        <UiButton :disabled="busy" @click="reset"><RotateCcw/>Valeurs par défaut</UiButton>
+      </div>
+    </div>
     <label class="mobile-model-select">Modele
       <UiSelect :model-value="showAppearance?'appearance':eventType" @update:model-value="selectMobile($event)" :options="[...eventGroups.flatMap((group: any) => group.items.map((entry: any) => ({ value: entry.key, label: String(entry.label), group: group.label }))), { value: 'appearance', label: 'Apparence generale' }]" />
     </label>
@@ -58,14 +58,13 @@
           <UiButton :disabled="previewing" @click="preview"><Eye/>Générer l'aperçu</UiButton>
           <UiButton :disabled="busy" @click="testSend('admin')"><Send/>Tester vers l'admin</UiButton>
           <UiButton v-if="selectedUser" :disabled="busy" @click="testSend('user')"><UserRoundCheck/>Tester vers cet utilisateur</UiButton>
-          <UiButton variant="primary" :disabled="busy||!isDirty" @click="save"><Save/>Enregistrer</UiButton>
         </div>
       </main>
 
       <EmailPreviewPanel v-if="viewMode!=='edit'" :preview-html="previewHtml" :event-label="showAppearance?'Apparence':currentEvent.label" :device-mode="deviceMode" />
     </div>
-  </section>
-  <FormSaveBar :dirty="isDirty" :saving="busy" @save="save"/>
+    </template>
+  </ConfigureTemplate>
   <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
 </template>
 
@@ -73,18 +72,25 @@
 import UiSelect from '@/components/ui/UiSelect.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
-import { computed, markRaw, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, markRaw, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { queryKeys } from '@/queryKeys';
-import { Ban,CircleAlert,CircleCheck,Eye,FileWarning,Film,MailCheck,Palette,RotateCcw,Save,Send,ShieldAlert,Sparkles,Tv,Undo2,UserRoundCheck } from '@lucide/vue';
+import { Ban,CircleAlert,CircleCheck,Eye,FileWarning,Film,MailCheck,Palette,RotateCcw,Send,ShieldAlert,Sparkles,Tv,Undo2,UserRoundCheck } from '@lucide/vue';
 import { api } from '@/api';
 import EmailEventEditor from './email/EmailEventEditor.vue';
 import EmailSharedSettings from './email/EmailSharedSettings.vue';
 import EmailPreviewPanel from './email/EmailPreviewPanel.vue';
 import ConfirmModal from './ConfirmModal.vue';
+import ConfigureTemplate from '@/components/templates/ConfigureTemplate.vue';
+import { useSettingsPage } from '@/composables/useSettingsPage';
 import { useConfirm } from '@/composables/useConfirm';
 import { useToast } from '@/composables/useToast';
 
+const page=useSettingsPage();
+const sections=computed(()=>[
+  {key:'simulation',title:'Simulation',description:'Choisissez le destinataire et le scénario pour voir ce qu\'il recevrait.',icon:UserRoundCheck,keywords:['aperçu','utilisateur','scénario','éligibilité'],dirty:false},
+  {key:'models',title:'Modèles d\'emails',description:'Déclencheurs, contenu et apparence des messages.',icon:MailCheck,keywords:['email','modèle','objet','apparence','test'],dirty:isDirty.value},
+]);
 const seriesEventTypes=['episode_available','season_started','season_partial','season_complete','series_partial','series_complete'];
 const eventGroups=[
   {label:'Demandes',items:[
@@ -188,13 +194,13 @@ async function restorePrevious(): Promise<void> {try{await templatesMutation.mut
 async function preview(): Promise<void> {clearTimeout(timer);previewing.value=true;try{const response=await fetch('/api/email-preview',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(previewPayload())});if(!response.ok)throw new Error((await response.json()).detail);previewHtml.value=await response.text()}catch(e: any){error.value=e.message}finally{previewing.value=false}}
 function schedulePreview(): void {clearTimeout(timer);timer=setTimeout(preview,500)}
 async function testSend(mode: string): Promise<void> {if(mode==='user'&&!await askConfirm({title:'Envoyer le test à cet utilisateur ?',message:`Un email réel sera envoyé à ${userName(selectedUser.value)}.`,confirmLabel:'Envoyer'}))return;try{const data=await templatesMutation.mutateAsync({path:'/api/email-templates/test-send',body:previewPayload({recipient_mode:mode}),invalidate:false});message.value=data.message}catch(e: any){error.value=e.message}}
-function warnUnsaved(event: BeforeUnloadEvent): void {if(!isDirty.value)return;event.preventDefault();event.returnValue=''}
-watch(()=>templatesQuery.data.value,(data)=>{if(data){fill(data);void preview()}},{immediate:true});watch(()=>usersQuery.data.value,(rows)=>{if(rows)users.value=rows},{immediate:true});watch([eventType,previewVariant,previewUser],schedulePreview);watch(shared,schedulePreview,{deep:true});watch(models,schedulePreview,{deep:true});onMounted(()=>{window.addEventListener('beforeunload',warnUnsaved)});onBeforeUnmount(()=>{clearTimeout(timer);window.removeEventListener('beforeunload',warnUnsaved)});
+function cancel(): void {if(templatesQuery.data.value){fill(templatesQuery.data.value);void preview()}}
+watch(()=>templatesQuery.data.value,(data)=>{if(data){fill(data);void preview()}},{immediate:true});watch(()=>usersQuery.data.value,(rows)=>{if(rows)users.value=rows},{immediate:true});watch([eventType,previewVariant,previewUser],schedulePreview);watch(shared,schedulePreview,{deep:true});watch(models,schedulePreview,{deep:true});onBeforeUnmount(()=>{clearTimeout(timer)});
 </script>
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
-.email-studio{display:grid;gap: var(--space-4)}.studio-head{align-items:flex-start}.simulation-bar{display:flex;gap: var(--space-3);align-items:end;flex-wrap:wrap;padding:12px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm)}.simulation-bar label{display:grid;gap: var(--space-1);min-width:180px;font-size:var(--fs-sm);color:var(--muted)}.simulation-bar select{width:100%}.view-switch{display:flex;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}.view-switch button{display:flex;gap: var(--space-2);align-items:center;border:0;border-right:1px solid var(--border);border-radius:0;background:transparent;color:var(--muted);padding:9px 11px}.view-switch button:last-child{border-right:0}.view-switch button.active{background:var(--accent);color:#111}.view-switch svg,.template-sidebar svg{width:16px}.simulation-result{display:flex;gap: var(--space-3);align-items:center;padding:11px 13px;border-radius:var(--radius-sm);border:1px solid}.simulation-result svg{width:20px;flex:none}.simulation-result div{display:grid;gap: var(--space-1)}.simulation-result span{font-size:var(--fs-sm)}.simulation-result.eligible{border-color:color-mix(in srgb, var(--green) 35%, transparent);background:color-mix(in srgb, var(--green) 8%, transparent);color: var(--green-text)}.simulation-result.ineligible{border-color:color-mix(in srgb, var(--red) 35%, transparent);background:color-mix(in srgb, var(--red) 8%, transparent);color: var(--red-text)}.studio-layout{display:grid;grid-template-columns:240px minmax(0,1fr) minmax(340px,.85fr);gap: var(--space-4);align-items:start}.studio-layout.mode-edit{grid-template-columns:240px minmax(0,1fr)}.studio-layout.mode-preview{grid-template-columns:240px minmax(0,1fr)}.template-sidebar{position:sticky;top:16px;display:grid;gap: var(--space-4);max-height:calc(100vh - 32px);overflow:auto;padding-right:4px}.template-group{display:grid;gap: var(--space-1)}.template-group>span{font-size:var(--fs-xs);color:var(--muted);padding:0 8px 4px}.template-group button{display:flex;gap: var(--space-2);text-align:left;align-items:flex-start;border:0;background:transparent;color:var(--text);padding:9px;border-radius:var(--radius-sm)}.template-group button:hover{background:var(--surface-2)}.template-group button.active{background:color-mix(in srgb, var(--accent) 14%, transparent);color:var(--accent)}.template-group button span{display:grid;gap: var(--space-1)}.template-group small{color:var(--muted);font-size:var(--fs-xs);line-height:1.3}.studio-editor{min-width:0;display:grid;gap: var(--space-4)}.editor-title{display:flex;justify-content:space-between;gap: var(--space-3);align-items:flex-start}.editor-title h3{margin:0}.editor-title p{margin:4px 0 0;color:var(--muted);font-size:var(--fs-sm)}.studio-actions{display:flex;justify-content:flex-end;gap: var(--space-2);flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--border)}.mobile-model-select{display:none}.mode-preview :deep(.preview-panel){position:static}.mode-preview :deep(.preview-panel iframe){height:760px}
+.studio-head{display:flex;justify-content:flex-end}.simulation-bar{display:flex;gap: var(--space-3);align-items:end;flex-wrap:wrap;padding:12px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm)}.simulation-bar label{display:grid;gap: var(--space-1);min-width:180px;font-size:var(--fs-sm);color:var(--muted)}.simulation-bar select{width:100%}.view-switch{display:flex;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}.view-switch button{display:flex;gap: var(--space-2);align-items:center;border:0;border-right:1px solid var(--border);border-radius:0;background:transparent;color:var(--muted);padding:9px 11px}.view-switch button:last-child{border-right:0}.view-switch button.active{background:var(--accent);color:#111}.view-switch svg,.template-sidebar svg{width:16px}.simulation-result{display:flex;gap: var(--space-3);align-items:center;padding:11px 13px;border-radius:var(--radius-sm);border:1px solid}.simulation-result svg{width:20px;flex:none}.simulation-result div{display:grid;gap: var(--space-1)}.simulation-result span{font-size:var(--fs-sm)}.simulation-result.eligible{border-color:color-mix(in srgb, var(--green) 35%, transparent);background:color-mix(in srgb, var(--green) 8%, transparent);color: var(--green-text)}.simulation-result.ineligible{border-color:color-mix(in srgb, var(--red) 35%, transparent);background:color-mix(in srgb, var(--red) 8%, transparent);color: var(--red-text)}.studio-layout{display:grid;grid-template-columns:240px minmax(0,1fr) minmax(340px,.85fr);gap: var(--space-4);align-items:start}.studio-layout.mode-edit{grid-template-columns:240px minmax(0,1fr)}.studio-layout.mode-preview{grid-template-columns:240px minmax(0,1fr)}.template-sidebar{position:sticky;top:16px;display:grid;gap: var(--space-4);max-height:calc(100vh - 32px);overflow:auto;padding-right:4px}.template-group{display:grid;gap: var(--space-1)}.template-group>span{font-size:var(--fs-xs);color:var(--muted);padding:0 8px 4px}.template-group button{display:flex;gap: var(--space-2);text-align:left;align-items:flex-start;border:0;background:transparent;color:var(--text);padding:9px;border-radius:var(--radius-sm)}.template-group button:hover{background:var(--surface-2)}.template-group button.active{background:color-mix(in srgb, var(--accent) 14%, transparent);color:var(--accent)}.template-group button span{display:grid;gap: var(--space-1)}.template-group small{color:var(--muted);font-size:var(--fs-xs);line-height:1.3}.studio-editor{min-width:0;display:grid;gap: var(--space-4)}.editor-title{display:flex;justify-content:space-between;gap: var(--space-3);align-items:flex-start}.editor-title h3{margin:0}.editor-title p{margin:4px 0 0;color:var(--muted);font-size:var(--fs-sm)}.studio-actions{display:flex;justify-content:flex-end;gap: var(--space-2);flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--border)}.mobile-model-select{display:none}.mode-preview :deep(.preview-panel){position:static}.mode-preview :deep(.preview-panel iframe){height:760px}
 @container page (max-width: 957px) {.studio-layout,.studio-layout.mode-edit,.studio-layout.mode-preview{grid-template-columns:210px minmax(0,1fr)}.mode-split .studio-editor,.mode-split :deep(.preview-panel){grid-column:2}.mode-split :deep(.preview-panel){position:static}.template-sidebar{grid-row:1/span 2}}
-@include bp.until(tablet) {.studio-head{display:grid;gap: var(--space-3)}.studio-head .actions{width:100%;overflow:auto;flex-wrap:nowrap}.simulation-bar{display:grid;grid-template-columns:1fr}.simulation-bar label{min-width:0}.view-switch{width:100%}.view-switch button{flex:1;justify-content:center}.mobile-model-select{display:grid;gap: var(--space-1)}.template-sidebar{display:none}.studio-layout,.studio-layout.mode-edit,.studio-layout.mode-preview{grid-template-columns:1fr}.mode-split .studio-editor,.mode-split :deep(.preview-panel){grid-column:1}.studio-actions{position:sticky;bottom:0;background:var(--surface);padding:10px 0;z-index:2}.studio-actions button{flex:1;min-width:140px}.email-studio{padding:12px}.mode-preview :deep(.preview-panel iframe){height:640px}}
+@include bp.until(tablet) {.studio-head .actions{width:100%;overflow:auto;flex-wrap:nowrap}.simulation-bar{display:grid;grid-template-columns:1fr}.simulation-bar label{min-width:0}.view-switch{width:100%}.view-switch button{flex:1;justify-content:center}.mobile-model-select{display:grid;gap: var(--space-1)}.template-sidebar{display:none}.studio-layout,.studio-layout.mode-edit,.studio-layout.mode-preview{grid-template-columns:1fr}.mode-split .studio-editor,.mode-split :deep(.preview-panel){grid-column:1}.studio-actions{position:sticky;bottom:0;background:var(--surface);padding:10px 0;z-index:2}.studio-actions button{flex:1;min-width:140px}.mode-preview :deep(.preview-panel iframe){height:640px}}
 </style>

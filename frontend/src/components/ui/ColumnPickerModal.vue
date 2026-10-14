@@ -3,7 +3,7 @@
        ligne se glisse (poignee), se deplace au clavier (fleches) et s'affiche ou se masque
        (interrupteur) ; une colonne masquee reste a sa place, estompee, pour qu'on la
        retrouve ou on l'avait laissee. -->
-  <ModalShell :open="open" title="Personnaliser les colonnes" :subtitle="subtitle" panel-class="column-picker-panel" @close="emit('close')">
+  <ModalShell :open="open" title="Personnaliser les colonnes" :subtitle="subtitle" @close="emit('close')">
     <div class="column-picker">
       <div class="column-picker__summary">
         <span class="column-picker__count"><strong>{{ visibleCount }}</strong> sur {{ total }} colonnes affichées</span>
