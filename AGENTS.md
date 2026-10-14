@@ -121,7 +121,8 @@ Toute fenêtre qui fait saisir quelque chose est une définition du gabarit Cré
 sélection (`torrentMetadata.ts`, modification rapide : `quick`), associer un téléchargement à un
 média (`manualImport.ts` : recherche `lookup`, étape qui lit ce qu'il faut en arrivant,
 `onEnter`, champs liés, `onChange`). Les champs disponibles : texte, texte long, fichier,
-saisie avec propositions, sélection, cartes, interrupteur, secret, recherche, note. Une
+saisie avec propositions, sélection, cartes, interrupteur, secret, recherche, note, image (QR code), liste à cocher
+(en groupes repliables, avec actions), comparatif avant / après (alignement des pistes : `alignStreams.ts`). Une
 fenêtre qui gère une liste (catégories et tags d'un client) est un `ControlTable` dans un
 `ModalShell`, dont les saisies repassent par le gabarit Créer.
 

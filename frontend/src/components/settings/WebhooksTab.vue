@@ -149,6 +149,14 @@ async function testWebhook(svc: Service): Promise<void> {
 </script>
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
+.webhook-item { background: var(--bg-element); border: 1px solid var(--border); padding: 1rem; border-radius: var(--radius); }
+
+.webhook-status { margin-top: 0.5rem; font-size: var(--fs-md); display: flex; align-items: center; gap: 0.25rem; }
+
+.webhook-status.status-error { color: var(--red-text); }
+
+.webhook-status svg { width: 14px; height: 14px; }
+
 .webhook-item {
   display: grid;
   gap: var(--space-2);

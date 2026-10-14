@@ -2,38 +2,34 @@
   <!-- Intitule de la periode affichee, entre les fleches. Il n'apparaissait nulle part :
        apres deux clics on ne savait plus quel mois on regardait. Un clic ouvre le choix
        direct du mois, pour sauter loin sans enchainer les fleches. -->
-  <PopoverRoot v-model:open="open">
-    <PopoverTrigger as-child>
+  <UiPopover v-model:open="open" content-class="calendar-period-picker">
+    <template #trigger>
       <button type="button" class="period-trigger" :aria-label="`Période affichée : ${label}. Choisir un mois`">
         <span>{{ label }}</span><ChevronDown aria-hidden="true" />
       </button>
-    </PopoverTrigger>
-    <PopoverPortal>
-      <PopoverContent class="calendar-period-picker" :side-offset="6" :collision-padding="8" align="center">
-        <div class="period-year">
-          <button type="button" class="period-year-btn" aria-label="Année précédente" @click="year--"><ChevronLeft aria-hidden="true" /></button>
-          <strong aria-live="polite">{{ year }}</strong>
-          <button type="button" class="period-year-btn" aria-label="Année suivante" @click="year++"><ChevronRight aria-hidden="true" /></button>
-        </div>
-        <div class="period-months" role="group" :aria-label="`Mois de ${year}`">
-          <button
-            v-for="(name, index) in MONTHS"
-            :key="name"
-            type="button"
-            class="period-month"
-            :class="{ selected: isSelected(index), current: isCurrent(index) }"
-            :aria-pressed="isSelected(index)"
-            @click="choose(index)"
-          >{{ name }}</button>
-        </div>
-      </PopoverContent>
-    </PopoverPortal>
-  </PopoverRoot>
+    </template>
+    <div class="period-year">
+      <button type="button" class="period-year-btn" aria-label="Année précédente" @click="year--"><ChevronLeft aria-hidden="true" /></button>
+      <strong aria-live="polite">{{ year }}</strong>
+      <button type="button" class="period-year-btn" aria-label="Année suivante" @click="year++"><ChevronRight aria-hidden="true" /></button>
+    </div>
+    <div class="period-months" role="group" :aria-label="`Mois de ${year}`">
+      <button
+        v-for="(name, index) in MONTHS"
+        :key="name"
+        type="button"
+        class="period-month"
+        :class="{ selected: isSelected(index), current: isCurrent(index) }"
+        :aria-pressed="isSelected(index)"
+        @click="choose(index)"
+      >{{ name }}</button>
+    </div>
+  </UiPopover>
 </template>
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import { PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui';
+import UiPopover from '@/components/ui/UiPopover.vue';
 import { ChevronDown, ChevronLeft, ChevronRight } from '@lucide/vue';
 
 const props = defineProps<{ modelValue: Date; label: string }>();

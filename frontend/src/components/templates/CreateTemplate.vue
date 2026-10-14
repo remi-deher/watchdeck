@@ -12,14 +12,7 @@
          5. le resultat et ses suites, ou « Creer un autre ».
        Pas de brouillon : fermer en cours de saisie demande confirmation. -->
   <ModalShell :open="open" :title="mode === 'edit' ? (definition.editTitle || `Modifier ${definition.noun}`) : `Ajouter ${definition.noun}`" :subtitle="definition.subtitle" :error="error" :busy="busy" panel-class="create-modal" @close="requestClose">
-    <ol v-if="showStepper" class="create__steps" aria-label="Étapes">
-      <li v-for="(entry, index) in allSteps" :key="entry.key" :class="{ 'is-current': index === stepIndex && !result, 'is-done': index < furthest || result }">
-        <button type="button" :disabled="index >= furthest || Boolean(result)" :aria-current="index === stepIndex ? 'step' : undefined" @click="goTo(index)">
-          <span class="create__dot"><Check v-if="index < furthest || result" aria-hidden="true" /><template v-else>{{ index + 1 }}</template></span>
-          <span>{{ entry.label }}</span>
-        </button>
-      </li>
-    </ol>
+    <UiStepper v-if="showStepper" :steps="allSteps" :current="stepIndex" :furthest="furthest" :complete="Boolean(result)" @select="goTo" />
 
     <div v-if="result" class="create__result" role="status">
       <CheckCircle2 aria-hidden="true" />
@@ -44,20 +37,51 @@
       <p v-if="entering" class="create__entering" role="status">{{ loadingOf(current) }}</p>
       <template v-for="field in (entering ? [] : visibleFields(current))" :key="field.key">
         <p v-if="field.type === 'note'" class="create__note" :class="`is-${field.tone || 'info'}`" role="note">{{ noteOf(field) }}</p>
+        <img v-else-if="field.type === 'image'" class="create__image" :src="noteOf(field)" :alt="field.label">
         <UiField v-else-if="field.type === 'lookup'" v-slot="{ id }" :label="field.label" :hint="field.help" :error="errors[field.key]" :required="field.required">
           <UiLookupField v-model="values[field.key]" :id="id" :search="field.search!" :placeholder="field.placeholder" />
         </UiField>
         <fieldset v-else-if="field.type === 'checklist'" class="create__checklist">
           <legend>{{ field.label }}</legend>
           <p v-if="field.help" class="create__description">{{ field.help }}</p>
-          <ul>
+          <div v-if="field.actions?.length" class="create__tools">
+            <UiButton v-for="tool in field.actions" :key="tool.label" size="sm" variant="ghost" @click="tool.run(values)">{{ tool.label }}</UiButton>
+          </div>
+          <template v-if="groupsOf(field).length">
+            <details v-for="group in groupsOf(field)" :key="group.key" class="create__group" :open="group.open" @toggle="onGroupToggle(field, group.key, $event)">
+              <summary>
+                <span>{{ group.label }}</span>
+                <span v-if="group.badge !== undefined" class="create__badge">{{ group.badge }}</span>
+                <UiButton v-if="group.action" size="sm" variant="ghost" @click.prevent.stop="field.onGroupAction?.(group.key, values)">{{ group.action }}</UiButton>
+              </summary>
+              <p v-if="group.loading" class="create__description" role="status">Chargement…</p>
+              <ul>
+                <li v-for="option in optionsOf(field).filter((entry) => entry.group === group.key)" :key="option.value">
+                  <UiCheckboxField :model-value="checked(field, option.value)" :label="option.label" :hint="option.description" :disabled="option.disabled" @update:model-value="toggle(field, option.value, $event)" />
+                  <UiButton v-if="option.action" size="sm" variant="ghost" :disabled="option.disabled" @click="field.onAction?.(option.value, values)">{{ option.action }}</UiButton>
+                </li>
+              </ul>
+            </details>
+          </template>
+          <ul v-else>
             <li v-for="option in optionsOf(field)" :key="option.value">
               <UiCheckboxField :model-value="checked(field, option.value)" :label="option.label" :hint="option.description" :disabled="option.disabled" @update:model-value="toggle(field, option.value, $event)" />
               <UiButton v-if="option.action" size="sm" variant="ghost" :disabled="option.disabled" @click="field.onAction?.(option.value, values)">{{ option.action }}</UiButton>
             </li>
           </ul>
+          <p v-if="!optionsOf(field).length && emptyOf(field)" class="create__description">{{ emptyOf(field) }}</p>
           <p v-if="errors[field.key]" class="create__error">{{ errors[field.key] }}</p>
         </fieldset>
+        <div v-else-if="field.type === 'compare'" class="create__compare" role="group" :aria-label="field.label">
+          <article v-for="row in field.compareRows?.(values) || []" :key="row.key" :class="{ 'is-changed': row.changed }">
+            <header><strong>{{ row.label }}</strong><span class="create__badge" :class="row.changed ? 'is-warning' : 'is-ok'">{{ row.changed ? 'Changement' : 'Déjà en place' }}</span></header>
+            <div class="create__compare-cols">
+              <div><small>Actuel</small><span>{{ row.current }}</span><small v-if="row.currentDetail">{{ row.currentDetail }}</small></div>
+              <span aria-hidden="true">➜</span>
+              <div><small>Cible</small><span :class="{ 'is-target': row.changed }">{{ row.target }}</span><small v-if="row.targetDetail">{{ row.targetDetail }}</small></div>
+            </div>
+          </article>
+        </div>
         <UiRadioCards v-else-if="field.type === 'cards'" v-model="values[field.key]" :label="field.label" :options="optionsOf(field)" />
         <ToggleSwitch v-else-if="field.type === 'toggle'" v-model="values[field.key]" :label="field.label" />
         <SecretField v-else-if="field.type === 'secret'" v-model="values[field.key]" :label="field.label" :hint="field.help" />
@@ -105,7 +129,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
-import { Check, CheckCircle2, PlugZap, XCircle } from '@lucide/vue';
+import { CheckCircle2, PlugZap, XCircle } from '@lucide/vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import SecretField from '@/components/ui/SecretField.vue';
@@ -117,9 +141,10 @@ import UiFileDrop from '@/components/ui/UiFileDrop.vue';
 import UiLookupField from '@/components/ui/UiLookupField.vue';
 import UiRadioCards from '@/components/ui/UiRadioCards.vue';
 import UiSelect from '@/components/ui/UiSelect.vue';
+import UiStepper from '@/components/ui/UiStepper.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { humanizeError } from '@/utils/apiError';
-import type { CreateDefinition, CreateField, CreateResult, CreateStep, CreateTestResult, CreateValues } from './create/types';
+import type { CreateDefinition, CreateField, CreateGroup, CreateResult, CreateStep, CreateTestResult, CreateValues } from './create/types';
 
 export type { CreateDefinition, CreateField, CreateResult, CreateStep, CreateTestResult, CreateValues } from './create/types';
 
@@ -136,6 +161,7 @@ const errors = reactive<Record<string, string>>({});
 const stepIndex = ref(0);
 const furthest = ref(0);
 const busy = ref(false);
+const baseline = ref('');
 const error = ref('');
 const result = ref<CreateResult | null>(null);
 const entering = ref(false);
@@ -153,7 +179,8 @@ function restart(): void {
   result.value = null;
   testResult.value = null;
   /* Apres la mise en place des etapes (le premier appel part avant leur definition). */
-  queueMicrotask(() => { void enter(steps.value[startIndex]); });
+  baseline.value = JSON.stringify(values);
+  queueMicrotask(() => { void enter(steps.value[startIndex]).then(() => { baseline.value = JSON.stringify(values); }); });
 }
 watch(() => [props.open, props.definition], ([open]) => { if (open) restart(); }, { immediate: true });
 
@@ -182,6 +209,11 @@ function titleOf(entry: CreateStep): string {
 const stepFields = (entry: CreateStep): CreateField[] => (typeof entry.fields === 'function' ? entry.fields(values) : entry.fields);
 const visibleFields = (entry: CreateStep) => stepFields(entry).filter((field) => !field.when || field.when(values));
 const noteOf = (field: CreateField) => (typeof field.text === 'function' ? field.text(values) : field.text || '');
+const groupsOf = (field: CreateField): CreateGroup[] => (typeof field.groups === 'function' ? field.groups(values) : field.groups || []);
+const emptyOf = (field: CreateField): string => (typeof field.empty === 'function' ? field.empty(values) : field.empty || '');
+function onGroupToggle(field: CreateField, group: string, event: Event): void {
+  if ((event.target as HTMLDetailsElement).open) void field.onGroupOpen?.(group, values);
+}
 const suggestionsOf = (field: CreateField) => (typeof field.suggestions === 'function' ? field.suggestions(values) : field.suggestions || []);
 const optionsOf = (field: CreateField) => (typeof field.options === 'function' ? field.options(values) : field.options || []);
 
@@ -287,7 +319,7 @@ async function browseFor(field: CreateField): Promise<void> {
 
 /* Recapitulatif : chaque champ rempli, avec l'etape ou le modifier. */
 const summaryRows = computed(() => steps.value.flatMap((entry, index) => visibleFields(entry)
-  .filter((field) => field.summary !== 'hide' && field.type !== 'note')
+  .filter((field) => field.summary !== 'hide' && field.type !== 'note' && field.type !== 'image' && field.type !== 'compare')
   .map((field) => {
     const raw = values[field.key];
     let value = raw === true ? 'Oui' : raw === false ? 'Non' : raw instanceof File ? raw.name : raw && typeof raw === 'object' && 'title' in raw ? String(raw.title) : String(raw ?? '—');
@@ -299,7 +331,8 @@ const summaryRows = computed(() => steps.value.flatMap((entry, index) => visible
 
 /* Pas de brouillon : fermer pendant la saisie demande confirmation. */
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
-const touched = computed(() => JSON.stringify(values) !== JSON.stringify({ ...props.definition.initial(), ...(props.values || {}) }));
+/* Ce que l'ouverture a elle-meme rempli (lecture d'une etape, selection par defaut) n'est pas une saisie. */
+const touched = computed(() => JSON.stringify(values) !== baseline.value);
 async function requestClose(): Promise<void> {
   if (!result.value && touched.value) {
     const ok = await askConfirm({ title: 'Abandonner la saisie ?', message: 'Ce qui a été saisi ne sera pas gardé.', confirmLabel: 'Abandonner', danger: true });
@@ -313,18 +346,11 @@ function close(): void {
 </script>
 
 <style scoped lang="scss">
-.create__steps { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: 0 0 var(--space-4); padding: 0; list-style: none; }
-.create__steps button { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
-.create__steps button:disabled { cursor: default; }
-.create__steps .is-current button { color: var(--text); font-weight: 700; }
-.create__dot { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--border); border-radius: 50%; font-size: var(--fs-xs); }
-.create__dot svg { width: 13px; height: 13px; }
-.create__steps .is-current .create__dot { border-color: transparent; background: var(--accent); color: var(--on-accent); }
-.create__steps .is-done .create__dot { border-color: transparent; background: color-mix(in srgb, var(--green) 18%, var(--surface)); color: var(--green-text, var(--green)); }
 .create__step, .create__summary { display: grid; gap: var(--space-3); }
 .create__step h3, .create__summary h3 { margin: 0; font-size: var(--fs-md); }
 .create__description { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 .create__entering { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.create__image { display: block; width: 180px; height: 180px; border-radius: var(--radius-sm); background: #fff; }
 .create__note { margin: 0; padding: var(--space-3); border: 1px solid transparent; border-radius: var(--radius-sm); font-size: var(--fs-sm); line-height: 1.5; overflow-wrap: anywhere; white-space: pre-line; }
 .create__note.is-info { background: var(--surface-2); color: var(--muted); }
 .create__note.is-warning { border-color: color-mix(in srgb, var(--accent) 32%, transparent); background: color-mix(in srgb, var(--accent) 9%, transparent); color: var(--text); }
@@ -332,6 +358,21 @@ function close(): void {
 .create__checklist legend { padding: 0; font-size: var(--fs-sm); font-weight: 700; }
 .create__checklist ul { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
 .create__checklist li { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) 0; border-bottom: 1px solid var(--border); }
+.create__tools { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.create__group { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0 var(--space-3); }
+.create__group summary { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) 0; cursor: pointer; font-weight: 600; font-size: var(--fs-sm); }
+.create__group summary > span:first-child { flex: 1; }
+.create__badge { padding: 1px 7px; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
+.create__badge.is-warning { background: color-mix(in srgb, var(--amber) 16%, var(--surface)); color: var(--amber-text); }
+.create__badge.is-ok { background: color-mix(in srgb, var(--green) 14%, var(--surface)); color: var(--green-text, var(--green)); }
+.create__compare { display: grid; gap: var(--space-3); }
+.create__compare article { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.create__compare article.is-changed { border-color: color-mix(in srgb, var(--amber) 55%, var(--border)); }
+.create__compare header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.create__compare-cols { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: var(--space-3); font-size: var(--fs-sm); }
+.create__compare-cols > div { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.create__compare-cols small { color: var(--muted); font-size: var(--fs-xs); }
+.create__compare-cols .is-target { color: var(--accent); font-weight: 600; }
 .create__browse { display: flex; gap: var(--space-2); align-items: center; }
 .create__browse input { flex: 1; min-width: 0; }
 .create__error { margin: 0; color: var(--red-text); font-size: var(--fs-xs); }

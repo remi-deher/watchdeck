@@ -122,6 +122,21 @@ function interceptFirstTap(e: MouseEvent): void {
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
+.poster-wrap {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  width: 100%;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--media-placeholder);
+}
+
+.poster-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 @keyframes card-reveal {
   from {
     opacity: 0;

@@ -1,59 +1,14 @@
 <template>
-  <ModalShell
-    v-if="open"
-    :open="open"
-    title="Options de la demande"
-    :subtitle="mediaTitle"
-    size="sm"
-    :busy="busy"
-    @close="$emit('cancel')"
-  >
-    <p class="request-options-intro">
-      {{ mediaType === 'show' ? 'Choisissez les saisons à ajouter avant de confirmer la demande.' : 'Confirmez l’ajout du film. La recherche démarrera automatiquement.' }}
-    </p>
-    <div class="request-options-grid">
-      <label v-if="requesters.length">Demandeur
-        <UiSelect :model-value="plexUserId" @update:model-value="$emit('update:plexUserId', $event)" :options="[...(requesters).map((user) => ({ value: user.plex_user_id, label: String(user.custom_name || user.display_name || user.plex_user_id) }))]" />
-      </label>
-      <label v-if="folders.length">Dossier racine
-        <UiSelect :model-value="rootFolder" @update:model-value="$emit('update:rootFolder', $event)" :options="[{ value: '', label: 'Dossier par défaut' }, ...(folders).map((folder) => ({ value: folder.path || folder, label: String(folder.path || folder) }))]" />
-      </label>
-    </div>
-    <fieldset v-if="mediaType === 'show' && selectableSeasons.length" class="season-options">
-      <legend>Saisons à demander</legend>
-      <label class="season-toggle-all">
-        <UiCheckbox :model-value="allSeasonsSelected" @update:model-value="toggleAllSeasons" />
-        Toutes les saisons
-      </label>
-      <SeasonEpisodeList class="season-options-grid" :seasons="seasonItems">
-        <template #season-header="{ season }">
-          <label>
-            <UiCheckbox
-              :model-value="seasons.includes(season.season_number)"
-              @update:model-value="toggleSeason(season.season_number, $event)"
-            />
-            Saison {{ season.season_number }}
-          </label>
-        </template>
-      </SeasonEpisodeList>
-      <small>Les épisodes spéciaux (saison 0) ne sont pas sélectionnés par défaut.</small>
-    </fieldset>
-    <div class="form-actions">
-      <UiButton :disabled="busy" @click="$emit('cancel')">Annuler</UiButton>
-      <UiButton variant="primary" :loading="busy" :disabled="!plexUserId || (mediaType === 'show' && !seasons.length)" @click="$emit('confirm')">
-        {{ busy ? 'Envoi…' : confirmLabel }}
-      </UiButton>
-    </div>
-  </ModalShell>
+  <!-- Pour qui, dans quel dossier, quelles saisons : les reponses passent par le gabarit Creer et
+       reviennent a la page par ses `update:`, puis `confirm`. Le parent garde la main sur la suite
+       (`busy`) : la fenetre se masque pendant l'envoi et revient si la page la laisse ouverte. -->
+  <CreateTemplate :open="open && !submitted" :definition="definition" mode="edit" @close="dismiss" />
 </template>
 
 <script setup lang="ts">
-import UiSelect from '@/components/ui/UiSelect.vue';
-import UiCheckbox from '@/components/ui/UiCheckbox.vue';
-import { computed } from 'vue';
-import ModalShell from '@/components/ui/ModalShell.vue';
-import SeasonEpisodeList from '@/components/media/SeasonEpisodeList.vue';
-import UiButton from '@/components/ui/UiButton.vue';
+import { computed, ref, watch } from 'vue';
+import CreateTemplate from '@/components/templates/CreateTemplate.vue';
+import { requestOptionsForm } from '@/creations/requestOptions';
 
 const props = withDefaults(
   defineProps<{
@@ -96,37 +51,28 @@ const selectableSeasons = computed(() =>
     .map(Number)
     .filter((season) => Number.isInteger(season) && season > 0)
 );
-const seasonItems = computed(() => selectableSeasons.value.map((season) => ({ season_number: season })));
-const allSeasonsSelected = computed(
-  () =>
-    selectableSeasons.value.length > 0 &&
-    selectableSeasons.value.every((season) => props.seasons.includes(season))
-);
 
-function toggleAllSeasons(checked: boolean): void {
-  emit('update:seasons', checked ? [...selectableSeasons.value] : []);
-}
-function toggleSeason(season: number, checked: boolean): void {
-  const selected = new Set(props.seasons);
-  if (checked) selected.add(season);
-  else selected.delete(season);
-  emit('update:seasons', [...selected].filter((value) => value > 0).sort((a, b) => a - b));
+const submitted = ref(false);
+watch(() => props.open, (open) => { if (!open) submitted.value = false; });
+watch(() => props.busy, (busy, was) => { if (was && !busy) submitted.value = false; });
+
+const definition = computed(() => requestOptionsForm({
+  mediaTitle: props.mediaTitle,
+  mediaType: props.mediaType,
+  confirmLabel: props.confirmLabel,
+  requesters: props.requesters,
+  folders: props.folders,
+  seasonNumbers: selectableSeasons.value,
+  initial: () => ({ plexUserId: props.plexUserId, rootFolder: props.rootFolder, seasons: [...props.seasons] }),
+  onConfirm: (values) => {
+    submitted.value = true;
+    emit('update:plexUserId', values.plexUserId);
+    emit('update:rootFolder', values.rootFolder);
+    if (selectableSeasons.value.length) emit('update:seasons', values.seasons);
+    emit('confirm');
+  },
+}));
+function dismiss(): void {
+  if (!submitted.value) emit('cancel');
 }
 </script>
-
-<style scoped lang="scss">
-@use '@/styles/foundations/breakpoints' as bp;
-.request-options-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
-.request-options-intro { margin: 0 0 var(--space-4); color: var(--muted); line-height: 1.5; }
-.request-options-grid label { display: grid; gap: var(--space-2); font-size: var(--fs-sm); font-weight: 600; }
-.season-options { display: grid; gap: var(--space-3); margin: var(--space-4) 0 0; padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--panel-radius); }
-.season-options legend { padding: 0 var(--space-2); font-size: var(--fs-sm); font-weight: 700; }
-.season-toggle-all, .season-options-grid label { display: flex; align-items: center; gap: var(--space-2); }
-.season-options-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-2); }
-.season-options small { color: var(--muted); line-height: 1.4; }
-.season-options input { accent-color: var(--accent); }
-.form-actions { justify-content: flex-end; margin-top: 1.5rem; }
-@include bp.until(phablet) {
-  .request-options-grid { grid-template-columns: 1fr; }
-}
-</style>

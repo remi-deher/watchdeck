@@ -106,6 +106,15 @@ const copyExample = () => copyText(example.value, exampleCopied);
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
+.secret-box {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
 .token-warning {
   margin: 0;
   padding: var(--space-3);

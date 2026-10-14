@@ -2,18 +2,21 @@
   <div class="se-list">
     <template v-for="season in seasons" :key="season.key ?? season.season_number ?? season.seasonNumber">
       <!-- Saison avec épisodes : bloc dépliable -->
-      <CollapsibleRoot
+      <UiCollapsible
         v-if="hasEpisodes(season)"
         class="se-season season-group"
         :class="{ 'has-pending': season.hasPending || (season.counts?.pending > 0) }"
         :default-open="season.open ?? true"
         @update:open="onToggle(season, $event)"
-       :unmount-on-hide="false">
-        <CollapsibleTrigger class="se-season-summary season-summary collapsible-trigger">
+        :unmount-on-hide="false"
+        trigger-class="se-season-summary season-summary collapsible-trigger"
+        content-class="collapsible-content"
+      >
+        <template #trigger>
           <slot name="season-header" :season="season" :episodes="filteredEpisodes(season)">
             <span class="season-title">Saison {{ season.season_number ?? season.seasonNumber }}</span>
           </slot>
-        </CollapsibleTrigger><CollapsibleContent class="collapsible-content">
+        </template>
 
         <div v-if="season.loading" class="se-season-loading">{{ loadingText }}</div>
         <p v-else-if="season.error" class="se-season-error">{{ errorText }}</p>
@@ -25,7 +28,7 @@
           </template>
           <p v-if="!filteredEpisodes(season).length" class="se-empty">{{ emptyText }}</p>
         </div>
-      </CollapsibleContent></CollapsibleRoot>
+      </UiCollapsible>
 
       <!-- Saison sans détail épisode (ex: choix de saisons avant ajout à la bibliothèque) -->
       <div v-else class="se-season-only">
@@ -39,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
+import UiCollapsible from '@/components/ui/UiCollapsible.vue';
 const props = withDefaults(
   defineProps<{
     seasons: any[];

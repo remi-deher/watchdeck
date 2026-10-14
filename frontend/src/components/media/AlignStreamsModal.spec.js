@@ -1,4 +1,4 @@
-import { chooseOption, selectedValue, uiSelects } from '@/testing/uiSelect';
+import { chooseOption, uiSelects } from '@/testing/uiSelect';
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AlignStreamsModal from './AlignStreamsModal.vue';
@@ -6,101 +6,83 @@ import AlignStreamsModal from './AlignStreamsModal.vue';
 const apiMock = vi.fn();
 vi.mock('@/api', () => ({ api: (...args) => apiMock(...args) }));
 
+const ModalStub = {
+  props: ['open', 'title', 'subtitle', 'busy', 'error'],
+  template: '<div class="modal-shell-stub"><h2>{{ title }}</h2><slot /><slot name="actions" /><p class="err">{{ error }}</p></div>',
+};
+
 function mountModal(props = {}) {
   return mount(AlignStreamsModal, {
-    props: {
-      open: true,
-      item: { id: 42, title: 'Super Média', media_type: 'movie', year: 2024 },
-      ...props,
-    },
-    global: {
-      stubs: {
-        ModalShell: {
-          props: ['open', 'title', 'subtitle', 'busy', 'error'],
-          template: '<div class="modal-shell-stub"><slot /><slot name="actions" /></div>',
-        },
-      },
-    },
+    props: { open: true, item: { id: 42, title: 'Super Média', media_type: 'movie', year: 2024 }, ...props },
+    global: { stubs: { ModalShell: ModalStub, ConfirmModal: { template: '<div />' } } },
   });
 }
+const button = (wrapper, label) => wrapper.findAll('button').find((b) => b.text().includes(label));
+async function press(wrapper, label) {
+  await button(wrapper, label).trigger('click');
+  await flushPromises();
+}
+
+const users = [
+  { id: 'admin', name: 'Admin', title: 'Administrateur', is_admin: true },
+  { id: '2', name: 'Enfants', title: 'Enfants', is_admin: false },
+];
 
 describe('AlignStreamsModal', () => {
-  beforeEach(() => {
-    apiMock.mockReset();
-  });
+  beforeEach(() => apiMock.mockReset());
 
-  it('charge et affiche la prévisualisation des pistes et les profils Plex', async () => {
+  it('charge l’analyse Plex et montre ce qui change avant de continuer', async () => {
     apiMock.mockResolvedValueOnce({
-      success: true,
-      title: 'Super Média',
       media_type: 'movie',
       total_parts: 1,
       current_audio: { id: 1, title: 'English', language: 'en', codec: 'eac3', channels: '5.1' },
       target_audio: { id: 2, title: 'French', language: 'fr', codec: 'ac3', channels: '5.1' },
-      audio_will_change: true,
       current_subtitle: null,
       target_subtitle: { id: 3, title: 'French Forced', language: 'fr', codec: 'srt', forced: true },
       subtitle_will_change: true,
-      available_users: [
-        { id: 'admin', name: 'Admin', title: 'Administrateur', is_admin: true },
-        { id: '2', name: 'Enfants', title: 'Enfants', is_admin: false },
-      ],
+      available_users: users,
     });
-
     const wrapper = mountModal();
     await flushPromises();
 
     expect(apiMock).toHaveBeenCalledWith('/api/vf-upgrades/audit/42/preview');
-    expect(wrapper.text()).toContain('English');
-    expect(wrapper.text()).toContain('French');
-    expect(wrapper.text()).toContain('French Forced');
+    expect(wrapper.text()).toContain('Alignement Plex : Super Média');
+    for (const text of ['English', 'French', 'French Forced', 'Changement']) expect(wrapper.text()).toContain(text);
+
+    await press(wrapper, 'Continuer');
     expect(wrapper.text()).toContain('Tous les profils');
   });
 
-  it('permet de choisir les profils spécifiques et d’appliquer l’alignement', async () => {
+  it('applique l’alignement à des profils choisis', async () => {
     apiMock.mockResolvedValueOnce({
-      success: true,
-      title: 'Super Média',
       media_type: 'movie',
       total_parts: 1,
       current_audio: { id: 1, title: 'English' },
       target_audio: { id: 2, title: 'French' },
-      audio_will_change: true,
-      available_users: [
-        { id: 'admin', name: 'Admin', title: 'Administrateur', is_admin: true },
-        { id: '2', name: 'Enfants', title: 'Enfants', is_admin: false },
-      ],
+      available_users: users,
     });
-
     const wrapper = mountModal();
     await flushPromises();
+    await press(wrapper, 'Continuer');
 
-    // Switch to custom profiles
-    const customRadio = wrapper.find('.users-selection-section').findAll('[role="radio"]').find(r => r.text().includes('Profils spécifiques'));
-    expect(customRadio).toBeDefined();
-    await customRadio.trigger('click');
+    await wrapper.findAll('[role="radio"]').find((r) => r.text().includes('Profils spécifiques')).trigger('click');
     await flushPromises();
+    expect(wrapper.findAll('[role="checkbox"]')).toHaveLength(2);
 
-    expect(wrapper.findAll('.user-check-item')).toHaveLength(2);
+    await press(wrapper, 'Continuer'); // récapitulatif
+    apiMock.mockResolvedValueOnce({ success: true, parts_processed: 1 });
+    await press(wrapper, 'Appliquer');
 
-    apiMock.mockResolvedValueOnce({ success: true, parts_processed: 1, users_count: 2 });
-    const applyBtn = wrapper.findAll('button.ui-button--primary').find(b => b.text().includes('Appliquer'));
-    expect(applyBtn).toBeDefined();
-    await applyBtn.trigger('click');
-    await flushPromises();
-
-    expect(apiMock).toHaveBeenCalledWith(
-      '/api/vf-upgrades/audit/42/fix-streams',
-      expect.objectContaining({ method: 'POST' })
-    );
+    expect(apiMock).toHaveBeenCalledWith('/api/vf-upgrades/audit/42/fix-streams', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ users: ['Admin', 'Enfants'], include_home_users: true, mode: 'auto' }),
+    }));
     expect(wrapper.emitted('applied')).toHaveLength(1);
     expect(wrapper.emitted('close')).toHaveLength(1);
   });
 
-  it('supporte le mode personnalisé pour sélectionner manuellement n’importe quelle piste', async () => {
+  it('permet de choisir librement la piste audio et les sous-titres', async () => {
     apiMock.mockResolvedValueOnce({
-      success: true,
-      title: 'Super Média',
       media_type: 'movie',
       total_parts: 1,
       current_audio: { id: 1, title: 'English 5.1', language: 'en', codec: 'eac3', channels: '5.1' },
@@ -113,50 +95,34 @@ describe('AlignStreamsModal', () => {
       all_subtitle_streams: [
         { id: 10, title: 'French Forced', language: 'fr', codec: 'srt', forced: true },
         { id: 11, title: 'French Full', language: 'fr', codec: 'srt', forced: false },
-        { id: 12, title: 'English Full', language: 'en', codec: 'srt', forced: false },
       ],
-      available_users: [{ id: 'admin', name: 'Admin', title: 'Administrateur', is_admin: true }],
+      available_users: [users[0]],
     });
-
     const wrapper = mountModal();
     await flushPromises();
 
-    // Passer en mode personnalisé
-    const modeRadios = wrapper.findAll('.align-mode-section [role="radio"]');
-    const customModeRadio = modeRadios.find(r => r.text().includes('Personnalisé'));
-    expect(customModeRadio).toBeDefined();
-    await customModeRadio.trigger('click');
+    await wrapper.findAll('[role="radio"]').find((r) => r.text().includes('Personnalisé')).trigger('click');
     await flushPromises();
+    const [audio, subtitle] = uiSelects(wrapper);
+    await chooseOption(audio, '3');
+    await chooseOption(subtitle, '11');
 
-    // Sélectionner la piste audio Japonaise (id: 3)
-    const [audioSelect, subSelect] = uiSelects(wrapper, '.align-mode-section');
-    expect(audioSelect.props('id')).toBe('custom-audio-select');
-    await chooseOption(audioSelect, '3');
+    await press(wrapper, 'Continuer');
+    await press(wrapper, 'Continuer');
+    apiMock.mockResolvedValueOnce({ success: true });
+    await press(wrapper, 'Appliquer');
 
-    // Sélectionner le sous-titre Français complet (id: 11)
-    expect(subSelect.props('id')).toBe('custom-sub-select');
-    await chooseOption(subSelect, '11');
-
-    apiMock.mockResolvedValueOnce({ success: true, parts_processed: 1 });
-    const applyBtn = wrapper.findAll('button.ui-button--primary').find(b => b.text().includes('Appliquer'));
-    await applyBtn.trigger('click');
-    await flushPromises();
-
-    expect(apiMock).toHaveBeenCalledWith(
-      '/api/vf-upgrades/audit/42/fix-streams',
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({
-          users: ['all'],
-          include_home_users: true,
-          mode: 'custom',
-          audio_stream_id: 3,
-          audio_language: 'ja',
-          subtitle_stream_id: 11,
-          subtitle_language: 'fr',
-          subtitle_forced: false,
-        }),
-      })
-    );
+    expect(apiMock).toHaveBeenCalledWith('/api/vf-upgrades/audit/42/fix-streams', expect.objectContaining({
+      body: JSON.stringify({
+        users: ['all'],
+        include_home_users: true,
+        mode: 'custom',
+        audio_stream_id: 3,
+        audio_language: 'ja',
+        subtitle_stream_id: 11,
+        subtitle_language: 'fr',
+        subtitle_forced: false,
+      }),
+    }));
   });
 });

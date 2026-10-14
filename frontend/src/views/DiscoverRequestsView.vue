@@ -56,7 +56,6 @@
       event="cancelled"
       :subtitle="pendingWithdraw ? `« ${pendingWithdraw.title} » sera retiré de Sonarr/Radarr et empêché de revenir automatiquement.` : ''"
       :initial="pendingWithdraw?.fulfillment_error || ''"
-      :busy="busy"
       @cancel="pendingWithdraw = null"
       @confirm="confirmWithdraw"
     />
@@ -65,7 +64,6 @@
       event="rejected"
       title="Refuser cette demande ?"
       :subtitle="pendingReject ? `« ${pendingReject.title} » ne sera pas ajouté ; le demandeur sera prévenu.` : ''"
-      :busy="busy"
       @cancel="pendingReject = null"
       @confirm="confirmReject"
     />
@@ -87,7 +85,7 @@ import ReasonPickerModal from '@/components/requests/ReasonPickerModal.vue';
 import { useMyRequests } from '@/composables/useMyRequests';
 
 const {
-  query, view, sort, sortOptions, busy, activeTab, tabs, items, loading, error, reload,
+  query, view, sort, sortOptions, activeTab, tabs, items, loading, error, reload,
   trackItems, recent, onTrackAction, visible, total, hasMore, loadMore,
   filterGroups, chips, activeFilterCount, resetFilters, openDetail,
   pendingWithdraw, pendingReject, confirmWithdraw, confirmReject,
