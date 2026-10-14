@@ -11,6 +11,8 @@
       <h2 id="overview-verdict-title"><span v-if="urgent && !loading" class="sr-only">{{ spokenCount }}</span>{{ title }}</h2>
       <p>{{ subtitle }}</p>
     </div>
+    <!-- Ce qui demande l'attention, sous le verdict qui l'annonce (variante `board`). -->
+    <div v-if="$slots.default" class="overview-verdict__body"><slot /></div>
   </section>
 </template>
 
@@ -86,6 +88,7 @@ const subtitle = computed(() => {
 .overview-verdict__mark svg { width: 36px; height: 36px; color: var(--green); }
 .overview-verdict.is-warn .overview-verdict__mark { color: var(--amber-text); }
 .overview-verdict.is-error .overview-verdict__mark { color: var(--red-text); }
+.overview-verdict__body { flex: 1 1 100%; min-width: 0; }
 .overview-verdict__text { display: grid; flex: 1 1 9rem; min-width: 0; gap: 2px; }
 .overview-verdict__text h2 { margin: 0; font-family: var(--font-display); font-size: var(--fs-lg); }
 .overview-verdict__text p { margin: 0; color: var(--muted); font-size: var(--fs-sm); }

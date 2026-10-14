@@ -29,6 +29,7 @@ describe('AcquisitionPipelinePanel', () => {
     expect(wrapper.text()).toContain('Disponibles');
     expect(wrapper.text()).toContain('142');
     expect(wrapper.text()).toContain('0 bloqué');
+    expect(wrapper.text()).toContain('Chaîne d’acquisition');
   });
 
   it('affiche l’alerte rouge en cas d’anomalie', () => {
@@ -39,8 +40,8 @@ describe('AcquisitionPipelinePanel', () => {
       global: { stubs: { RouterLink } },
     });
 
-    const alert = wrapper.find('.pipeline-alert.is-danger');
+    const alert = wrapper.find('.pipeline__note.is-alert');
     expect(alert.exists()).toBe(true);
-    expect(alert.text()).toContain('3 bloqués');
+    expect(alert.text()).toBe('3 bloqués');
   });
 });

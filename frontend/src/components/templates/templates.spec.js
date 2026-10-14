@@ -56,6 +56,21 @@ describe('MonitorTemplate', () => {
   });
 });
 
+describe('MonitorTemplate · variante tableau de bord', () => {
+  it('range les points d’attention en cartes dans le verdict, sans bloc à part', () => {
+    const wrapper = mount(MonitorTemplate, { props: { board: true, items: [item('a', 'error'), item('b', 'warn')] }, slots: { details: '<p>Services</p>' }, global });
+    expect(wrapper.find('.monitor').classes()).toContain('is-board');
+    expect(wrapper.findAll('.overview-verdict .overview-card')).toHaveLength(2);
+    expect(wrapper.find('.monitor__attention').exists()).toBe(false);
+  });
+
+  it('ne montre ni verdict ni état vide quand tout va bien', () => {
+    const wrapper = mount(MonitorTemplate, { props: { board: true, items: [] }, global });
+    expect(wrapper.find('.overview-verdict').exists()).toBe(false);
+    expect(wrapper.find('.monitor__attention').exists()).toBe(false);
+  });
+});
+
 describe('PageTemplate', () => {
   it('remplace le contenu par l’état non configuré, avec le lien pour configurer', () => {
     const wrapper = mount(PageTemplate, {

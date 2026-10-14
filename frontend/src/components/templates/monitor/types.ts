@@ -52,6 +52,8 @@ export interface MonitorLabels {
   okTitle?: string;
   okDetail?: string;
   /** Nom accessible des indicateurs et des zones. */
+  /** Nom accessible des cartes d'attention (variante `board`). */
+  attentionTitle?: string;
   kpisLabel?: string;
   zonesLabel?: string;
 }
