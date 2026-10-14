@@ -2,7 +2,7 @@
   <!-- Catégories et tags d'un client torrent : ce qu'il connaît, et de quoi le tenir à jour
        (créer, renommer, supprimer). Un tableau de contrôle ; les saisies passent par le
        gabarit Créer, les suppressions par la confirmation du tableau. -->
-  <ModalShell :open="open" title="Catégories et tags" subtitle="Ce que le client connaît pour ranger ses torrents." panel-class="torrent-metadata-modal" @close="emit('close')">
+  <ModalShell :open="open" title="Catégories et tags" subtitle="Ce que le client connaît pour ranger ses torrents." size="lg" @close="emit('close')">
     <UiField v-if="clients.length > 1" v-slot="{ id }" label="Client">
       <UiSelect :id="id" :model-value="clientId" :options="clients.map((client) => ({ value: String(client.id), label: client.name }))" aria-label="Client" @update:model-value="clientId = String($event)" />
     </UiField>
