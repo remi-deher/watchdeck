@@ -1,7 +1,13 @@
 # Changelog
 
+## 1.90.8 — 2026-10-14
+
 ## 1.90.7 — 2026-10-14
 
+
+### 🔧 Maintenance
+
+- v1.90.7 (#856) ([f7abf5f](https://github.com/remi-deher/watchdeck/commit/f7abf5fec834dbec4a7703b51514babfb06b0cec))
 ## 1.90.6 — 2026-10-14
 
 
