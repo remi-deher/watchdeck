@@ -47,6 +47,7 @@ Thumbs.db
 # Logs
 *.log
 logs/
+!frontend/src/logs/
 
 # Coverage / tests
 .coverage
