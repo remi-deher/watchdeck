@@ -1,4 +1,3 @@
-import { formatTransferDuration as copyDuration } from '@/utils/format';
 /** Copy telemetry, independent from source cleanup and space actually freed. */
 export function transferMetrics(job:any, now=Date.now()/1000) {
   const items=job.items || [];

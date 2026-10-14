@@ -3,9 +3,9 @@ import { expect, test } from "@playwright/test";
 /**
  * Parcours de la page « Améliorations VF & Flux » (VfUpgradesView).
  *
- * Écrit AVANT le découpage de la vue (2 200 lignes) : il fige le comportement visible
- * que chaque extraction doit préserver -- audit des pistes, sélection de suggestions,
- * « Rechercher la sélection » et ouverture des réglages. L'API est simulée ; seules
+ * Chaque vue est sur le gabarit de son besoin (Traiter pour les releases et l'alignement des
+ * pistes, Comprendre pour l'historique) ; ce parcours fige ce que la page doit toujours faire --
+ * audit des pistes, sélection de suggestions, « Rechercher la sélection », ouverture des réglages. L'API est simulée ; seules
  * les requêtes que la page émet sont vérifiées.
  */
 
@@ -65,22 +65,23 @@ test.beforeEach(async ({}, info) => {
   test.skip(info.project.name !== "desktop", "parcours fonctionnel, une largeur suffit");
 });
 
-test("l'audit liste les médias et leur diagnostic audio / sous-titres", async ({ page }) => {
+test("l'audit liste les médias à traiter, avec leur anomalie et l'alignement groupé", async ({ page }) => {
   const calls = [];
   await mockApi(page, calls);
   await page.goto("/vf-upgrades");
 
-  await page.getByRole("tab", { name: /Alignement des pistes/ }).click();
-  const cards = page.locator(".audit-card");
-  await expect(cards).toHaveCount(2, { timeout: 15000 });
-  const first = cards.filter({ hasText: "Film audité" });
-  await expect(first).toContainText("Piste secondaire");
-  await expect(first).toContainText("Présents (inactifs)");
-  // Un média alignable propose l'alignement ; un média en VO pure ne le propose pas.
-  await expect(first.getByRole("button", { name: "Aligner sur Plex" })).toBeVisible();
-  await expect(cards.filter({ hasText: "Film en VO" }).getByRole("button", { name: "Aligner sur Plex" })).toHaveCount(0);
-  // Le filtre « prêts à aligner » est compté dans la barre d'outils.
-  await expect(page.getByRole("button", { name: /Tout aligner \(1\)/ })).toBeVisible();
+  await page.getByRole("link", { name: /Alignement des pistes/ }).click();
+  const rows = page.locator(".handle-row");
+  await expect(rows).toHaveCount(2, { timeout: 15000 });
+  const first = rows.filter({ hasText: "Film audité" });
+  await expect(first).toContainText("Audio FR secondaire");
+  await expect(first).toContainText("Sous-titres VO inactifs");
+  // Un média alignable propose l'alignement ; un média sans anomalie corrigeable ne le propose pas.
+  await expect(first.getByRole("button", { name: "Aligner les pistes" })).toBeVisible();
+  await expect(rows.filter({ hasText: "Film en VO" }).getByRole("button", { name: "Aligner les pistes" })).toHaveCount(0);
+  // L'action groupée est celle du type d'anomalie choisi.
+  await page.getByRole("button", { name: /Audio FR secondaire/ }).first().click();
+  await expect(page.getByRole("button", { name: "Aligner les 1" })).toBeVisible();
 });
 
 test("sélectionner des suggestions puis « Rechercher la sélection » envoie les bons médias", async ({ page }) => {
@@ -88,13 +89,13 @@ test("sélectionner des suggestions puis « Rechercher la sélection » envoie l
   await mockApi(page, calls);
   await page.goto("/vf-upgrades");
 
-  const cards = page.locator(".upgrade-card");
-  await expect(cards).toHaveCount(3, { timeout: 15000 });
+  const rows = page.locator(".handle-row");
+  await expect(rows).toHaveCount(3, { timeout: 15000 });
   await expect(page.getByRole("button", { name: /Rechercher la sélection/ })).toHaveCount(0);
 
-  await cards.filter({ hasText: "Film VF 1" }).getByRole('checkbox').check();
-  await cards.filter({ hasText: "Film VF 3" }).getByRole('checkbox').check();
-  const scan = page.getByRole("button", { name: /Rechercher la sélection \(2\)/ });
+  await rows.filter({ hasText: "Film VF 1" }).getByRole("checkbox").check();
+  await rows.filter({ hasText: "Film VF 3" }).getByRole("checkbox").check();
+  const scan = page.getByRole("button", { name: /Rechercher la sélection/ });
   await expect(scan).toBeVisible();
 
   await scan.click();
@@ -104,7 +105,7 @@ test("sélectionner des suggestions puis « Rechercher la sélection » envoie l
     { source_type: "library_item", source_id: 41 },
     { source_type: "library_item", source_id: 43 },
   ]);
-  // Le résultat s'affiche et la sélection est vidée.
+  // Le résultat est annoncé et la sélection est vidée.
   await expect(page.getByText("2 recherche(s), 1 suggestion(s) trouvée(s).")).toBeVisible();
   await expect(page.getByRole("button", { name: /Rechercher la sélection/ })).toHaveCount(0);
 });
@@ -113,7 +114,7 @@ test("le bouton Réglages ouvre les réglages VF dans la feuille", async ({ page
   const calls = [];
   await mockApi(page, calls);
   await page.goto("/vf-upgrades");
-  await expect(page.locator(".upgrade-card").first()).toBeVisible({ timeout: 15000 });
+  await expect(page.locator(".handle-row").first()).toBeVisible({ timeout: 15000 });
 
   await page.getByRole("button", { name: "Réglages des améliorations VF" }).click();
   const sheet = page.locator(".media-overlay__panel");
@@ -134,14 +135,14 @@ test("les trois onglets s'affichent sans erreur ni avertissement Vue", async ({ 
   const calls = [];
   await mockApi(page, calls);
   await page.goto("/vf-upgrades");
-  await expect(page.locator(".upgrade-card").first()).toBeVisible({ timeout: 15000 });
+  await expect(page.locator(".handle-row").first()).toBeVisible({ timeout: 15000 });
 
-  await page.getByRole("tab", { name: /Alignement des pistes/ }).click();
-  await expect(page.locator(".audit-card").first()).toBeVisible();
-  await page.getByRole("tab", { name: /Historique des scans/ }).click();
+  await page.getByRole("link", { name: /Alignement des pistes/ }).click();
+  await expect(page.locator(".handle-row").first()).toBeVisible();
+  await page.getByRole("link", { name: /Historique des scans/ }).click();
   await expect.poll(() => calls.some((call) => call.path === "/api/vf-upgrades/scan-runs")).toBe(true);
-  await page.getByRole("tab", { name: /Releases/ }).click();
-  await expect(page.locator(".upgrade-card").first()).toBeVisible();
+  await page.getByRole("link", { name: /Releases/ }).click();
+  await expect(page.locator(".handle-row").first()).toBeVisible();
 
   expect(problems).toEqual([]);
 });

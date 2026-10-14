@@ -1,0 +1,15 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "frontend/src/**/*.spec.{js,ts}",
+    "e2e/**/*.js"
+  ],
+  "project": [
+    "frontend/src/**/*.{ts,vue,js}"
+  ],
+  "exclude": [
+    "types",
+    "nsTypes",
+    "enumMembers"
+  ]
+}

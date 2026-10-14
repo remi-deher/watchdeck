@@ -1,36 +1,51 @@
 <template>
-  <!-- Fiche d'un utilisateur (ou creation, sur /users/new) : dans la feuille depuis la liste
-       Administration, en pleine page par son adresse. Toutes les actions de la fiche
-       vivent ici ; la liste n'a plus qu'a ouvrir la bonne adresse. -->
+  <!-- Fiche d'un utilisateur : dans la feuille depuis la liste Administration, en pleine page
+       par son adresse. Les actions vivent dans l'en-tete (gabarit Fiche), les parties du
+       compte en onglets ; la creation passe par le gabarit Creer (voir UsersView). -->
   <SheetPage
+    headless
     eyebrow="Administration"
-    :title="creating ? 'Nouvel utilisateur' : (editing ? displayName(editing) : 'Utilisateur')"
-    :loading="!creating && !editing && !loadError"
+    :title="editing ? displayName(editing) : 'Utilisateur'"
+    :loading="!editing && !loadError"
     :error="loadError"
   >
-    <UserEditor
+    <DetailTemplate
       v-if="editing"
-      ref="editorRef"
-      :editing="editing"
-      :creating="creating"
-      :form="form"
-      :users="users"
-      :busy="busy"
-      :editor-error="editorError"
-      :seer-enabled="seerEnabled"
-      :seer-mode="seerMode"
-      :seer-candidates="seerCandidates"
-      @set-enabled="setEnabled"
-      @set-can-login="setCanLogin"
-      @link-seer="linkSeer"
-      @save="saveUser"
-      @delete="deleteUser"
-      @test-email="testEmail"
-      @user-action="userAction"
-      @unlink-seer="unlinkSeer"
-      @merge="mergeUser"
-      @set-password="setPassword"
-    />
+      :variant="enSurface ? 'sheet' : 'card'"
+      eyebrow="Utilisateur"
+      :title="displayName(editing)"
+      :icon="UserRound"
+      :meta="[handle, sourceLabel(resolveSource(editing))].filter(Boolean)"
+      :badges="badges"
+      :actions="actions"
+      :alert="alert"
+      :tabs="TABS"
+      :tab="tab"
+      :facts="facts"
+      @update:tab="tab = $event"
+      @action="onAction"
+    >
+      <template v-for="part in TABS" :key="part.key" #[`tab-${part.key}`]>
+        <UserEditor
+          :ref="(el) => { if (part.key === tab) editorRef = el }"
+          :tab="part.key"
+          :editing="editing"
+          :form="form"
+          :users="users"
+          :busy="busy"
+          :editor-error="editorError"
+          :seer-enabled="seerEnabled"
+          :seer-mode="seerMode"
+          :seer-candidates="seerCandidates"
+          @set-password="setPassword"
+          @link-seer="linkSeer"
+          @save="saveUser"
+          @user-action="userAction"
+          @unlink-seer="unlinkSeer"
+          @merge="mergeUser"
+        />
+      </template>
+    </DetailTemplate>
   </SheetPage>
   <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
 </template>
@@ -43,9 +58,13 @@ import { queryKeys } from '@/queryKeys';
 import { api } from '@/api';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import SheetPage from '@/components/layout/SheetPage.vue';
+import DetailTemplate from '@/components/templates/DetailTemplate.vue';
+import { Download, MailCheck, Power, ShieldOff, ShieldCheck, Trash2, UserRound } from '@lucide/vue';
+import { accountHandle, resolveSource, roleLabel, sourceLabel } from '@/utils/userLabels';
+import { formatDateShort } from '@/utils/format';
 import UserEditor from '@/components/users/UserEditor.vue';
 import { useConfirmedAction } from '@/composables/useConfirmedAction';
-import { etatDeSurfaceCourant, useMediaOverlay } from '@/composables/useMediaOverlay';
+import { useMediaOverlay } from '@/composables/useMediaOverlay';
 import { useToast } from '@/composables/useToast';
 import { accountName } from '@/utils/userLabels';
 
@@ -55,7 +74,6 @@ const { actif: enSurface, fermer } = useMediaOverlay();
 const { addToast } = useToast();
 
 const userId = computed(() => String(route.params.userId || ''));
-const creating = computed(() => route.path === '/users/new');
 
 /* La liste sert a la fusion (choisir l'autre compte) : meme lecture, meme cache que la
    page Administration. */
@@ -72,6 +90,14 @@ const loadError = ref('');
 const busy = ref(false), editorError = ref('');
 const seerEnabled = ref(false), seerMode = ref(null), seerCandidates = ref([]);
 const editorRef = ref(null);
+const TABS = [
+  { key: 'profile', label: 'Profil' },
+  { key: 'notifications', label: 'Notifications' },
+  { key: 'linked', label: 'Comptes liés' },
+  { key: 'activity', label: 'Activité' },
+  { key: 'diagnostic', label: 'Diagnostic' },
+];
+const tab = ref('profile');
 const actionError = ref('');
 const { dialog: confirmDialog, resolveConfirm, runConfirmed, askConfirm } = useConfirmedAction({ busy, error: editorError });
 
@@ -87,34 +113,23 @@ async function refreshList() { actionError.value = ''; await queryClient.invalid
 
 async function loadUser() {
   editorError.value = ''; loadError.value = '';
-  if (creating.value) { editing.value = {}; fillForm(null); editorRef.value?.resetTab(); return; }
   try { editing.value = await api(`/api/users/${userId.value}`); fillForm(editing.value); }
   catch (e) { loadError.value = e.message || 'Cet utilisateur est introuvable.'; }
 }
-watch(() => route.path, () => { void loadUser(); editorRef.value?.resetTab(); }, { immediate: true });
+watch(() => route.path, () => { tab.value = 'profile'; void loadUser(); editorRef.value?.resetTab(); }, { immediate: true });
 
 /* Fermer la fiche : dans la feuille, on revient a la liste ; en pleine page, on y va. */
 function close() {
   if (enSurface.value) fermer();
   else void router.push('/users');
 }
-/* Apres une creation, la fiche devient celle du compte cree -- a sa place dans
-   l'historique, sans nouvelle entree. */
-function showUser(id) {
-  void router.replace({ path: `/users/${id}`, state: etatDeSurfaceCourant() });
-}
 
 async function saveUser() {
   busy.value = true; editorError.value = '';
   try {
-    const path = creating.value ? '/api/users' : `/api/users/${editing.value.id}`;
-    const saved = await api(path, { method: creating.value ? 'POST' : 'PUT', body: JSON.stringify(form) });
-    const initialPassword = creating.value ? editorRef.value?.initialPassword : null;
-    if (creating.value && form.source === 'local' && initialPassword) {
-      await api(`/api/users/${saved.id}/password`, { method: 'POST', body: JSON.stringify({ password: initialPassword }) });
-    }
+    await api(`/api/users/${editing.value.id}`, { method: 'PUT', body: JSON.stringify(form) });
     await refreshList(); notify('Utilisateur enregistré.');
-    if (creating.value) showUser(saved.id); else await loadUser();
+    await loadUser();
   } catch (e) { editorError.value = e.message; } finally { busy.value = false; }
 }
 async function setPassword(password) {
@@ -197,6 +212,34 @@ async function mergeUser({ otherId, keep }) {
     await refreshList();
     if (keep === 'this') await loadUser(); else close();
   } catch (e) { editorError.value = e.message; } finally { busy.value = false; }
+}
+
+/* En-tete de la fiche : l'etat du compte en badges, ses actions (effet immediat) en haut. */
+const handle = computed(() => accountHandle(editing.value || {}));
+const badges = computed(() => [
+  { key: 'role', label: roleLabel(editing.value.role), tone: editing.value.role === 'admin' ? 'success' : editing.value.role === 'moderator' ? 'info' : 'neutral' },
+  { key: 'enabled', label: editing.value.enabled ? 'Compte actif' : 'Compte désactivé', tone: editing.value.enabled ? 'success' : 'warning' },
+  { key: 'login', label: editing.value.can_login ? 'Connexion autorisée' : 'Connexion bloquée', tone: editing.value.can_login ? 'neutral' : 'danger' },
+]);
+const alert = computed(() => (!editing.value.enabled
+  ? { tone: 'warning', message: 'Ce compte est désactivé : ses demandes sont ignorées.' }
+  : !editing.value.can_login ? { tone: 'warning', message: 'La connexion de ce compte est bloquée.' } : null));
+const actions = computed(() => [
+  { key: 'toggle-enabled', label: editing.value.enabled ? 'Désactiver le compte' : 'Activer le compte', icon: Power, disabled: busy.value },
+  { key: 'toggle-login', label: editing.value.can_login ? 'Bloquer la connexion' : 'Autoriser la connexion', icon: editing.value.can_login ? ShieldOff : ShieldCheck, disabled: busy.value },
+  { key: 'export', label: 'Exporter les données', icon: Download, href: `/api/users/${editing.value.id}/data-export` },
+  { key: 'test-email', label: 'Tester l’email', icon: MailCheck, disabled: busy.value },
+  { key: 'delete', label: 'Supprimer', icon: Trash2, danger: true },
+]);
+const facts = computed(() => [
+  { label: 'Demandes', value: String(editing.value.stats?.total ?? 0) },
+  { label: 'Dernière demande', value: editing.value.last_requested_at ? formatDateShort(editing.value.last_requested_at) : '—' },
+].filter((fact) => fact.value !== undefined));
+function onAction(key) {
+  if (key === 'toggle-enabled') void setEnabled(!editing.value.enabled);
+  else if (key === 'toggle-login') void setCanLogin(!editing.value.can_login);
+  else if (key === 'test-email') void testEmail();
+  else if (key === 'delete') void deleteUser();
 }
 
 /* L'etat de Seer conditionne l'affichage de ses actions. */

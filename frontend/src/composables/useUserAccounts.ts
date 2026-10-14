@@ -5,7 +5,7 @@ import { queryKeys } from '@/queryKeys';
 import { humanizeError } from '@/utils/apiError';
 import { accountName, seerActionLabel, sourceLabel } from '@/utils/userLabels';
 import { matchesSituation, situationCounts } from '@/components/users/userSituations';
-import { requestCount, type AppUser } from '@/components/users/userDefinitions';
+import { type AppUser } from '@/components/users/userDefinitions';
 import { useFiltersDrawer } from './useFiltersDrawer';
 import { useToast } from './useToast';
 

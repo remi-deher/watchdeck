@@ -8,7 +8,7 @@ import { parseApiDate } from '@/utils/format';
 import type { VfUpgradeItem } from '@/types/vfUpgrades';
 import type { AuditItem, ForcedStatus, SubtitleStatus } from '@/composables/vf/types';
 
-export const VF_STATUS_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+const VF_STATUS_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
   { value: 'pending', label: 'À traiter' },
   { value: 'waiting_release', label: 'En attente de release' },
   { value: 'accepted', label: 'Accepté par *arr' },

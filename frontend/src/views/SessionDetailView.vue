@@ -5,16 +5,15 @@
     eyebrow="Session Plex"
     headless
     :title="session ? playbackTitle(session) : 'Session de lecture'"
+    :pager="pager"
     :loading="query.isPending.value"
+    @navigate="navigate"
     :error="query.error.value ? 'Cette session est introuvable ou n’a pas pu être chargée.' : ''"
   >
     <SessionDetail
       v-if="session"
       :session="session"
-      :has-previous="index > 0"
-      :has-next="index >= 0 && index < voisins.length - 1"
       :run="serie"
-      @navigate="naviguer"
       @open-run="ouvrirLecture"
       @terminated="query.refetch()"
     />
@@ -25,10 +24,10 @@
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
-import { useEventListener } from '@vueuse/core';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
-import { etatDeSurfaceCourant, serieCourante, voisinsCourants } from '@/composables/useMediaOverlay';
+import { etatDeSurfaceCourant, serieCourante } from '@/composables/useMediaOverlay';
+import { useSheetPager } from '@/composables/useSheetPager';
 import { playbackTitle } from '@/playbackToast';
 import SheetPage from '@/components/layout/SheetPage.vue';
 import SessionDetail from '@/components/activity/SessionDetail.vue';
@@ -58,25 +57,9 @@ useRealtime(['activity.updated'], () => {
   if (session.value && !session.value.ended_at) void query.refetch();
 }, { debounceMs: 500 });
 
-/* « Precedent / suivant » parcourt la liste d'ou l'on a ouvert la fiche (voir
-   `etatDeVoisins`). `replace` : passer d'une session a l'autre ne doit pas empiler
-   d'entrees, « retour » ramene a la liste. L'etat de l'entree -- page de fond et
-   voisins -- est repris tel quel. */
-const voisins = computed(() => { void route.fullPath; return voisinsCourants(); });
-const index = computed(() => voisins.value.indexOf(id.value));
-function naviguer(direction: number): void {
-  const suivant = voisins.value[index.value + direction];
-  if (!suivant) return;
-  void router.replace({ path: `/activity/session/${suivant}`, state: etatDeSurfaceCourant() as any });
-}
+const { pager, navigate } = useSheetPager(id, (cible) => `/activity/session/${cible}`);
 function ouvrirLecture(cible: string): void {
   if (!cible || cible === id.value) return;
   void router.replace({ path: `/activity/session/${cible}`, state: etatDeSurfaceCourant() as any });
 }
-useEventListener(window, 'keydown', (event: KeyboardEvent) => {
-  const target = event.target as HTMLElement | null;
-  if (target && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)) return;
-  if (event.key === 'j') naviguer(1);
-  else if (event.key === 'k') naviguer(-1);
-});
 </script>

@@ -220,7 +220,7 @@ watch(() => healthQuery.data.value, (data) => {
   try { localStorage.setItem(CACHE_KEY, JSON.stringify({ savedAt: Date.now(), data })); } catch { /* stockage indisponible */ }
 });
 
-useRealtime(['health.updated'], (_type, detail: any) => {
+useRealtime(['health.updated'], () => {
   void queryClient.invalidateQueries({ queryKey: ['health'] });
 });
 </script>

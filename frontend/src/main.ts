@@ -31,6 +31,7 @@ import './styles.scss';
 const MediaDetailView = () => import('./views/MediaDetailView.vue');
 const DashboardView = () => import('./views/DashboardView.vue');
 const DiscoverView = () => import('./views/DiscoverView.vue');
+const DiscoverRequestsView = () => import('./views/DiscoverRequestsView.vue');
 const DownloadsView = () => import('./views/DownloadsView.vue');
 const ActivityView = () => import('./views/ActivityView.vue');
 const LibraryAnalyticsView = () => import('./views/LibraryAnalyticsView.vue');
@@ -68,7 +69,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/discover/shows', component: DiscoverView, meta: { title: 'Séries' } },
   { path: '/discover/movies', component: DiscoverView, meta: { title: 'Films' } },
   { path: '/discover/explore', component: DiscoverView, meta: { title: 'Explorer' } },
-  { path: '/discover/requests', component: DiscoverView, meta: { title: 'Mes demandes' } },
+  { path: '/discover/requests', component: DiscoverRequestsView, meta: { title: 'Mes demandes' } },
   { path: '/discover/calendar', redirect: '/calendar' },
   { path: '/discover/media/:kind/:id', component: MediaDetailView, meta: { title: 'Média' } },
   { path: '/discover/person/:id', component: PersonDetailView, meta: { title: 'Personne' } },
@@ -89,7 +90,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/issues', component: IssuesView, meta: { title: 'Problèmes signalés' } },
   { path: '/calendar', component: CalendarView, meta: { title: 'Calendrier' } },
   { path: '/users', component: UsersView, meta: { title: 'Utilisateurs' } },
-  { path: '/users/new', component: () => import('@/views/UserDetailView.vue'), meta: { title: 'Nouvel utilisateur' } },
+  { path: '/users/new', redirect: '/users' },
   { path: '/users/:userId', component: () => import('@/views/UserDetailView.vue'), meta: { title: 'Utilisateur' } },
   { path: '/notifications', component: NotificationsView, meta: { title: 'Notifications' } },
   { path: '/logs', component: LogsView, meta: { title: 'Journaux' } },

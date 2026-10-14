@@ -24,7 +24,7 @@ export interface CalendarEvent {
 
 /* Sonarr et Radarr ne recuperent pas un fichier a la minute de la diffusion : sans ce
    delai, chaque episode du soir passerait « en retard » pendant quelques heures. */
-export const LATE_GRACE_MS = 6 * 60 * 60 * 1000;
+const LATE_GRACE_MS = 6 * 60 * 60 * 1000;
 
 export const STATE_LABELS: Record<CalendarState, string> = {
   available: 'Disponible',
@@ -75,14 +75,14 @@ const SOURCE_GROUPS: Record<string, string> = {
   local: 'manual',
 };
 
-export const SOURCE_GROUP_LABELS: Record<string, string> = {
+const SOURCE_GROUP_LABELS: Record<string, string> = {
   watchlist: 'Watchlist Plex',
   seer: 'Seer',
   manual: 'Manuelle',
   arr: 'Ajout Sonarr/Radarr',
 };
 
-export function sourceGroup(source: string): string {
+function sourceGroup(source: string): string {
   return SOURCE_GROUPS[source] || source;
 }
 

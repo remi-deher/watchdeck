@@ -1,65 +1,55 @@
 <template>
-  <div class="settings-rows">
-    <SettingsSection
-      v-if="!form.webhook_secret"
-      title="Webhooks entrants"
-      subtitle="Plex, Sonarr et Radarr préviennent Watchdeck en temps réel au lieu d'attendre le prochain passage."
-      status="inactive"
-    >
-      <SettingsRow label="Secret webhook" description="Pas encore configuré : l'authentification des webhooks entrants est désactivée.">
+  <ConfigureTemplate :sections="sections" v-bind="page.bind.value" @save="page.save" @cancel="page.cancel">
+    <template #section-incoming>
+      <ConfigureField v-if="!form.webhook_secret" label="Secret webhook" help="Pas encore configuré : l'authentification des webhooks entrants est désactivée.">
         <UiButton variant="primary" @click="generateWebhookSecret">Générer un secret</UiButton>
-      </SettingsRow>
-    </SettingsSection>
-
-    <template v-else>
-      <SettingsItemList title="Webhooks entrants" subtitle="Plex, Sonarr et Radarr préviennent Watchdeck en temps réel au lieu d'attendre le prochain passage.">
-        <!-- Une ligne par service : sa dernière réception, et ce qu'on peut faire. Pour Sonarr et
-             Radarr, « Configurer automatiquement » crée ou corrige le connecteur dans chaque
-             instance active ; Plex n'a pas d'API pour cela : on copie l'adresse. -->
-        <div v-for="svc in SERVICES" :key="svc.key" class="webhook-item" role="listitem">
-          <div class="webhook-item__head">
-            <div class="webhook-item__text">
-              <strong>{{ svc.label }}</strong>
-              <small>{{ receivedLabel(svc.key) }}</small>
-            </div>
-            <span class="webhook-pill" :class="`is-${received(svc.key) ? 'ok' : 'off'}`">{{ received(svc.key) ? 'Reçoit' : 'Rien reçu' }}</span>
+      </ConfigureField>
+      <!-- Une ligne par service : sa dernière réception, et ce qu'on peut faire. Pour Sonarr et
+           Radarr, « Configurer automatiquement » crée ou corrige le connecteur dans chaque
+           instance active ; Plex n'a pas d'API pour cela : on copie l'adresse. -->
+      <div v-for="svc in activeServices" :key="svc.key" class="webhook-item">
+        <div class="webhook-item__head">
+          <div class="webhook-item__text">
+            <strong>{{ svc.label }}</strong>
+            <small>{{ receivedLabel(svc.key) }}</small>
           </div>
-          <div class="webhook-line">
-            <input type="text" readonly :aria-label="`URL webhook ${svc.label}`" :value="urlFor(svc.key)">
-            <UiButton icon-only title="Copier l'adresse" aria-label="Copier l'adresse" @click="copyWebhook(svc.key)"><Copy/></UiButton>
-            <UiButton v-if="svc.auto" variant="primary" :loading="configuringWebhook === svc.key" @click="configureWebhook(svc.key)"><template #icon><Wand2/></template>Configurer automatiquement</UiButton>
-            <UiButton :loading="testingWebhook === svc.key" @click="testWebhook(svc.key)"><template #icon><PlugZap/></template>Tester</UiButton>
-          </div>
-          <p v-if="!svc.auto" class="webhook-hint">Collez cette adresse dans Plex → Paramètres → Webhooks : Plex ne permet pas de la configurer à distance.</p>
-          <!-- Un résultat par instance : avec deux Radarr, un seul message cachait l'autre. -->
-          <ul v-for="(results, kind) in { configure: configureResults[svc.key], test: testResults[svc.key] }" v-show="results?.length" :key="kind" class="webhook-results" :aria-label="kind === 'configure' ? 'Résultat de la configuration' : 'Résultat du test'">
-            <li v-for="(result, index) in results || []" :key="index" :class="result.success ? 'ok' : 'ko'">
-              <Check v-if="result.success" aria-hidden="true"/><X v-else aria-hidden="true"/>
-              <span><strong v-if="result.instance">{{ result.instance }} : </strong>{{ result.message }}</span>
-            </li>
-          </ul>
+          <span class="webhook-pill" :class="`is-${received(svc.key) ? 'ok' : 'off'}`">{{ received(svc.key) ? 'Reçoit' : 'Rien reçu' }}</span>
         </div>
-      </SettingsItemList>
-
-      <SettingsSection title="Secret" subtitle="Il authentifie chaque appel entrant. Le régénérer invalide les adresses ci-dessus : il faudra les reconfigurer dans chaque service.">
-        <SettingsRow label="Secret webhook">
-          <UiButton @click="generateWebhookSecret">Régénérer le secret</UiButton>
-        </SettingsRow>
-      </SettingsSection>
+        <div class="webhook-line">
+          <input type="text" readonly :aria-label="`URL webhook ${svc.label}`" :value="urlFor(svc.key)">
+          <UiButton icon-only title="Copier l'adresse" aria-label="Copier l'adresse" @click="copyWebhook(svc.key)"><Copy/></UiButton>
+          <UiButton v-if="svc.auto" variant="primary" :loading="configuringWebhook === svc.key" @click="configureWebhook(svc.key)"><template #icon><Wand2/></template>Configurer automatiquement</UiButton>
+          <UiButton :loading="testingWebhook === svc.key" @click="testWebhook(svc.key)"><template #icon><PlugZap/></template>Tester</UiButton>
+        </div>
+        <p v-if="!svc.auto" class="webhook-hint">Collez cette adresse dans Plex → Paramètres → Webhooks : Plex ne permet pas de la configurer à distance.</p>
+        <!-- Un résultat par instance : avec deux Radarr, un seul message cachait l'autre. -->
+        <ul v-for="(results, kind) in { configure: configureResults[svc.key], test: testResults[svc.key] }" v-show="results?.length" :key="kind" class="webhook-results" :aria-label="kind === 'configure' ? 'Résultat de la configuration' : 'Résultat du test'">
+          <li v-for="(result, index) in results || []" :key="index" :class="result.success ? 'ok' : 'ko'">
+            <Check v-if="result.success" aria-hidden="true"/><X v-else aria-hidden="true"/>
+            <span><strong v-if="result.instance">{{ result.instance }} : </strong>{{ result.message }}</span>
+          </li>
+        </ul>
+      </div>
     </template>
-  </div>
+
+    <template #section-secret>
+      <ConfigureField label="Secret webhook">
+        <UiButton @click="generateWebhookSecret">Régénérer le secret</UiButton>
+      </ConfigureField>
+    </template>
+  </ConfigureTemplate>
   <ConfirmModal v-bind="confirmDialog" @cancel="resolveConfirm(false)" @confirm="resolveConfirm(true)" />
 </template>
 <script setup lang="ts">
 import UiButton from '@/components/ui/UiButton.vue';
-import { reactive, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { Check, Copy, PlugZap, Wand2, X } from '@lucide/vue';
+import { Check, Copy, KeyRound, PlugZap, Radio, Wand2, X } from '@lucide/vue';
 import { form, success, fail } from '@/settingsForm';
 import { formatRelativeDate } from '@/utils/format';
-import SettingsSection from './SettingsSection.vue';
-import SettingsRow from './SettingsRow.vue';
-import SettingsItemList from './SettingsItemList.vue';
+import ConfigureTemplate from '@/components/templates/ConfigureTemplate.vue';
+import ConfigureField from '@/components/templates/configure/ConfigureField.vue';
+import { useSettingsPage } from '@/composables/useSettingsPage';
 import ConfirmModal from '../ConfirmModal.vue';
 import { api } from '@/api';
 import { useConfirm } from '@/composables/useConfirm';
@@ -72,6 +62,14 @@ const SERVICES: Array<{ key: Service; label: string; auto: boolean }> = [
   { key: 'radarr', label: 'Radarr', auto: true },
   { key: 'plex', label: 'Plex', auto: false },
 ];
+
+const page = useSettingsPage();
+/* Sans secret, il n'y a pas d'adresse a donner : la section ne propose que d'en generer un. */
+const activeServices = computed(() => (form.webhook_secret ? SERVICES : []));
+const sections = computed(() => [
+  { key: 'incoming', title: 'Webhooks entrants', description: 'Plex, Sonarr et Radarr préviennent Watchdeck en temps réel au lieu d\'attendre le prochain passage.', icon: Radio, keywords: ['plex', 'sonarr', 'radarr', 'temps réel', 'url'] },
+  ...(form.webhook_secret ? [{ key: 'secret', title: 'Secret', description: 'Il authentifie chaque appel entrant. Le régénérer invalide les adresses ci-dessus : il faudra les reconfigurer dans chaque service.', icon: KeyRound, keywords: ['régénérer', 'authentification'] }] : []),
+]);
 
 const baseUrl = window.location.origin;
 const configureResults = reactive<Record<Service, WebhookResult[] | null>>({ plex: null, radarr: null, sonarr: null });
@@ -154,7 +152,7 @@ async function testWebhook(svc: Service): Promise<void> {
 .webhook-item {
   display: grid;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
+  padding-bottom: var(--space-3);
   border-bottom: 1px solid var(--border);
 }
 .webhook-item:last-child { border-bottom: 0; }

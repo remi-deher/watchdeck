@@ -13,7 +13,7 @@ export interface TableColumnLike {
   [key: string]: any;
 }
 
-export interface UseTableColumnsOptions<T extends TableColumnLike> {
+export interface UseTableColumnsOptions {
   /** Cle de rangement : chaque tableau garde ses preferences pour lui. */
   storageKey: string;
   /** Colonnes visibles a la premiere ouverture. Par defaut, toutes. */
@@ -26,7 +26,7 @@ export interface UseTableColumnsOptions<T extends TableColumnLike> {
 
 export function useTableColumns<T extends TableColumnLike>(
   allColumns: Ref<T[]> | (() => T[]),
-  options: UseTableColumnsOptions<T>
+  options: UseTableColumnsOptions
 ) {
   const source = computed(() => (typeof allColumns === 'function' ? allColumns() : allColumns.value));
   const stored = readPreference<any>(options.storageKey, null);

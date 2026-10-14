@@ -24,7 +24,7 @@ async function openSheet(page, overview) {
     return route.fulfill({ json: {} });
   });
   await page.goto("/library/media/library/1");
-  await expect(page.locator(".mdh-info h1")).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator(".detail__identity h1")).toBeVisible({ timeout: 30_000 });
   await page.waitForLoadState("networkidle");
   await page.waitForTimeout(500);
 }
@@ -39,9 +39,9 @@ test("texte court, grand écran : le statut, les dates et les boutons se glissen
   await openSheet(page, SHORT);
   await expect.poll(async () => (await zones(page)).aside.length, { message: "le dock se glisse à droite" }).toBeGreaterThan(0);
   const placed = await page.evaluate(() => {
-    const poster = document.querySelector(".mdh-poster").getBoundingClientRect();
+    const poster = document.querySelector(".detail__cover").getBoundingClientRect();
     const aside = document.querySelector(".sheet-hero__aside").getBoundingClientRect();
-    const text = document.querySelector(".mdh-info").getBoundingClientRect();
+    const text = document.querySelector(".detail__identity").getBoundingClientRect();
     return { asideLeft: aside.left, posterRight: poster.right, asideBottom: aside.bottom, posterBottom: poster.bottom, textBottom: text.bottom };
   });
   expect(placed.asideLeft, "à droite de l'affiche").toBeGreaterThan(placed.posterRight);
@@ -57,7 +57,7 @@ test("résumé déplié : ce qui ne tient plus passe dessous, sur une ligne, pui
   const before = await zones(page);
 
   await more.click();
-  await expect.poll(async () => (await zones(page)).below.length, { message: "le texte déplié pousse le dock dessous" }).toBeGreaterThanOrEqual(before.below.length);
+  await expect.poll(async () => (await zones(page)).aside.length, { message: "le texte déplié pousse le dock dessous" }).toBe(0);
   const open = await zones(page);
   expect(open.aside, "plus rien à droite quand le texte dépasse l'affiche").toEqual([]);
   expect(open.below.length).toBeGreaterThan(0);

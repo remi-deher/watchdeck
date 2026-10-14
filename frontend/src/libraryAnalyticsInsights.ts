@@ -40,7 +40,7 @@ function distribution(rows: any[], field: string, limit = 12): DistributionEntry
     .map(([label, count]) => ({ label, count, percent: Math.round((count / total) * 1000) / 10 }));
 }
 
-export function filterAnalyticsItems(items: any[] = [], filters: Record<string, any> = {}): any[] {
+function filterAnalyticsItems(items: any[] = [], filters: Record<string, any> = {}): any[] {
   const search = String(filters.search || '').trim().toLocaleLowerCase('fr');
   return items.filter((row) => {
     if (filters.media_type && row.media_type !== filters.media_type) return false;

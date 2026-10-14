@@ -10,14 +10,14 @@
         <div class="resource__row">
           <ToggleSwitch v-if="resource.enabled !== undefined" :model-value="resource.enabled" :aria-label="`Activer ${resource.label}`" @update:model-value="emit('toggle', resource, $event)" />
           <div class="resource__text">
-            <strong>{{ resource.label }}</strong>
+            <strong>{{ resource.label }}<small v-if="resource.tag" class="resource__tag">{{ resource.tag }}</small></strong>
             <small v-if="resource.subtitle">{{ resource.subtitle }}</small>
           </div>
           <span v-if="resource.enabled === false" class="resource__state is-off">Désactivée</span>
           <span v-else-if="resource.state" class="resource__state" :class="`is-${resource.state.tone}`">{{ resource.state.text }}</span>
           <UiButton v-if="resource.testable" size="sm" variant="ghost" @click="emit('test', resource)">Tester</UiButton>
-          <UiButton v-for="action in resource.actions || []" :key="action.key" size="sm" variant="ghost" :loading="action.loading" @click="emit('action', resource, action.key)">
-            <template v-if="action.icon" #icon><component :is="action.icon" /></template>{{ action.label }}
+          <UiButton v-for="action in resource.actions || []" :key="action.key" size="sm" :variant="action.tone === 'danger' ? 'danger' : 'ghost'" :loading="action.loading" :disabled="action.disabled" :icon-only="action.iconOnly" :title="action.iconOnly ? action.label : undefined" :aria-label="action.iconOnly ? action.label : undefined" @click="emit('action', resource, action.key)">
+            <template v-if="action.icon" #icon><component :is="action.icon" /></template><template v-if="!action.iconOnly">{{ action.label }}</template>
           </UiButton>
           <UiButton v-if="$slots.detail && resource.expandable" size="sm" variant="ghost" :aria-expanded="expanded.has(resource.key)" @click="toggleDetail(resource.key)">
             {{ expanded.has(resource.key) ? 'Masquer' : 'Détails' }}
@@ -66,6 +66,7 @@ function toggleDetail(key: string): void {
 .resource__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); min-width: 0; }
 .resource__text { display: grid; flex: 1 1 10rem; gap: 1px; min-width: 0; }
 .resource.is-off .resource__text strong { color: var(--muted); }
+.resource__tag { margin-left: var(--space-2); font-weight: 500; }
 .resource__text small { color: var(--muted); font-size: var(--fs-xs); overflow-wrap: anywhere; }
 .resource__state { font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
 .resource__state.is-ok { color: var(--green-text, var(--green)); }

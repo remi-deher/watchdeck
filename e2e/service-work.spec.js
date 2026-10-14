@@ -34,7 +34,7 @@ test('les tâches lisent leur état observé et la cause entière', async ({ pag
   const table = page.locator('.scheduled-table');
   await expect(table).toContainText('Connexion perdue pendant la tâche', { timeout: 30000 });
   await expect(table).toContainText('État inconnu');
-  await expect(page.locator('.scheduled-verdict')).toContainText('1 tâche en échec');
+  await expect(page.locator('#configure-verdict-title')).toContainText('1 tâche en échec');
 });
 
 test('la supervision conserve un scan à zéro et une santé inconnue', async ({ page }) => {

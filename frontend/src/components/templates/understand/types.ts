@@ -39,6 +39,8 @@ export interface UnderstandDetail {
   steps?: Array<{ label: string; outcome: UnderstandOutcome; duration?: string }>;
   /** Aperçu du message concerné (un email envoyé) : rendu isolé, charge a l'ouverture. */
   preview?: UnderstandPreview;
+  /** Detail technique brut (JSON, trace) : montre tel quel, defilable. */
+  payload?: string;
   /** Liens : log, fiche concernee… */
   links?: Array<{ label: string; to: string | Record<string, any> }>;
   /** Au plus une action, qui renvoie vers Traiter ou Suivre (« Relancer »). */

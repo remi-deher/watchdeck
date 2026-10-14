@@ -55,11 +55,7 @@ import UiDataTable, { type UiColumn } from '@/components/ui/UiDataTable.vue';
 import ColumnPickerModal from '@/components/ui/ColumnPickerModal.vue';
 import { useTableColumns } from '@/composables/useTableColumns';
 import { mediaTypeLabel } from '@/utils/labels';
-import {
-  formatDateTime as formatDate,
-  formatDurationRoundHours as duration,
-  formatFileSize as bytes,
-} from '@/utils/format';
+import { formatDateTime as formatDate, formatFileSize as bytes } from '@/utils/format';
 
 const props = withDefaults(
   defineProps<{

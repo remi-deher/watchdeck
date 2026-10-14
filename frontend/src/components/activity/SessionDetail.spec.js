@@ -10,6 +10,7 @@ vi.mock('@/composables/useMediaOverlay', () => ({
   useOuvrirFiche: () => ({ ouvrir: () => {}, auClic: () => {} }),
 }));
 import SessionDetail from './SessionDetail.vue';
+import DetailTemplate from '@/components/templates/DetailTemplate.vue';
 import UiTooltip from '@/components/ui/UiTooltip.vue';
 
 // Texte de l'infobulle UiTooltip qui enveloppe l'element `selector`.
@@ -20,10 +21,21 @@ function factory(session) {
     props: { session },
     global: {
       stubs: {
-        MediaArtwork: true,
-        PlaybackMethodBadge: true,
         SessionLocationMap: true,
         SessionTimelineBar: true,
+        /* L'en-tete et les onglets sont ceux du gabarit Fiche (templates.spec.js) : ici on lit ce que la
+           session lui confie (props) et on montre toutes les parties d'un coup. */
+        DetailTemplate: {
+          props: ['title', 'eyebrow', 'poster', 'backdrop', 'meta', 'badges', 'summary', 'actions', 'alert'],
+          emits: ['action'],
+          template: `<article>
+            <p class="detail-eyebrow">{{ eyebrow }}</p><h1>{{ title }}</h1><p class="detail-summary">{{ summary }}</p>
+            <ul class="detail-badges"><li v-for="b in badges" :key="b.key" :data-key="b.key">{{ b.label }}</li></ul>
+            <p v-if="alert" class="detail-alert">{{ alert.message }}</p>
+            <button v-for="a in actions" :key="a.key" type="button" :data-action="a.key" @click="$emit('action', a.key)">{{ a.label }}</button>
+            <slot name="tab-playback" /><slot name="tab-streams" /><slot name="tab-details" />
+          </article>`,
+        },
       },
     },
   });
@@ -129,10 +141,11 @@ describe('SessionDetail - fiche de l’œuvre et conversion', () => {
   it('montre la bannière, l’épisode et le résumé, et rend l’affiche cliquable', () => {
     const wrapper = factory(flibustiers);
     // Meme en-tete que la fiche d'un media : l'image de la serie en fond.
-    expect(wrapper.get('.ui-hero-backdrop__image').attributes('style')).toContain('/api/playback/thumb?path=x');
-    expect(wrapper.get('.session-heading').text()).toContain('Samurai Champloo · S1 · É11 · 2004');
-    expect(wrapper.get('.session-summary').text()).toContain('Mugen embarque');
-    expect(wrapper.get('.session-poster').element.tagName).toBe('BUTTON');
+    expect(wrapper.findComponent(DetailTemplate).props('backdrop')).toContain('/api/playback/thumb?path=x');
+    expect(wrapper.get('.detail-eyebrow').text()).toContain('Samurai Champloo · S1 · É11 · 2004');
+    expect(wrapper.get('.detail-summary').text()).toContain('Mugen embarque');
+    // La fiche de la bibliothèque est une action de l'en-tête.
+    expect(wrapper.find('[data-action="open-media"]').exists()).toBe(true);
   });
 
   it('ne propose « Lire la suite » que si le résumé déborde', async () => {
@@ -142,7 +155,7 @@ describe('SessionDetail - fiche de l’œuvre et conversion', () => {
 
   it('sans fiche bibliothèque, l’affiche n’est pas un bouton', () => {
     const wrapper = factory({ ...flibustiers, media: { ...flibustiers.media, library_item_id: null } });
-    expect(wrapper.get('.session-poster').element.tagName).toBe('DIV');
+    expect(wrapper.find('[data-action="open-media"]').exists()).toBe(false);
   });
 
   it('dessine le tampon devant la tête de lecture et l’état du transcodeur', () => {
@@ -197,9 +210,9 @@ describe('SessionDetail - réseau, HDR, lecteur et arrêt', () => {
 
   it('signale le relais, le tone mapping et la qualité réduite', () => {
     const wrapper = factory(live);
-    expect(wrapper.get('.session-flag.relay').text()).toContain('Relais Plex');
-    expect(wrapper.get('.session-flag.hdr').text()).toBe('HDR10 → SDR');
-    expect(wrapper.get('.session-flag.hdr').classes()).toContain('tonemap');
+    expect(wrapper.get('[data-key="relay"]').text()).toContain('Relais Plex');
+    expect(wrapper.get('[data-key="hdr"]').text()).toBe('HDR10 → SDR');
+    expect(wrapper.findComponent(DetailTemplate).props('badges').find((b) => b.key === 'hdr').tone).toBe('warning');
     expect(wrapper.text()).toContain('qualité réduite');
     const range = wrapper.findAll('.conversion-flow').find((row) => row.text().includes('Plage dynamique'));
     expect(range.get('.pill').text()).toBe('HDR converti en SDR');
@@ -220,12 +233,12 @@ describe('SessionDetail - réseau, HDR, lecteur et arrêt', () => {
   });
 
   it('propose d’arrêter une lecture en cours, pas une lecture terminée', () => {
-    expect(factory(live).find('.terminate-button').exists()).toBe(true);
-    expect(factory({ ...live, ended_at: '2026-09-27T10:00:00Z' }).find('.terminate-button').exists()).toBe(false);
+    expect(factory(live).find('[data-action="terminate"]').exists()).toBe(true);
+    expect(factory({ ...live, ended_at: '2026-09-27T10:00:00Z' }).find('[data-action="terminate"]').exists()).toBe(false);
   });
 
   it('signale un téléchargement', () => {
-    expect(factory({ ...live, is_download: true }).get('.session-flag.download').text()).toContain('Téléchargement');
+    expect(factory({ ...live, is_download: true }).get('[data-key="download"]').text()).toContain('Téléchargement');
   });
 });
 
@@ -264,7 +277,7 @@ describe('SessionDetail - repères de temps', () => {
   it('n’a plus de bouton « Ouvrir la fiche du media » : l’affiche y mène', () => {
     const wrapper = factory(base);
     expect(wrapper.find('[aria-label="Ouvrir la fiche du media"]').exists()).toBe(false);
-    expect(wrapper.get('.session-poster').element.tagName).toBe('BUTTON');
+    expect(wrapper.find('[data-action="open-media"]').exists()).toBe(true);
   });
 });
 
@@ -283,12 +296,12 @@ describe('SessionDetail - identifiant', () => {
 });
 
 describe('SessionDetail - chiffrement et relais', () => {
-  it('indique une connexion chiffrée ou non dans la ligne d’identité', () => {
-    expect(factory({ title: 'Film', stream_details: { secure: true } }).get('.session-secure').text()).toBe('Chiffrée');
-    const insecure = factory({ title: 'Film', stream_details: { secure: false } }).get('.session-secure');
-    expect(insecure.text()).toBe('Non chiffrée');
-    expect(insecure.classes()).toContain('insecure');
-    expect(factory({ title: 'Film' }).find('.session-secure').exists()).toBe(false);
+  it('indique une connexion chiffrée ou non parmi les badges de l’en-tête', () => {
+    expect(factory({ title: 'Film', stream_details: { secure: true } }).get('[data-key="secure"]').text()).toBe('Chiffrée');
+    const insecure = factory({ title: 'Film', stream_details: { secure: false } });
+    expect(insecure.get('[data-key="secure"]').text()).toBe('Non chiffrée');
+    expect(insecure.findComponent(DetailTemplate).props('badges').find((b) => b.key === 'secure').tone).toBe('warning');
+    expect(factory({ title: 'Film' }).find('[data-key="secure"]').exists()).toBe(false);
   });
 });
 

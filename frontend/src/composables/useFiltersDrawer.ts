@@ -9,6 +9,34 @@ export interface FilterChip {
 }
 
 /**
+ * Un groupe de filtres, decrit comme une donnee : la page le range dans `filterGroups`, le
+ * composant commun `FilterGroupList` le rend, et `chipsFromGroups` en tire les pastilles des
+ * filtres actifs (celles qu'affiche le gabarit Explorer au-dessus des resultats).
+ */
+export interface FilterGroupDefinition {
+  key: string;
+  label: string;
+  options: Array<{ value: string; label: string }>;
+  /** Valeur retenue et valeur sans filtre (une pastille n'existe que lorsqu'elles different). */
+  value: string;
+  fallback: string;
+  set: (value: string) => void;
+  /** Groupes longs (genres, diffuseurs) : repliés d'office, ils annoncent ce qu'ils retiennent. */
+  collapsed?: boolean;
+  summary?: string;
+}
+
+export function chipsFromGroups(groups: FilterGroupDefinition[]): FilterChip[] {
+  return groups
+    .filter((group) => group.value !== group.fallback)
+    .map((group) => ({
+      key: group.key,
+      label: group.options.find((option) => option.value === group.value)?.label || group.value,
+      onRemove: () => group.set(group.fallback),
+    }));
+}
+
+/**
  * Registre des groupes de puces poses dans le panneau de filtres.
  *
  * Chaque `UiChipGroup` rendu dans un `FilterSidebar` s'y declare et dit lui-meme ce qu'il

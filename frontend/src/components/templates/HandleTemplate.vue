@@ -72,8 +72,10 @@ const props = withDefaults(
     labels?: HandleLabels;
     /** Lignes montrees, puis par paquets de cette taille. */
     pageSize?: number;
+    /** Type de probleme choisi a l'arrivee (un lien qui mene deja filtre). */
+    initialIssue?: string;
   }>(),
-  { issues: () => [], selectionActions: () => [], loading: false, labels: () => ({}), pageSize: 25 },
+  { issues: () => [], selectionActions: () => [], loading: false, labels: () => ({}), pageSize: 25, initialIssue: '' },
 );
 const emit = defineEmits<{
   note: [item: HandleItem, value: string];
@@ -90,7 +92,7 @@ const text = computed(() => ({
   emptyDetail: props.labels.emptyDetail || 'Tout ce qui demandait une décision a été traité.',
 }));
 
-const issue = ref('');
+const issue = ref(props.initialIssue);
 const activeIssue = computed(() => props.issues.find((entry) => entry.key === issue.value) || null);
 
 const URGENCY: Record<HandleUrgency, number> = { high: 0, medium: 1, low: 2 };
@@ -119,6 +121,8 @@ function toggle(key: string): void {
 }
 function emitSelection(actionKey: string): void {
   emit('selection', actionKey, [...selected.value]);
+  // L'action est partie : la selection a servi.
+  selected.value = new Set();
 }
 </script>
 

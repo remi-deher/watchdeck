@@ -87,9 +87,11 @@
       </template>
     </ManageTemplate>
   </PageTemplate>
+  <CreateTemplate :open="creating" :definition="userCreation" @close="creating = false" @created="reload" />
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ChevronDown, RefreshCw, UserPlus } from '@lucide/vue';
 import { useUserAccounts } from '@/composables/useUserAccounts';
@@ -98,6 +100,8 @@ import { formatDateShort } from '@/utils/format';
 import { accountHandle, accountName, resolveSource, roleLabel, seerLinkLabel, sourceLabel } from '@/utils/userLabels';
 import PageTemplate from '@/components/templates/PageTemplate.vue';
 import ManageTemplate from '@/components/templates/ManageTemplate.vue';
+import CreateTemplate from '@/components/templates/CreateTemplate.vue';
+import { userCreation } from '@/creations/user';
 import FilterGroup from '@/components/ui/FilterGroup.vue';
 import UiAvatar from '@/components/ui/UiAvatar.vue';
 import UiBadge from '@/components/ui/UiBadge.vue';
@@ -123,7 +127,8 @@ const ROLE_TONES: Record<string, string> = { admin: 'success', moderator: 'info'
 /* La fiche d'un compte s'ouvre dans la feuille, avec sa propre adresse (voir UserDetailView) :
    la liste reste derrière, et retour y ramène. */
 const openUser = (user: AppUser) => ouvrirFiche(router, `/users/${user.id}`, route.fullPath);
-const openCreate = () => ouvrirFiche(router, '/users/new', route.fullPath);
+const creating = ref(false);
+const openCreate = () => { creating.value = true; };
 function onAction(key: string, targets: AppUser[]): void {
   if (key === 'open') openUser(targets[0]);
   else void run(key, targets);

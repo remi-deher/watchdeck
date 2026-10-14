@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue';
+import { ref } from 'vue';
 import { api } from '@/api';
 import type { TorrentClientInfo } from '@/types/downloads';
 

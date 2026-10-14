@@ -1,5 +1,4 @@
 import type { WorkRef } from '@/types/generated/mediaAvailability';
-import { formatSeconds as formatSeconds } from '@/utils/format';
 import type { MediaRef } from '@/types';
 /* FileFlows : types, requete d'etat partagee et libelles.
  *
@@ -75,7 +74,7 @@ export interface FileflowsStatus {
 
 export const FILEFLOWS_STATUS = { queued: 0, processed: 1, processing: 2, failed: 4 } as const;
 
-export function fileflowsStatusQuery() {
+function fileflowsStatusQuery() {
   return {
     queryKey: queryKeys.fileflows.status,
     queryFn: ({ signal }: { signal?: AbortSignal }) => api<FileflowsStatus>('/api/fileflows/status', { signal }),

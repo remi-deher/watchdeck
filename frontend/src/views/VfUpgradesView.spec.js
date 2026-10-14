@@ -46,17 +46,24 @@ function mountView() {
         UiFeedback: true,
         StatusBadge: { props: ['label'], template: '<span class="status-stub">{{ label }}</span>' },
         RouterLink: { props: ['to'], template: '<a><slot /></a>' },
+        VfUpgradeButton: true,
+        AlignStreamsModal: true,
       },
     },
   });
 }
 
+const button = (wrapper, text) => wrapper.findAll('button').find((entry) => entry.text().includes(text));
+
 describe('VfUpgradesView', () => {
   beforeEach(() => {
     apiMock.mockReset();
+    // Les filtres sont mémorisés : un test ne doit pas hériter de l'affichage du précédent.
+    localStorage.clear();
+    sessionStorage.clear();
   });
 
-  it('affiche une carte par série avec ses saisons et épisodes alignés', async () => {
+  it('range les suggestions en une ligne à traiter par média, avec leur état en clair', async () => {
     apiMock.mockResolvedValue({
       items: [suggestion(1, 1), suggestion(2, 1, 3), suggestion(3, 2, 1)],
       scan: {},
@@ -65,59 +72,56 @@ describe('VfUpgradesView', () => {
     const wrapper = mountView();
     await flushPromises();
 
-    expect(wrapper.findAll('.upgrade-card')).toHaveLength(1);
-    expect(wrapper.findAll('.season-group')).toHaveLength(2);
-    expect(wrapper.findAll('.target-row')).toHaveLength(3);
-    expect(wrapper.text()).toContain('Saison entière');
-    expect(wrapper.text()).toContain('Épisode 03');
+    const rows = wrapper.findAll('.handle-row');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].text()).toContain('Une même série');
+    expect(rows[0].text()).toContain('3 à traiter');
+    expect(rows[0].text()).toContain('3 releases VF disponibles');
+    expect(rows[0].text()).toContain('Voir les 3 releases');
+    expect(rows[0].text()).toContain('Ignorer');
   });
 
-  it('permet de basculer entre les filtres de statut et de type via la FilterSidebar', async () => {
+  it('affiche ce qui est en cours par défaut, puis l’historique et le type de média à la demande', async () => {
     apiMock.mockResolvedValue({
       items: [
-        suggestion(1, 1, null), // pending show
-        suggestion(2, 1, 1, { status: 'downloading' }), // downloading show
-        suggestion(3, null, null, { scope: 'movie', media: { title: 'Un film', media_type: 'movie' } }), // pending movie
+        suggestion(1, 1, null, { source_id: 42 }),
+        suggestion(2, 1, 1, { source_id: 43, status: 'downloading', media: { title: 'Autre série', media_type: 'show' } }),
+        suggestion(3, null, null, { source_id: 44, scope: 'movie', media: { title: 'Un film', media_type: 'movie' } }),
+        suggestion(4, null, null, { source_id: 45, scope: 'movie', status: 'verified', media: { title: 'Un vieux film', media_type: 'movie' } }),
       ],
       scan: {},
     });
 
     const wrapper = mountView();
     await flushPromises();
+    // Par défaut : ce qui reste à faire ou qui avance, sans l'archive.
+    expect(wrapper.findAll('.handle-row')).toHaveLength(3);
 
-    // Default status is 'pending' -> suggestion(1) and suggestion(3) -> 2 target rows
-    expect(wrapper.findAll('.target-row')).toHaveLength(2);
+    await button(wrapper, 'Films').trigger('click');
+    expect(wrapper.findAll('.handle-row')).toHaveLength(1);
 
-    // Filter by 'movie'
-    const filterBadges = wrapper.findAll('.filter-badge');
-    const movieBadge = filterBadges.find(b => b.text().includes('Films'));
-    expect(movieBadge).toBeDefined();
-    await movieBadge.trigger('click');
-    expect(wrapper.findAll('.target-row')).toHaveLength(1);
+    await button(wrapper, 'Historique').trigger('click');
+    expect(wrapper.findAll('.handle-row')).toHaveLength(1);
+    expect(wrapper.text()).toContain('Un vieux film');
 
-    // Switch to status 'En cours'
-    const inProgressBadge = filterBadges.find(b => b.text().includes('En cours'));
-    expect(inProgressBadge).toBeDefined();
-    await inProgressBadge.trigger('click');
-    // In progress movie is 0
-    expect(wrapper.findAll('.target-row')).toHaveLength(0);
-
-    // Switch to 'Tous les types'
-    const allTypesBadge = filterBadges.find(b => b.text().includes('Tous les types'));
-    await allTypesBadge.trigger('click');
-    // In progress show is 1
-    expect(wrapper.findAll('.target-row')).toHaveLength(1);
+    await button(wrapper, 'Tous les types').trigger('click');
+    await button(wrapper, 'Ignorés').trigger('click');
+    expect(wrapper.findAll('.handle-row')).toHaveLength(0);
   });
 
-  it('déclenche les actions de maintenance au clic', async () => {
-    apiMock.mockResolvedValue({ items: [], scan: {} });
+  it('porte la maintenance par le type de problème : réouvrir les échecs', async () => {
+    apiMock.mockResolvedValue({
+      items: [suggestion(1, null, null, { scope: 'movie', status: 'failed', arr_message: 'Indexeur injoignable', media: { title: 'Un film', media_type: 'movie' } })],
+      scan: {},
+    });
     const wrapper = mountView();
     await flushPromises();
+    expect(wrapper.text()).toContain('Indexeur injoignable');
 
-    apiMock.mockResolvedValueOnce({ updated: 2 });
+    apiMock.mockResolvedValueOnce({ updated: 1 });
     apiMock.mockResolvedValueOnce({ items: [], scan: {} });
-    const recomputeBtn = wrapper.findAll('.filter-maintenance-buttons button').find(b => b.text().includes('Réouvrir'));
-    await recomputeBtn.trigger('click');
+    await button(wrapper, 'Échecs').trigger('click');
+    await button(wrapper, 'Réouvrir les échecs').trigger('click');
     expect(apiMock).toHaveBeenCalledWith('/api/vf-upgrades/maintenance', expect.objectContaining({ method: 'POST' }));
   });
 });

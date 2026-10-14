@@ -1,5 +1,4 @@
-import { useStorage, type Serializer } from '@vueuse/core';
-import type { RemovableRef } from '@vueuse/shared';
+import { useStorage, type RemovableRef, type Serializer } from '@vueuse/core';
 
 const PREFIX = 'watchdeck:';
 
@@ -9,7 +8,7 @@ export interface PreferenceOptions<T> {
   storage?: Storage;
 }
 
-export function preferenceKey(key: string): string {
+function preferenceKey(key: string): string {
   return key.startsWith(PREFIX) ? key : `${PREFIX}${key}`;
 }
 

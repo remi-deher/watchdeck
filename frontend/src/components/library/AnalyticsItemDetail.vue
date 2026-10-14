@@ -1,142 +1,117 @@
 <template>
-  <!-- Fiche technique d'un fichier du catalogue analyse. L'instantane de l'analyse donne
-       l'essentiel tout de suite ; la fiche Plex (`technical`), lue a la demande, ajoute
-       l'affiche, les profils, le HDR, les debits et le detail de chaque piste. -->
-  <div class="analytics-item">
-    <SheetHero
-      class="item-banner"
-      :banner-class="{ 'is-poster-fallback': bannerIsPoster }"
-      :image-url="bannerUrl"
-      :variant="enSurface ? 'sheet' : 'card'"
-      min-height="clamp(160px, 26vw, 250px)"
-      bleed
-    >
-      <!-- L'affiche mene a la fiche du media, dans la feuille : pas de bouton en plus. -->
-      <template #poster>
-        <component
-          :is="mediaPath ? 'button' : 'div'"
-          class="item-poster"
-          :type="mediaPath ? 'button' : undefined"
-          :title="mediaPath ? 'Ouvrir la fiche du média' : undefined"
-          :aria-label="mediaPath ? `Ouvrir la fiche de ${displayTitle}` : undefined"
-          @click="openMedia"
-        >
-          <MediaArtwork :src="technical?.poster_url || item.thumb_url || ''" :alt="displayTitle" :type="item.media_type" size="large" />
-        </component>
-      </template>
-      <div class="item-heading">
-        <span>{{ eyebrow }}</span>
-        <h2>{{ item.title }}</h2>
-        <ul class="item-tags" aria-label="Caractéristiques">
-          <li v-if="resolution" class="is-accent">{{ resolution }}</li>
-          <li v-if="technical?.video?.dynamic_range && technical.video.dynamic_range !== 'SDR'" class="is-accent">{{ technical.video.dynamic_range }}</li>
-          <li v-if="known(item.video_codec)">{{ codecLabel(item.video_codec) }}</li>
-          <li v-if="known(item.container)">{{ String(item.container).toUpperCase() }}</li>
-          <li v-if="known(item.audio_codec)">{{ codecLabel(item.audio_codec) }}<template v-if="item.audio_channels"> {{ channelsLabel(item.audio_channels) }}</template></li>
-        </ul>
-      </div>
-    </SheetHero>
-
-    <div class="item-toolbar" role="toolbar" aria-label="Actions sur le fichier">
-      <UiButton v-if="hasPrevious || hasNext" variant="ghost" icon-only title="Fichier précédent (k)" aria-label="Fichier précédent" :disabled="!hasPrevious" @click="emit('navigate', -1)"><ChevronLeft /></UiButton>
-      <UiButton v-if="hasPrevious || hasNext" variant="ghost" icon-only title="Fichier suivant (j)" aria-label="Fichier suivant" :disabled="!hasNext" @click="emit('navigate', 1)"><ChevronRight /></UiButton>
-      <UiButton variant="ghost" size="sm" @click="copy(itemLink, 'Lien du fichier copié.')"><Link2 />Copier le lien</UiButton>
-    </div>
-
-    <div class="item-kpis">
-      <article><span>Poids</span><strong>{{ bytes(item.size_bytes) }}</strong><small>{{ averageBitrate ? `débit moyen ${averageBitrate}` : 'débit inconnu' }}</small></article>
-      <article><span>Lectures</span><strong>{{ item.play_count || 0 }}</strong><small>{{ viewersLabel }}</small></article>
-      <article><span>Temps visionné</span><strong>{{ item.watch_time_ms ? duration(item.watch_time_ms) : '0 h' }}</strong><small>{{ item.last_viewed_at ? `dernière le ${formatDateShort(item.last_viewed_at)}` : item.play_count ? 'date inconnue' : 'jamais visionné' }}</small></article>
-    </div>
-
-    <section class="item-section" aria-labelledby="item-file-title">
-      <header>
-        <h3 id="item-file-title">Fichier</h3>
-        <small v-if="technicalLoading">Lecture de la fiche Plex…</small>
-        <small v-else-if="technicalError" class="is-warning">Plex n’a pas répondu : détails limités à l’analyse</small>
-      </header>
-      <dl class="item-facts">
-        <div v-for="fact in facts" :key="fact.label"><dt>{{ fact.label }}</dt><dd>{{ fact.value }}</dd></div>
-      </dl>
-      <div v-if="technical?.file?.path" class="item-path">
-        <FolderOpen aria-hidden="true" />
-        <code :title="technical.file.path">{{ technical.file.path }}</code>
-        <UiButton variant="ghost" icon-only size="sm" title="Copier le chemin" aria-label="Copier le chemin du fichier" @click="copy(technical.file.path, 'Chemin copié.')"><Copy /></UiButton>
-      </div>
-    </section>
-
-    <section class="item-section" aria-labelledby="item-tracks-title">
-      <header><h3 id="item-tracks-title">Pistes</h3></header>
-      <!-- Au-dela de quelques pistes d'un cote, les deux listes passent en pleine largeur et
-           leurs pistes en grille : sinon la plus courte laisse un grand vide a cote de l'autre. -->
-      <div class="item-tracks" :class="{ 'is-stacked': tracksStacked }">
-        <div class="track-group">
-          <header class="track-kind"><Volume2 aria-hidden="true" />Audio<small v-if="technical?.audio?.length">{{ technical.audio.length }}</small></header>
-          <ul v-if="technical?.audio?.length">
-            <li v-for="(track, index) in technical.audio" :key="`a${index}`">
-              <strong>{{ track.language || 'Langue inconnue' }}<em v-if="track.default">par défaut</em></strong>
-              <span>{{ audioTrackDetail(track) || '—' }}</span>
-              <small v-if="track.title">{{ track.title }}</small>
-            </li>
-          </ul>
-          <p v-else-if="(item.audio_languages || []).length">{{ item.audio_languages.join(', ') }}</p>
-          <p v-else class="is-empty">Aucune piste audio.</p>
+  <!-- Fiche technique d'un fichier du catalogue analyse (gabarit Fiche). L'instantane de l'analyse donne
+       l'essentiel tout de suite ; la fiche Plex (`technical`), lue a la demande, ajoute l'affiche, les
+       profils, le HDR, les debits et le detail de chaque piste. Trois parties : le fichier, ses pistes,
+       ses visionnages. -->
+  <DetailTemplate
+    :variant="enSurface ? 'sheet' : 'card'"
+    eyebrow="Fichier média"
+    :title="item.title"
+    :icon="Clapperboard"
+    :poster="technical?.poster_url || item.thumb_url || null"
+    :backdrop="bannerUrl"
+    :meta="meta"
+    :badges="badges"
+    :actions="actions"
+    :alert="alert"
+    :tabs="TABS"
+    :tab="tab"
+    :facts="summaryFacts"
+    @update:tab="tab = $event"
+    @action="onAction"
+  >
+    <template #tab-file>
+      <section class="item-section" aria-labelledby="item-file-title">
+        <header>
+          <h3 id="item-file-title">Fichier</h3>
+          <small v-if="technicalLoading">Lecture de la fiche Plex…</small>
+        </header>
+        <dl class="item-facts">
+          <div v-for="fact in facts" :key="fact.label"><dt>{{ fact.label }}</dt><dd>{{ fact.value }}</dd></div>
+        </dl>
+        <div v-if="technical?.file?.path" class="item-path">
+          <FolderOpen aria-hidden="true" />
+          <code :title="technical.file.path">{{ technical.file.path }}</code>
+          <UiButton variant="ghost" icon-only size="sm" title="Copier le chemin" aria-label="Copier le chemin du fichier" @click="copy(technical.file.path, 'Chemin copié.')"><Copy /></UiButton>
         </div>
-        <div class="track-group">
-          <header class="track-kind"><Captions aria-hidden="true" />Sous-titres<small v-if="technical?.subtitles?.length">{{ technical.subtitles.length }}</small></header>
-          <ul v-if="technical?.subtitles?.length">
-            <li v-for="(track, index) in technical.subtitles" :key="`s${index}`">
-              <strong>{{ track.language || 'Langue inconnue' }}<em v-if="track.default">par défaut</em></strong>
-              <span>{{ subtitleTrackDetail(track) }}</span>
-              <small v-if="track.title">{{ track.title }}</small>
-            </li>
-          </ul>
-          <p v-else-if="!technical && (item.subtitle_types || []).length">{{ item.subtitle_types.join(', ') }}</p>
-          <p v-else class="is-empty">Aucun sous-titre.</p>
-        </div>
-      </div>
-    </section>
+      </section>
+    </template>
 
-    <section class="item-section" aria-labelledby="item-views-title">
-      <header>
-        <h3 id="item-views-title">Visionnages</h3>
-        <small v-if="views.length">{{ views.some((view: any) => view.session_id) ? 'Ouvrez une lecture pour voir sa session' : `${views.length} lecture(s)` }}</small>
-      </header>
-      <ol v-if="views.length" class="view-log">
-        <li v-for="(view, index) in views" :key="`${view.at}-${index}`">
-          <component
-            :is="view.session_id ? 'RouterLink' : 'div'"
-            class="view-row"
-            :to="view.session_id ? sessionPath(view) : undefined"
-            @click="view.session_id && openSession($event, view)"
-          >
-            <UiAvatar :name="view.user || 'Plex'" size="sm" />
-            <span class="view-main">
-              <span class="view-line">
-                <strong>{{ view.user || 'Utilisateur Plex' }}</strong>
-                <span class="view-amount"><b v-if="percentOf(view) != null">{{ percentOf(view) }} %</b><span>{{ duration(view.watched_ms) }}</span></span>
+    <template #tab-tracks>
+      <section class="item-section" aria-labelledby="item-tracks-title">
+        <header><h3 id="item-tracks-title">Pistes</h3></header>
+        <!-- Au-dela de quelques pistes d'un cote, les deux listes passent en pleine largeur et
+             leurs pistes en grille : sinon la plus courte laisse un grand vide a cote de l'autre. -->
+        <div class="item-tracks" :class="{ 'is-stacked': tracksStacked }">
+          <div class="track-group">
+            <header class="track-kind"><Volume2 aria-hidden="true" />Audio<small v-if="technical?.audio?.length">{{ technical.audio.length }}</small></header>
+            <ul v-if="technical?.audio?.length">
+              <li v-for="(track, index) in technical.audio" :key="`a${index}`">
+                <strong>{{ track.language || 'Langue inconnue' }}<em v-if="track.default">par défaut</em></strong>
+                <span>{{ audioTrackDetail(track) || '—' }}</span>
+                <small v-if="track.title">{{ track.title }}</small>
+              </li>
+            </ul>
+            <p v-else-if="(item.audio_languages || []).length">{{ item.audio_languages.join(', ') }}</p>
+            <p v-else class="is-empty">Aucune piste audio.</p>
+          </div>
+          <div class="track-group">
+            <header class="track-kind"><Captions aria-hidden="true" />Sous-titres<small v-if="technical?.subtitles?.length">{{ technical.subtitles.length }}</small></header>
+            <ul v-if="technical?.subtitles?.length">
+              <li v-for="(track, index) in technical.subtitles" :key="`s${index}`">
+                <strong>{{ track.language || 'Langue inconnue' }}<em v-if="track.default">par défaut</em></strong>
+                <span>{{ subtitleTrackDetail(track) }}</span>
+                <small v-if="track.title">{{ track.title }}</small>
+              </li>
+            </ul>
+            <p v-else-if="!technical && (item.subtitle_types || []).length">{{ item.subtitle_types.join(', ') }}</p>
+            <p v-else class="is-empty">Aucun sous-titre.</p>
+          </div>
+        </div>
+      </section>
+    </template>
+
+    <template #tab-views>
+      <section class="item-section" aria-labelledby="item-views-title">
+        <header>
+          <h3 id="item-views-title">Visionnages</h3>
+          <small v-if="views.length">{{ views.some((view: any) => view.session_id) ? 'Ouvrez une lecture pour voir sa session' : `${views.length} lecture(s)` }}</small>
+        </header>
+        <ol v-if="views.length" class="view-log">
+          <li v-for="(view, index) in views" :key="`${view.at}-${index}`">
+            <component
+              :is="view.session_id ? 'RouterLink' : 'div'"
+              class="view-row"
+              :to="view.session_id ? sessionPath(view) : undefined"
+              @click="view.session_id && openSession($event, view)"
+            >
+              <UiAvatar :name="view.user || 'Plex'" size="sm" />
+              <span class="view-main">
+                <span class="view-line">
+                  <strong>{{ view.user || 'Utilisateur Plex' }}</strong>
+                  <span class="view-amount"><b v-if="percentOf(view) != null">{{ percentOf(view) }} %</b><span>{{ duration(view.watched_ms) }}</span></span>
+                </span>
+                <span v-if="percentOf(view) != null" class="view-track" aria-hidden="true"><i :class="{ 'is-complete': (percentOf(view) || 0) >= 90 }" :style="{ width: `${percentOf(view)}%` }"></i></span>
+                <span class="view-meta">
+                  <time :datetime="view.at">{{ formatDate(view.at) }}</time>
+                  <span v-if="view.player || view.platform" class="view-device"><MonitorSmartphone aria-hidden="true" />{{ [view.player, view.platform].filter(Boolean).join(' · ') }}</span>
+                </span>
               </span>
-              <span v-if="percentOf(view) != null" class="view-track" aria-hidden="true"><i :class="{ 'is-complete': (percentOf(view) || 0) >= 90 }" :style="{ width: `${percentOf(view)}%` }"></i></span>
-              <span class="view-meta">
-                <time :datetime="view.at">{{ formatDate(view.at) }}</time>
-                <span v-if="view.player || view.platform" class="view-device"><MonitorSmartphone aria-hidden="true" />{{ [view.player, view.platform].filter(Boolean).join(' · ') }}</span>
-              </span>
-            </span>
-            <ChevronRight v-if="view.session_id" class="view-chevron" aria-hidden="true" />
-          </component>
-        </li>
-      </ol>
-      <p v-else class="view-log-empty">Aucun visionnage enregistré pour ce fichier.</p>
-    </section>
-  </div>
+              <ChevronRight v-if="view.session_id" class="view-chevron" aria-hidden="true" />
+            </component>
+          </li>
+        </ol>
+        <p v-else class="view-log-empty">Aucun visionnage enregistré pour ce fichier.</p>
+      </section>
+    </template>
+  </DetailTemplate>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Captions, ChevronLeft, ChevronRight, Copy, FolderOpen, Link2, MonitorSmartphone, Volume2 } from '@lucide/vue';
-import MediaArtwork from '@/components/activity/MediaArtwork.vue';
-import SheetHero from '@/components/ui/SheetHero.vue';
+import { ArrowRight, Captions, ChevronRight, Clapperboard, Copy, FolderOpen, Link2, MonitorSmartphone, Volume2 } from '@lucide/vue';
+import DetailTemplate from '@/components/templates/DetailTemplate.vue';
 import UiAvatar from '@/components/ui/UiAvatar.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { useToast } from '@/composables/useToast';
@@ -167,11 +142,8 @@ const props = withDefaults(defineProps<{
   technical?: Record<string, any> | null;
   technicalLoading?: boolean;
   technicalError?: boolean;
-  hasPrevious?: boolean;
-  hasNext?: boolean;
-}>(), { technical: null, technicalLoading: false, technicalError: false, hasPrevious: false, hasNext: false });
+}>(), { technical: null, technicalLoading: false, technicalError: false });
 
-const emit = defineEmits<{ navigate: [direction: number] }>();
 
 const route = useRoute();
 const router = useRouter();
@@ -180,13 +152,12 @@ const { actif: enSurface, routeDeFond } = useMediaOverlay();
 const { ouvrir } = useOuvrirFiche();
 
 const known = (value: unknown): boolean => Boolean(value) && !/^inconnue?$/i.test(String(value));
-const displayTitle = computed(() => (props.item.grandparent_title ? `${props.item.grandparent_title} · ${props.item.title}` : props.item.title));
-const eyebrow = computed(() => [
+const meta = computed(() => [
   props.item.grandparent_title || mediaTypeLabel(props.item.media_type),
   props.item.year,
   props.item.duration_ms ? duration(props.item.duration_ms) : '',
   known(props.item.studio) ? props.item.studio : '',
-].filter(Boolean).join(' · '));
+].filter(Boolean) as string[]);
 const resolution = computed(() => resolutionLabel(props.item.video_resolution));
 
 /* Bandeau : le fond Plex du media (serie pour un episode), connu des l'instantane, sinon
@@ -241,6 +212,37 @@ const facts = computed<Fact[]>(() => {
   return rows.filter(([, value]) => Boolean(value)).map(([label, value]) => ({ label, value: String(value) }));
 });
 
+const TABS = [
+  { key: 'file', label: 'Fichier' },
+  { key: 'tracks', label: 'Pistes' },
+  { key: 'views', label: 'Visionnages' },
+];
+const tab = ref('file');
+/* Les caracteristiques du fichier, en badges ; l'alerte dit quand Plex n'a pas repondu. */
+const badges = computed(() => [
+  ...(resolution.value ? [{ key: 'resolution', label: resolution.value, tone: 'info' as const }] : []),
+  ...(props.technical?.video?.dynamic_range && props.technical.video.dynamic_range !== 'SDR' ? [{ key: 'hdr', label: props.technical.video.dynamic_range, tone: 'info' as const }] : []),
+  ...(known(props.item.video_codec) ? [{ key: 'video', label: codecLabel(props.item.video_codec), tone: 'neutral' as const }] : []),
+  ...(known(props.item.container) ? [{ key: 'container', label: String(props.item.container).toUpperCase(), tone: 'neutral' as const }] : []),
+  ...(known(props.item.audio_codec) ? [{ key: 'audio', label: `${codecLabel(props.item.audio_codec)}${props.item.audio_channels ? ` ${channelsLabel(props.item.audio_channels)}` : ''}`, tone: 'neutral' as const }] : []),
+]);
+const alert = computed(() => (props.technicalError ? { tone: 'warning' as const, message: 'Plex n’a pas répondu : détails limités à l’analyse.' } : null));
+const actions = computed(() => [
+  ...(mediaPath.value ? [{ key: 'open-media', label: 'Ouvrir la fiche du média', icon: ArrowRight }] : []),
+  { key: 'copy-link', label: 'Copier le lien', icon: Link2 },
+]);
+function onAction(key: string): void {
+  if (key === 'open-media') openMedia();
+  else if (key === 'copy-link') void copy(itemLink.value, 'Lien du fichier copié.');
+}
+/* Les chiffres cles, a cote de la fiche. */
+const summaryFacts = computed(() => [
+  { label: 'Poids', value: `${bytes(props.item.size_bytes)}${averageBitrate.value ? ` · ${averageBitrate.value}` : ''}` },
+  { label: 'Lectures', value: `${props.item.play_count || 0} · ${viewersLabel.value}` },
+  { label: 'Temps visionné', value: props.item.watch_time_ms ? duration(props.item.watch_time_ms) : '0 h' },
+  { label: 'Dernière lecture', value: props.item.last_viewed_at ? formatDateShort(props.item.last_viewed_at) : props.item.play_count ? 'date inconnue' : 'jamais visionné' },
+]);
+
 const mediaPath = computed(() => {
   const libraryId = props.technical?.library_item_id;
   return libraryId ? mediaDetailPath({ library_id: libraryId }, 'library') : '';
@@ -274,23 +276,7 @@ async function copy(text: string, message: string): Promise<void> {
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
-.analytics-item { display: grid; gap: var(--space-5); min-width: 0; }
-.item-poster { display: block; width: 116px; padding: 0; border: 0; border-radius: var(--radius-md); background: none; box-shadow: var(--shadow-md); overflow: hidden; }
-button.item-poster { cursor: pointer; transition: transform var(--motion-duration-fast) var(--motion-ease-standard); }
-button.item-poster:hover { transform: translateY(-2px); }
-button.item-poster:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.item-heading { display: grid; gap: 6px; min-width: 0; }
-.item-heading > span { color: var(--muted); font-size: var(--fs-sm); }
-.item-heading h2 { margin: 0; font-family: var(--font-display); font-size: var(--fs-2xl); line-height: 1.15; overflow-wrap: anywhere; }
-.item-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 0; padding: 0; list-style: none; }
-.item-tags li { display: inline-flex; align-items: center; min-height: 24px; padding: 0 8px; border-radius: var(--radius-xs); background: var(--surface-3); color: var(--text-secondary, var(--text)); font-size: var(--fs-xs); font-weight: 650; }
-.item-tags li.is-accent { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
-.item-toolbar { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: calc(-1 * var(--space-3)); }
 
-.item-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
-.item-kpis article { display: grid; gap: 2px; padding: 12px 14px; border-radius: var(--radius-md); background: var(--surface-2); }
-.item-kpis span, .item-kpis small { color: var(--muted); font-size: var(--fs-xs); }
-.item-kpis strong { font-family: var(--font-display); font-size: var(--fs-xl); font-variant-numeric: tabular-nums; }
 
 .item-section { display: grid; gap: var(--space-3); }
 .item-section > header { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
@@ -329,7 +315,6 @@ button.item-poster:focus-visible { outline: 2px solid var(--accent); outline-off
 .item-tracks.is-stacked .track-group li strong em { white-space: nowrap; }
 
 /* Repli du bandeau sur l'affiche : agrandie et floutee, elle ne donne que l'ambiance. */
-.item-banner :deep(.is-poster-fallback .ui-hero-backdrop__image) { filter: blur(28px) saturate(1.3); transform: scale(1.25); }
 
 .view-log { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
 .view-row { display: flex; align-items: center; gap: var(--space-3); padding: 10px 8px; border-radius: var(--radius-md); color: var(--text); text-decoration: none; }
@@ -353,12 +338,8 @@ a.view-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px
 
 @container sheet (max-width: 482px) {
   .item-facts { grid-template-columns: 1fr; }
-  .item-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-  .item-kpis article { padding: 10px; }
   .item-tracks { grid-template-columns: 1fr; }
 }
 @include bp.until(tablet) {
-  .item-poster { width: 84px; }
-  .item-heading h2 { font-size: var(--fs-xl); }
 }
 </style>

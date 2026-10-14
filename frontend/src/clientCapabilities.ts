@@ -51,7 +51,7 @@ const REPORT_KEY = 'watchdeck:client-capabilities:v1';
  * diagnostic de layout. On attend donc une mesure reelle plutot que de relacher la
  * validation, qui accepterait alors des profils faux.
  */
-export function hasMeasurableViewport(capabilities: ClientCapabilities): boolean {
+function hasMeasurableViewport(capabilities: ClientCapabilities): boolean {
   const { width, height, visualWidth, visualHeight } = capabilities.viewport;
   return width >= 1 && height >= 1 && visualWidth >= 1 && visualHeight >= 1;
 }

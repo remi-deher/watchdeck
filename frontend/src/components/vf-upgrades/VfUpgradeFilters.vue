@@ -1,7 +1,10 @@
 <template>
-  <FilterSidebar :open="open" :active-count="activeCount" @close="emit('close')" @reset="emit('reset')">
-    <FilterGroup label="Statut">
-      <UiChipGroup label="Statut" :options="statusOptions" :model-value="status" @update:model-value="(v) => emit('update:status', v)">
+  <!-- Filtres des suggestions de release, poses dans la feuille de PageTemplate : ce qu'on
+       affiche (l'a-traiter, l'archive, les ignores) et le type de media. Les gestes de
+       maintenance sont ceux des types de probleme (Reouvrir les echecs, Purger). -->
+  <div class="vf-filter-groups">
+    <FilterGroup label="Afficher">
+      <UiChipGroup label="Afficher" :options="viewOptions" :model-value="view" @update:model-value="(v) => emit('update:view', v)">
         <template #option="{ option }"><span>{{ option.label }}</span><small v-if="option.count">({{ option.count }})</small></template>
       </UiChipGroup>
     </FilterGroup>
@@ -9,51 +12,22 @@
     <FilterGroup label="Type de média">
       <UiChipGroup label="Type de média" :options="MEDIA_OPTIONS" :model-value="mediaType" @update:model-value="(v) => emit('update:mediaType', v)" />
     </FilterGroup>
-
-    <FilterGroup label="Maintenance">
-      <div class="filter-maintenance-buttons">
-        <UiButton class="compact" title="Réouvrir les suggestions en échec" @click="emit('maintenance', 'recompute')">
-          <RotateCcw :size="14" />
-          <span>Réouvrir les échecs</span>
-        </UiButton>
-        <UiButton class="compact" title="Supprimer les entrées archivées" @click="emit('maintenance', 'purge')">
-          <Trash2 :size="14" />
-          <span>Purger l'historique</span>
-        </UiButton>
-      </div>
-    </FilterGroup>
-  </FilterSidebar>
+  </div>
 </template>
 
 <script setup lang="ts">
-import UiButton from '@/components/ui/UiButton.vue';
-import { RotateCcw, Trash2 } from '@lucide/vue';
-import FilterSidebar from '@/components/ui/FilterSidebar.vue';
 import FilterGroup from '@/components/ui/FilterGroup.vue';
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import { computed } from 'vue';
 
-/** Tiroir de filtres de l'onglet « Releases » : statut, type de media, maintenance. */
 const props = defineProps<{
-  open: boolean;
-  activeCount: number;
-  status: string;
+  view: string;
   mediaType: string;
-  counts: {
-    pendingCount: number;
-    waitingReleaseCount: number;
-    inProgressCount: number;
-    failedCount: number;
-    historyCount: number;
-    ignoredCount: number;
-  };
+  counts: { openCount: number; historyCount: number; ignoredCount: number };
 }>();
 const emit = defineEmits<{
-  'update:status': [value: string];
+  'update:view': [value: string];
   'update:mediaType': [value: string];
-  maintenance: [action: 'recompute' | 'purge'];
-  close: [];
-  reset: [];
 }>();
 
 const MEDIA_OPTIONS = [
@@ -61,26 +35,9 @@ const MEDIA_OPTIONS = [
   { value: 'movie', label: 'Films' },
   { value: 'show', label: 'Séries' },
 ];
-const statusOptions = computed(() => [
-  { value: 'pending', label: 'À traiter', count: props.counts.pendingCount },
-  { value: 'waiting_release', label: 'En attente de release', count: props.counts.waitingReleaseCount },
-  { value: 'in_progress', label: 'En cours', count: props.counts.inProgressCount },
-  { value: 'failed', label: 'Échecs', count: props.counts.failedCount },
+const viewOptions = computed(() => [
+  { value: 'open', label: 'À traiter et en cours', count: props.counts.openCount },
   { value: 'history', label: 'Historique', count: props.counts.historyCount },
-  { value: 'ignored', label: 'Ignorées', count: props.counts.ignoredCount },
-  { value: 'all', label: 'Tous les statuts' },
+  { value: 'ignored', label: 'Ignorés', count: props.counts.ignoredCount },
 ]);
 </script>
-
-<style scoped lang="scss">
-.filter-maintenance-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.filter-maintenance-buttons button {
-  width: 100%;
-  justify-content: flex-start;
-}
-</style>

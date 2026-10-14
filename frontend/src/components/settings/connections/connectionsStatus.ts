@@ -28,7 +28,7 @@ export interface ConnectionsPayload {
 }
 
 export interface RowState {
-  /** Valeur de `SettingsItem.status`. */
+  /** Valeur de `ConfigureResource.state`. */
   status: 'active' | 'error' | 'inactive' | 'neutral';
   text: string;
   /** Détail du dernier contrôle : la réponse en cas de succès, la cause en cas d'erreur. */
@@ -48,6 +48,13 @@ export function rowState(line: ConnectionLine | undefined): RowState {
     line.issue_count ? `${line.issue_count} alerte${line.issue_count > 1 ? 's' : ''}` : '',
   ].filter(Boolean);
   return { status: 'active', text: 'Opérationnel', detail: parts.join(' · ') };
+}
+
+/** Ce que dit le dernier controle, au format du bloc de test des sections de reglages. */
+export function testResultOf(row: RowState): { ok: boolean; message: string } | null {
+  if (row.status === 'error') return { ok: false, message: row.detail || 'Connexion impossible' };
+  if (row.status === 'active') return { ok: true, message: row.detail || row.text };
+  return null;
 }
 
 /** Verdict de la zone : les connexions en erreur, et combien répondent sur combien d'actives. */

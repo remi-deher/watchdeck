@@ -72,7 +72,7 @@ export interface CreateResult {
   message: string;
   detail?: string;
   /** Suites proposees ; « Creer un autre » est toujours offert. */
-  links?: Array<{ label: string; to: string | Record<string, any> }>;
+  links?: Array<{ label: string; to?: string | Record<string, any>; href?: string }>;
 }
 
 export interface CreateDefinition {

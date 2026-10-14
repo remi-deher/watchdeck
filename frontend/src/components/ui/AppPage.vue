@@ -58,7 +58,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, useSlots, watch, type Slot } from 'vue';
+import { computed, ref, useSlots, type Slot } from 'vue';
 import { useIntersectionObserver } from '@vueuse/core';
 import AppSubnav, { type SubnavItem } from './AppSubnav.vue';
 import { providePageSearch, type PageSearch, type PageSearchKind } from '@/composables/usePageSearch';

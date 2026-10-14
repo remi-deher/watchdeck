@@ -74,7 +74,7 @@
 
     <template #actions>
       <template v-if="result">
-        <UiButton v-for="link in result.links || []" :key="link.label" :to="link.to" @click="close">{{ link.label }}</UiButton>
+        <UiButton v-for="link in result.links || []" :key="link.label" :to="link.to" :href="link.href" @click="close">{{ link.label }}</UiButton>
         <UiButton v-if="mode === 'create'" variant="primary" @click="restart">Ajouter {{ definition.another }}</UiButton>
         <UiButton v-else variant="primary" @click="close">Fermer</UiButton>
       </template>

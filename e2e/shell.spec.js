@@ -94,12 +94,10 @@ test("sur telephone, l'administration se parcourt en liste puis en detail, sans 
   await expect(header.getByRole("link", { name: "Retour à l’aperçu de l’administration" })).toBeVisible();
   await expect(header.locator(".admin-header__title")).toHaveText("Sécurité & API");
 
-  // La zone tient en une page : ses blocs sont un rang d'onglets interne, gardé dans l'adresse.
-  const blocks = page.locator("#main-content .app-subnav--inner .app-subnav__item");
-  // Un bloc qui a un point à vérifier porte une pastille « ! » : le texte la comprend.
-  await expect(blocks).toHaveText([/^Adresse publique/, /^Proxies/, /^Jeton API/, /^Double authentification/]);
-  await blocks.nth(2).click();
-  await expect(page).toHaveURL(/\/settings\/security\?section=token$/);
+  // La zone tient en une page : ses blocs sont des sections (cartes), sans rangee d'onglets interne.
+  const blocks = page.locator("#main-content .configure__section-head h2");
+  await expect(blocks).toHaveText([/point.* à vérifier|Instance correctement protégée/, "Adresse publique", "Reverse-proxy", "Jeton API", "Double authentification"]);
+  await expect(page.locator("#main-content .app-subnav--inner")).toHaveCount(0);
 
   await header.getByRole("link", { name: "Retour à l’aperçu de l’administration" }).click();
   await expect(page).toHaveURL(/\/settings$/);
@@ -360,13 +358,18 @@ test("le rail se replie et se deploie, et le choix survit au rechargement", asyn
   expect((await rail.boundingBox()).width).toBeCloseTo(collapsed, 0);
 });
 
-test("la sous-navigation d'une page repond aux fleches", async ({ page }) => {
-  // Les sections de l'Activite sont devenues celles de sa destination, donc des liens
-  // de navigation et non des onglets : les fleches n'ont pas de sens sur un `<nav>`.
-  // Le comportement teste ici reste celui de la variante `tabs`, toujours utilisee par
-  // les journaux, l'Acquisition, les ameliorations VF et la fiche media.
-  await page.goto("/logs");
-  const tablist = page.locator('.app-subnav [role="tablist"]').first();
+test("les onglets d'une fiche repondent aux fleches", async ({ page }) => {
+  // Les vues d'une page sont des liens de navigation (pas de fleches sur un `<nav>`) ; les parties
+  // d'une fiche sont des onglets (UiTabs, « consulter ») : les fleches changent d'onglet.
+  await page.route("**/api/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/session") return route.fulfill({ json: { role: "admin", is_owner: true } });
+    if (path === "/api/events") return route.fulfill({ contentType: "text/event-stream", body: "" });
+    if (path.startsWith("/api/media/detail")) return route.fulfill({ json: { id: 1, title: "Dune", year: 2021, media_type: "movie", in_library: true, library_id: 1, genres: [], media: {}, requests: [], availability: { plex: "present", episodes: { state: "unknown" } } } });
+    return route.fulfill({ json: {} });
+  });
+  await page.goto("/library/media/library/1");
+  const tablist = page.locator('.ui-tabs [role="tablist"]').first();
   await expect(tablist).toBeVisible({ timeout: 15_000 });
 
   const selected = tablist.locator('[role="tab"][aria-selected="true"]');
@@ -405,10 +408,10 @@ test("le selecteur de periode de l'activite change bien de valeur", async ({ pag
   expect(activeAfter).not.toBe(activeBefore);
 });
 
-test("changer le tri de l'historique redemande la periode entiere", async ({ page }) => {
-  // Le tri vivait dans le navigateur, sur les cent lignes deja chargees : « Anciennes »
-  // retournait la premiere page au lieu d'aller chercher les plus anciennes lectures,
-  // et le changement ne declenchait aucune requete.
+test("changer l'ordre de l'historique redemande la periode entiere", async ({ page }) => {
+  // L'ordre vivait dans le navigateur, sur les cent lignes deja chargees : « plus anciennes
+  // d'abord » retournait la premiere page au lieu d'aller chercher les plus anciennes
+  // lectures, et le changement ne declenchait aucune requete.
   const sorts = [];
   page.on("request", (request) => {
     const url = new URL(request.url());
@@ -416,15 +419,10 @@ test("changer le tri de l'historique redemande la periode entiere", async ({ pag
   });
 
   await page.goto("/activity?view=history");
-  // Chaque colonne se trie d'un clic ; un second clic inverse le sens.
-  const bar = page.getByRole("toolbar", { name: /Trier/ });
-  await expect(bar).toBeVisible({ timeout: 15000 });
-  await bar.getByRole("button", { name: /Trier par date/ }).click();
+  await expect(page.locator(".understand")).toBeVisible({ timeout: 15000 });
+  await page.getByRole("button", { name: "Afficher les filtres" }).click();
+  await page.getByRole("button", { name: "Plus anciennes d’abord" }).click();
   await expect.poll(() => sorts.at(-1), { timeout: 10000 }).toBe("date_asc");
-  await bar.getByRole("button", { name: /Trier par titre/ }).click();
-  await expect.poll(() => sorts.at(-1), { timeout: 10000 }).toBe("title_asc");
-  await bar.getByRole("button", { name: /Trier par titre/ }).click();
-  await expect.poll(() => sorts.at(-1), { timeout: 10000 }).toBe("title_desc");
 });
 
 test("une session s'ouvre dans la feuille, avec son adresse, et retour la referme", async ({ page }) => {
@@ -452,7 +450,7 @@ test("une session s'ouvre dans la feuille, avec son adresse, et retour la referm
     route.fulfill({ json: sessions.find((item) => item.id === id) });
   });
   await page.goto("/activity?view=history");
-  const row = page.locator(".history-table button").first();
+  const row = page.locator(".understand-row").first();
   await expect(row).toBeVisible({ timeout: 15000 });
   await row.click();
 
@@ -461,10 +459,10 @@ test("une session s'ouvre dans la feuille, avec son adresse, et retour la referm
   await expect(sheet).toBeVisible();
   await expect(page).toHaveURL(/\/activity\/session\/1$/);
   await expect(sheet.getByRole("heading", { level: 1 })).toHaveText("Le Voyage de Chihiro");
-  await expect(page.locator(".history-table")).toBeAttached();
+  await expect(page.locator(".understand")).toBeAttached();
 
   // Suivant : la session voisine de la liste, sans nouvelle entree d'historique.
-  await sheet.getByRole("button", { name: "Session suivante" }).click();
+  await sheet.getByRole("button", { name: "Suivant", exact: true }).click();
   await expect(page).toHaveURL(/\/activity\/session\/2$/);
   await expect(sheet.getByRole("heading", { level: 1 })).toHaveText("Princesse Mononoké");
 
@@ -512,15 +510,15 @@ test("l'historique charge la suite au defilement", async ({ page }) => {
   });
 
   await page.goto("/activity?view=history");
-  const rows = page.locator(".history-table button");
+  const rows = page.locator(".understand-row");
   await expect(rows).toHaveCount(30, { timeout: 15000 });
 
   // On descend : la sentinelle placee sous la liste doit declencher la page suivante.
-  await page.locator(".history-sentinel").scrollIntoViewIfNeeded();
+  await page.locator(".infinite-scroll-trigger").scrollIntoViewIfNeeded();
 
   await expect(rows).toHaveCount(60, { timeout: 10000 });
   // Et l'historique se lit par date : chaque journee porte son en-tete.
-  await expect(page.locator(".history-day").first()).toBeVisible();
+  await expect(page.locator(".understand__day").first()).toBeVisible();
 });
 
 test("une confirmation ouverte depuis un tiroir reste cliquable", async ({ page }) => {
@@ -723,8 +721,8 @@ test("le hero d'une fiche est une carte posee dans la colonne", async ({ page })
     }),
   );
   await page.goto("/library/media/request/1");
-  // Le hero passe par le fond partage UiHeroBackdrop ; `.mdh-hero` reste propre a la fiche.
-  const hero = page.locator(".mdh-hero");
+  // Le hero passe par le fond partage UiHeroBackdrop ; la banniere de la fiche est celle de SheetHero.
+  const hero = page.locator(".detail__hero .sheet-hero__banner");
   await expect(hero).toBeVisible({ timeout: 15000 });
 
   const cadre = await hero.evaluate((node) => {

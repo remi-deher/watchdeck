@@ -18,6 +18,12 @@ export interface DetailAction {
   href?: string;
   danger?: boolean;
   disabled?: boolean;
+  /** Compteur affiche a cote du libelle (« 3 »). */
+  count?: number | string;
+  /** Toujours dans le menu « … », meme s'il reste de la place parmi les actions visibles. */
+  menu?: boolean;
+  /** Dans le menu « … » : un filet la separe de l'action precedente. */
+  separated?: boolean;
 }
 
 /** La seule alerte d'etat montree : la plus importante, avec ou la traiter. */

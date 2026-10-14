@@ -1,148 +1,69 @@
 <template>
-  <!-- En-tete commun des fiches (SheetHero) : l'image seule dans la banniere, l'affiche
-       qui en chevauche le bas, le texte dessous. Les classes `mdh-*` restent posees sur
-       les memes elements : la feuille (MediaOverlay) et les tests s'y appuient. -->
-  <SheetHero
-    class="mdh"
-    :class="{ 'is-music-hero': isMusic }"
-    banner-class="mdh-hero"
-    content-class="mdh-content"
-    :row-class="['mdh-row', { 'is-music': isMusic }]"
-    :image-url="backdropUrl"
-    :position="variant === 'sheet' ? 'center 18%' : undefined"
+  <!-- La fiche d'un média (gabarit Fiche) : l'en-tête, l'état, les dates clés et les actions sont ceux de
+       DetailTemplate ; ce composant ne fait que dire quoi y mettre pour un film, une série ou un
+       artiste. Les onglets (`tab-<clé>`) et ce qui accompagne la fiche (`after`) viennent de la page. -->
+  <DetailTemplate
     :variant="variant"
-    stack-on-mobile
-    fade
-    :dock="['badges', 'dates', 'actions']"
+    back
+    :eyebrow="typeLabel"
+    :title="detail.title || ''"
+    :icon="isMusic ? Music2 : Film"
+    :poster="detail.poster_url"
+    :poster-shape="isMusic ? 'square' : 'portrait'"
+    :backdrop="backdropUrl"
+    :meta="factsLine ? [factsLine] : []"
+    :summary="preview && !detail.overview ? '' : overviewText"
+    :loading="preview"
+    :badges="badges"
+    :dates="isMusic ? [] : releaseDates"
+    :actions="actions"
+    :alert="alert"
+    :tabs="tabs"
+    :tab="tab"
+    @update:tab="$emit('update:tab', $event)"
+    @back="$emit('back')"
+    @action="onAction"
   >
-    <template #overlay>
-      <button class="mdh-back icon-button" title="Retour" aria-label="Retour" @click="$emit('back')"><ArrowLeft /></button>
-    </template>
-    <template #poster>
-        <div class="mdh-poster" :class="{ 'is-music': isMusic }">
-          <img v-if="detail.poster_url && !posterFailed" class="mdh-poster-img" @error="posterFailed = true" :src="proxyUrl(detail.poster_url, { width: 780 }) ?? undefined" :srcset="srcSetFor(detail.poster_url, { width: 780 })" alt="" loading="eager" fetchpriority="high" decoding="async" sizes="(max-width: 767px) 140px, 220px">
-          <div v-else class="mdh-poster-fallback">
-            <Music2 v-if="isMusic" />
-            <Film v-else />
-          </div>
-        </div>
-    </template>
-        <div class="mdh-info">
-          <!-- Le type, et juste a cote l'etat de la demande (Demande, En telechargement...).
-               La presence dans Plex et la langue vivent sous l'affiche. -->
-          <div class="mdh-kicker">
-            <span class="eyebrow">{{ typeLabel }}</span>
-            <span v-if="kickerStatus" class="badge mdh-status" :class="kickerStatus.variant">{{ kickerStatus.label }}</span>
-          </div>
-          <h1>{{ detail.title }}</h1>
-          <!-- Annee, note et genres tiennent en une phrase : trois lignes de pastilles en moins.
-               L'origine (demande Seerr, ajout *ARR) vit dans l'onglet Demandes, qui la detaille. -->
-          <p v-if="factsLine" class="mdh-facts">{{ factsLine }}</p>
-          <!-- Une serie detaille sa langue par saison ; un film la porte sous l'affiche. -->
-          <div v-if="isShow && showLanguageSummary && !preview" class="mdh-language-summary">
-            <span v-if="seasonSummary.vf.length" class="badge available">VF : {{ formatSeasonLabel(seasonSummary.vf) }}</span>
-            <span v-if="seasonSummary.vfSecondary.length" class="badge language-tag vf-secondary">VF secondaire : {{ formatSeasonLabel(seasonSummary.vfSecondary) }}</span>
-            <span v-if="seasonSummary.partial.length" class="badge pending_approval">Partielle : {{ formatSeasonLabel(seasonSummary.partial) }}</span>
-            <span v-if="seasonSummary.vo.length" class="badge">VO : {{ formatSeasonLabel(seasonSummary.vo) }}</span>
-          </div>
-          <p v-if="waitingReason && !isMusic" class="mdh-waiting">{{ waitingReason }}</p>
-          <div v-if="preview && !detail.overview" class="mdh-overview-wrapper" aria-hidden="true">
-            <span class="skeleton-line" /><span class="skeleton-line" /><span class="skeleton-line is-short" />
-          </div>
-          <div v-else class="mdh-overview-wrapper">
-            <SheetSummary class="mdh-overview" :text="overviewText" :lines="4" />
-          </div>
-          <!-- La recherche de release d'un film est une fenetre portee par ce composant ; son
-               bouton l'ouvre, il n'a donc pas de declencheur a lui. -->
-          <VfUpgradeButton
-            v-if="canSearchReleases && !isShow && !preview"
-            ref="releaseSearch"
-            hide-trigger
-            :source-type="releaseSourceType!"
-            :source-id="releaseSourceId!"
-            scope="movie"
-            :media-title="detail.title"
-          />
-        </div>
-    <!-- Le dock (voir SheetHero) : chaque element se glisse a droite de l'affiche, sous le texte,
-         tant qu'il tient sans depasser le bas de l'affiche ; sinon il reste dessous, en ligne. -->
-    <template #dock-badges>
-      <div v-if="posterBadges" class="mdh-poster-badges">
-        <span v-if="plexStatus" class="badge mdh-status" :class="plexStatus.variant">{{ plexStatus.label }}</span>
-        <MediaLanguageBadge v-if="movieLanguage" class="badge" :state="detail" />
+    <template #identity>
+      <!-- Une série détaille sa langue par saison ; un film la porte avec ses badges. -->
+      <div v-if="isShow && showLanguageSummary && !preview" class="mdh-language-summary">
+        <span v-if="seasonSummary.vf.length" class="badge available">VF : {{ formatSeasonLabel(seasonSummary.vf) }}</span>
+        <span v-if="seasonSummary.vfSecondary.length" class="badge language-tag vf-secondary">VF secondaire : {{ formatSeasonLabel(seasonSummary.vfSecondary) }}</span>
+        <span v-if="seasonSummary.partial.length" class="badge pending_approval">Partielle : {{ formatSeasonLabel(seasonSummary.partial) }}</span>
+        <span v-if="seasonSummary.vo.length" class="badge">VO : {{ formatSeasonLabel(seasonSummary.vo) }}</span>
       </div>
+      <!-- La recherche de release d'un film est une fenêtre portée par ce composant ; son bouton
+           (une action de l'en-tête) l'ouvre, il n'a donc pas de déclencheur à lui. -->
+      <VfUpgradeButton
+        v-if="canSearchReleases && !isShow && !preview"
+        ref="releaseSearch"
+        hide-trigger
+        :source-type="releaseSourceType!"
+        :source-id="releaseSourceId!"
+        scope="movie"
+        :media-title="detail.title"
+      />
     </template>
-    <template #dock-dates>
-      <dl v-if="releaseDates.length && !isMusic" class="mdh-dates">
-        <div v-for="entry in releaseDates" :key="entry.label">
-          <dt>{{ entry.label }}</dt>
-          <dd>{{ entry.value }}</dd>
-        </div>
-      </dl>
+    <template v-if="movieLanguage" #badges>
+      <li class="is-plain"><MediaLanguageBadge class="badge" :state="detail" /></li>
     </template>
-    <template #dock-actions>
-      <div v-if="preview" class="mdh-links" aria-hidden="true">
-        <span class="skeleton-pill" /><span class="skeleton-pill" />
-      </div>
-      <div v-else class="mdh-links">
-        <button
-          v-if="canRequest && !isMusic"
-          type="button"
-          class="primary-button mdh-listen-btn mdh-request-btn"
-          :disabled="busy"
-          @click="$emit('request')"
-        >
-          <PlusCircle :size="16" /> {{ isShow ? 'Demander la série' : 'Demander ce film' }}
-        </button>
-        <button v-if="plexWebUrl" type="button" class="primary-button mdh-listen-btn" @click="openPlexLink(detail?.plex_guid)">
-          <Headphones v-if="isMusic" :size="16" /><Film v-else :size="16" /> {{ isMusic ? 'Écouter sur Plex' : 'Regarder sur Plex' }}
-        </button>
-        <!-- Le bouton suit le type : Radarr pour un film, Sonarr (recherche par saison) pour une
-             serie. Absent tant que l'*arr correspondant n'est pas configure. -->
-        <button
-          v-if="canDownload"
-          type="button"
-          class="mdh-download-btn"
-          :title="isShow ? 'Recherche par saison dans Sonarr' : 'Recherche de versions dans Radarr'"
-          @click="searchReleases"
-        >
-          <Download :size="16" /> {{ isShow ? 'Télécharger la série' : 'Télécharger le film' }}<small v-if="releaseCount" class="mdh-menu-count">{{ releaseCount }}</small>
-        </button>
-        <!-- Le reste des actions tient dans un menu : une seule action principale par fiche. -->
-        <UiMenu v-if="!isMusic" class="mdh-more-menu" align="end" label="Actions">
-          <template #trigger>
-            <UiButton icon-only class="mdh-more" title="Plus d’actions" aria-label="Plus d’actions"><Ellipsis /></UiButton>
-          </template>
-          <UiMenuItem :disabled="busy || !available" @select="$emit('scan')"><RefreshCw :size="15" /> Analyser</UiMenuItem>
-          <UiMenuSeparator v-if="externalLinks.length" />
-          <UiMenuItem v-for="link in externalLinks" :key="link.label" @select="openExternal(link.href)">
-            <ExternalLink :size="15" /> {{ link.label }}
-          </UiMenuItem>
-          <UiMenuSeparator />
-          <UiMenuItem variant="danger" @select="$emit('report-issue')"><Flag :size="15" /> Signaler un problème</UiMenuItem>
-        </UiMenu>
-      </div>
-    </template>
-  </SheetHero>
+    <template v-for="name in forwarded" :key="name" #[name]="slotProps"><slot :name="name" v-bind="slotProps || {}" /></template>
+  </DetailTemplate>
 </template>
 
 <script setup lang="ts">
 import { isInPlex, mediaAvailabilityBadge } from "@/utils/mediaAvailability";
-import { proxyUrl, srcSetFor } from '@/utils/mediaImage';
+import { proxyUrl } from '@/utils/mediaImage';
 import { mediaTypeLabel, isMusicType } from '@/utils/labels';
 import MediaLanguageBadge from './MediaLanguageBadge.vue';
-import { computed, onMounted, ref, watch } from 'vue';
-import { ArrowLeft, Download, Ellipsis, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, RefreshCw, Search } from '@lucide/vue';
+import { computed, onMounted, ref, useSlots, watch } from 'vue';
+import { Download, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, RefreshCw } from '@lucide/vue';
 import { formatPlexWebUrl, openPlexLink } from '@/mediaUrl';
 import { formatDateLong } from '@/utils/format';
 import { useDownloadSources } from '@/composables/useDownloadSources';
 import VfUpgradeButton from '@/components/media/VfUpgradeButton.vue';
-import SheetHero from '@/components/ui/SheetHero.vue';
-import SheetSummary from '@/components/ui/SheetSummary.vue';
-import UiButton from '@/components/ui/UiButton.vue';
-import UiMenu from '@/components/ui/UiMenu.vue';
-import UiMenuItem from '@/components/ui/UiMenuItem.vue';
-import UiMenuSeparator from '@/components/ui/UiMenuSeparator.vue';
+import DetailTemplate from '@/components/templates/DetailTemplate.vue';
+import type { DetailAction, DetailBadge, DetailTab } from '@/components/templates/DetailTemplate.vue';
 
 export interface SeasonSummaryGroup {
   vf: number[];
@@ -163,6 +84,9 @@ const props = withDefaults(
     /** Donnees partielles de la carte touchee, en attendant la fiche : pas d'actions. */
     preview?: boolean;
     variant?: 'card' | 'sheet';
+    /** Parties de la fiche (onglets) et celle qui est ouverte ; leur contenu vient des emplacements `tab-<cle>`. */
+    tabs?: DetailTab[];
+    tab?: string;
   }>(),
   {
     statusLabel: '',
@@ -173,6 +97,8 @@ const props = withDefaults(
     available: true,
     preview: false,
     variant: 'card',
+    tabs: () => [],
+    tab: '',
   }
 );
 
@@ -242,7 +168,6 @@ const factsLine = computed(() => {
 const status = computed(() => (!isMusic.value && (availabilityStatus.value || (props.statusLabel ? { label: props.statusLabel, variant: props.statusClass } : null))) || null);
 const plexStatus = computed(() => (status.value?.variant === 'in-plex' ? status.value : null));
 const kickerStatus = computed(() => (status.value && !plexStatus.value ? status.value : null));
-const posterBadges = computed(() => Boolean(plexStatus.value || movieLanguage.value));
 /* Un film porte sa langue sous l'affiche ; une serie, le detail par saison. */
 const movieLanguage = computed(() => !isShow.value && !props.preview && showLanguageSummary.value);
 
@@ -261,9 +186,6 @@ const externalLinks = computed(() => {
   if (props.admin && d.arr_url) links.push({ label: d.media_type === 'movie' ? 'Radarr' : 'Sonarr', href: d.arr_url });
   return links;
 });
-function openExternal(href: string): void {
-  window.open(href, '_blank', 'noopener,noreferrer');
-}
 
 
 const plexWebUrl = computed(() => formatPlexWebUrl(props.detail?.plex_guid));
@@ -273,6 +195,7 @@ const emit = defineEmits<{
   (e: 'scan'): void;
   (e: 'open-audio'): void;
   (e: 'request'): void;
+  (e: 'update:tab', key: string): void;
 }>();
 
 const hasSeasonSummary = computed(() => Boolean(
@@ -332,241 +255,49 @@ const releaseDates = computed(() => {
   }
   return [];
 });
+
+/* Le gabarit parle en tons ; la fiche, en variantes de pastilles. */
+function toneOf(variant?: string): DetailBadge['tone'] {
+  const value = String(variant || '');
+  if (/in-plex|available/.test(value)) return 'success';
+  if (/failed|rejected|error/.test(value)) return 'danger';
+  if (/pending|sent|download|importing|approval/.test(value)) return 'warning';
+  return 'neutral';
+}
+/* L'état de la demande, puis la présence dans Plex : les badges de l'en-tête. */
+const badges = computed<DetailBadge[]>(() => [
+  ...(kickerStatus.value ? [{ key: 'status', label: kickerStatus.value.label, tone: toneOf(kickerStatus.value.variant) }] : []),
+  ...(plexStatus.value ? [{ key: 'plex', label: plexStatus.value.label, tone: toneOf(plexStatus.value.variant) }] : []),
+]);
+const alert = computed(() => (waitingReason.value && !isMusic.value ? { tone: 'info' as const, message: String(waitingReason.value) } : null));
+
+/* Les actions : la demande ou Plex en avant, le téléchargement ensuite ; le reste (analyse, liens
+   externes, signalement) dans le menu. Rien tant que la fiche complète n'est pas là. */
+const actions = computed<DetailAction[]>(() => {
+  if (props.preview) return [];
+  const list: DetailAction[] = [];
+  if (canRequest.value && !isMusic.value) list.push({ key: 'request', label: isShow.value ? 'Demander la série' : 'Demander ce film', icon: PlusCircle, disabled: props.busy });
+  if (plexWebUrl.value) list.push({ key: 'plex', label: isMusic.value ? 'Écouter sur Plex' : 'Regarder sur Plex', icon: isMusic.value ? Headphones : Film });
+  if (canDownload.value) list.push({ key: 'download', label: isShow.value ? 'Télécharger la série' : 'Télécharger le film', icon: Download, count: releaseCount.value || undefined });
+  if (!isMusic.value) {
+    list.push({ key: 'scan', label: 'Analyser', icon: RefreshCw, menu: true, disabled: props.busy || !props.available });
+    externalLinks.value.forEach((link, index) => list.push({ key: `link-${link.label}`, label: link.label, icon: ExternalLink, href: link.href, menu: true, separated: index === 0 }));
+    list.push({ key: 'report-issue', label: 'Signaler un problème', icon: Flag, danger: true, menu: true, separated: true });
+  }
+  return list;
+});
+function onAction(key: string): void {
+  if (key === 'request') emit('request');
+  else if (key === 'plex') openPlexLink(props.detail?.plex_guid);
+  else if (key === 'download') searchReleases();
+  else if (key === 'scan') emit('scan');
+  else if (key === 'report-issue') emit('report-issue');
+}
+
+const slots = useSlots();
+const forwarded = computed(() => Object.keys(slots).filter((name) => name.startsWith('tab-') || name === 'after'));
 </script>
-
 <style scoped lang="scss">
-@use '@/styles/foundations/breakpoints' as bp;
-.mdh {
-  margin-bottom: var(--space-6);
-}
-.mdh.is-sheet {
-  margin-bottom: var(--space-5);
-}
-/* Le fondu de la banniere (UiHeroBackdrop `fade`) laisse apparaitre la teinte de la feuille
-   (voir MediaDetailView) : l'image s'y retire sans bord ni flou. */
-.mdh :deep(.mdh-content) {
-  padding: 0 var(--space-5) var(--space-2);
-  max-width: 1280px;
-  margin: 0 auto;
-}
-/* Le contenu est ancre en bas : le retour doit rester en haut a gauche, hors du flux,
-   sinon il descend avec le titre au fond de la banniere. */
-.mdh-back {
-  position: absolute;
-  top: var(--space-4);
-  left: var(--space-4);
-  z-index: 3;
-}
-.mdh-poster {
-  flex: 0 0 180px;
-  width: 180px;
-  aspect-ratio: 2 / 3;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  box-shadow: 0 16px 40px rgba(0,0,0,.5);
-  background: var(--surface-2);
-}
-.mdh-poster.is-music {
-  flex: 0 0 220px;
-  width: 220px;
-  height: 220px;
-  aspect-ratio: 1 / 1;
-  border-radius: var(--radius-lg, 12px);
-  box-shadow: 0 16px 40px rgba(0,0,0,.6);
-}
-.mdh-poster img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.mdh-poster-fallback {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--muted);
-}
-.mdh-info {
-  flex: 1;
-  min-width: 0;
-  padding-bottom: 4px;
-}
-.mdh-info > .eyebrow {
-  color: var(--accent);
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.mdh-info h1 {
-  margin: 4px 0 10px;
-  color: var(--text);
-  font-size: clamp(1.5rem, 3.5vw, 2.3rem);
-  font-weight: 800;
-  line-height: 1.15;
-  text-wrap: balance;
-}
-.mdh-facts {
-  margin: 0 0 10px;
-  color: var(--muted);
-  font-size: var(--fs-md);
-}
-.mdh-kicker {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-/* Etat de la demande a cote du type, presence Plex sous l'affiche : meme habillage. */
-.mdh-status.badge {
-  min-height: 24px;
-  padding: 2px 10px;
-  border-color: color-mix(in srgb, var(--text) 22%, transparent);
-  background: var(--surface-2);
-  color: var(--text);
-  font-size: var(--fs-xs);
-  font-weight: 800;
-  line-height: 1.25;
-}
-.mdh-status.badge.available,
-.mdh-status.badge.in-plex {
-  border-color: var(--green-solid);
-  background: var(--green-solid);
-  color: var(--on-green-solid);
-}
-/* Presence Plex et langue : une seule ligne, sous l'affiche. */
-.mdh-poster-badges {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: var(--space-1);
-  min-width: 0;
-}
-.mdh-poster-badges > .badge { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.mdh-overview-wrapper {
-  max-width: 800px;
-  margin-bottom: 12px;
-}
-.mdh-dates {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-5);
-  margin: 0;
-}
-.mdh-dates > div {
-  display: grid;
-  gap: 2px;
-}
-.mdh-dates dt {
-  color: var(--muted);
-  font-size: var(--fs-xs);
-  text-transform: uppercase;
-  letter-spacing: .02em;
-}
-.mdh-dates dd {
-  margin: 0;
-  color: var(--text);
-  font-size: var(--fs-sm);
-  font-weight: 650;
-}
-.mdh-waiting {
-  max-width: 760px;
-  margin: 0 0 10px;
-  padding: 8px 10px;
-  border-left: 3px solid var(--accent);
-  border-radius: var(--radius-xs);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  color: var(--text);
-  font-size: var(--fs-sm);
-}
-.mdh-links {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-.mdh-language-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-top: 10px;
-}
-
-.mdh-menu-count {
-  margin-left: auto;
-  color: var(--accent);
-  font-weight: 700;
-}
-.mdh-download-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
-  color: var(--text);
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  cursor: pointer;
-}
-@media (hover: hover) and (pointer: fine) {
-  .mdh-download-btn:hover { background: var(--surface-3); }
-}
-.mdh-listen-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 18px;
-  border-radius: var(--radius-md);
-  background: var(--accent);
-  color: var(--on-accent);
-  font-weight: 700;
-  font-size: var(--fs-sm);
-  border: 0;
-  cursor: pointer;
-  transition: transform var(--motion-duration-fast) var(--motion-ease-standard), background-color var(--motion-duration-fast) var(--motion-ease-standard);
-}
-/* Au doigt, pas de survol : le soulevement restait accroche apres un appui. */
-@media (hover: hover) and (pointer: fine) {
-  .mdh-listen-btn:hover {
-    transform: translateY(-1px);
-    background: var(--accent-hover);
-  }
-}
-
-@include bp.until(tablet) {
-  .mdh :deep(.mdh-content) {
-    padding: 0 var(--space-4) 20px;
-  }
-  .mdh-back {
-    top: var(--space-2);
-    left: var(--space-2);
-  }
-  .mdh-info { display: flex; flex-direction: column; width: 100%; }
-  .mdh-poster {
-    flex-basis: auto;
-    width: 140px;
-  }
-  .mdh-poster.is-music {
-    width: 180px;
-    height: 180px;
-  }
-  .mdh-kicker,
-  .mdh-poster-badges,
-  .mdh-language-summary {
-    justify-content: center;
-  }
-  .mdh-facts { text-align: center; }
-  .mdh-overview {
-    text-align: left;
-  }
-  .mdh-dates { justify-content: center; text-align: left; }
-  .mdh-links > .mdh-request-btn,
-  .mdh-links > .mdh-listen-btn,
-  .mdh-links > .mdh-download-btn { min-height: 44px; }
-}
-
+/* Le détail par saison, sous le résumé (une série). */
+.mdh-language-summary { display: flex; flex-wrap: wrap; gap: 6px; }
 </style>

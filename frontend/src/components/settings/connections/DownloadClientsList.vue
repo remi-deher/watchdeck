@@ -1,8 +1,5 @@
 <template>
   <CrudResourceList
-    title="Clients de téléchargement direct"
-    subtitle="Reçoivent une release choisie à la main dans la recherche Prowlarr."
-    :icon="Download"
     :items="clients"
     :item-subtitle="(item: any) => [clientLabel(item.client_type), item.url].filter(Boolean).join(' · ')"
     empty-label="Aucun client configuré."
@@ -21,7 +18,6 @@
 import { useRoute, useRouter } from 'vue-router';
 import { ouvrirFiche } from '@/composables/useMediaOverlay';
 import { useMutation } from '@tanstack/vue-query';
-import { Download } from '@lucide/vue';
 import { api } from '@/api';
 import CrudResourceList from '../CrudResourceList.vue';
 import ConfirmModal from '../../ConfirmModal.vue';
@@ -36,9 +32,8 @@ const CLIENT_LABELS: Record<string, string> = { qbittorrent: 'qBittorrent', tran
 function clientLabel(type: string): string { return CLIENT_LABELS[type] || type || ''; }
 
 const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
-const clientDefaults = { name: '', client_type: 'qbittorrent', url: '', username: '', password: '', category: '', tags: '', is_default: false, enabled: true };
 
-const { items: clients, toggle: toggleClient, remove } = useCrudResource('/api/download-clients', clientDefaults, {
+const { items: clients, toggle: toggleClient, remove } = useCrudResource('/api/download-clients', {
   confirmTitle: 'Supprimer ce client ?',
 });
 

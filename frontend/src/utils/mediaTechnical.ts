@@ -33,7 +33,7 @@ export function frameRateLabel(value: unknown): string {
   return `${rate.toLocaleString('fr-FR', { maximumFractionDigits: 3 })} i/s`;
 }
 
-export function samplingLabel(value: unknown): string {
+function samplingLabel(value: unknown): string {
   const rate = Number(value || 0);
   if (!rate) return '';
   return `${(rate / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} kHz`;
