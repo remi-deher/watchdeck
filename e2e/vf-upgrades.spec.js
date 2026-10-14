@@ -105,8 +105,9 @@ test("sélectionner des suggestions puis « Rechercher la sélection » envoie l
     { source_type: "library_item", source_id: 41 },
     { source_type: "library_item", source_id: 43 },
   ]);
-  // Le résultat est annoncé et la sélection est vidée.
-  await expect(page.getByText("2 recherche(s), 1 suggestion(s) trouvée(s).")).toBeVisible();
+  // Le résultat est annoncé et la sélection est vidée. Le paragraphe visible, pas la région
+  // d'annonce des notifications, qui répète le même texte.
+  await expect(page.locator("p", { hasText: "2 recherche(s), 1 suggestion(s) trouvée(s)." })).toBeVisible();
   await expect(page.getByRole("button", { name: /Rechercher la sélection/ })).toHaveCount(0);
 });
 
