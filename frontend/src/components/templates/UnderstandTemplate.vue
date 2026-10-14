@@ -36,7 +36,11 @@
                 <span class="understand-row__text">
                   <strong>{{ event.title }}</strong>
                   <small v-if="event.detail">{{ event.detail }}</small>
+                  <UiProgress v-if="event.progress != null" class="understand-row__progress" :value="event.progress" :label="`Avancement : ${Math.round(event.progress)} %`" />
                   <span v-if="event.tags?.length" class="understand-tags"><UiBadge v-for="tag in event.tags" :key="tag">{{ tag }}</UiBadge></span>
+                  <dl v-if="event.facts?.length" class="understand-facts">
+                    <div v-for="fact in event.facts" :key="fact.label"><dt>{{ fact.label }}</dt><dd>{{ fact.value }}</dd></div>
+                  </dl>
                 </span>
                 <small v-if="event.context" class="understand-row__context">{{ event.context }}</small>
               </button>
@@ -65,6 +69,7 @@ import InfiniteScrollTrigger from '@/components/ui/InfiniteScrollTrigger.vue';
 import MediaCover from '@/components/ui/MediaCover.vue';
 import UiBadge from '@/components/ui/UiBadge.vue';
 import UiButton from '@/components/ui/UiButton.vue';
+import UiProgress from '@/components/ui/UiProgress.vue';
 import UiEmptyState from '@/components/ui/UiEmptyState.vue';
 import PageTools from '@/components/ui/PageTools.vue';
 import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
@@ -72,7 +77,7 @@ import { parseApiDate } from '@/utils/format';
 import UnderstandDetailPanel from './understand/UnderstandDetail.vue';
 import type { UnderstandDetail, UnderstandEvent, UnderstandOption, UnderstandOutcome, UnderstandSummary } from './understand/types';
 
-export type { UnderstandDetail, UnderstandEvent, UnderstandOption, UnderstandOutcome, UnderstandPreview, UnderstandSummary } from './understand/types';
+export type { UnderstandDetail, UnderstandEvent, UnderstandFact, UnderstandOption, UnderstandOutcome, UnderstandPreview, UnderstandSummary } from './understand/types';
 
 const props = withDefaults(
   defineProps<{
@@ -179,6 +184,12 @@ const days = computed(() => {
 .understand-row__text small { color: var(--muted); }
 .understand-row.is-failed .understand-row__text small { color: var(--red-text); }
 .understand-row__context { flex: none; color: var(--muted); }
+.understand-row__progress { max-width: 16rem; height: 4px; margin-block: 3px; }
+.understand-facts { display: flex; flex-wrap: wrap; gap: 2px var(--space-3); margin: 2px 0 0; padding: 0; }
+.understand-facts div { display: inline-flex; gap: 4px; min-width: 0; font-size: var(--fs-xs); }
+.understand-facts dt { color: var(--muted); }
+.understand-facts dt::after { content: ' :'; }
+.understand-facts dd { margin: 0; color: var(--text); font-variant-numeric: tabular-nums; }
 .understand__sheet { position: sticky; top: var(--space-4); min-width: 0; }
 
 /* Telephone : le detail passe par-dessus la liste, en feuille, et la place est gardee. */

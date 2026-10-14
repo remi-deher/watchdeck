@@ -14,14 +14,13 @@ import { useRealtime } from '@/events';
 import { queryKeys } from '@/queryKeys';
 import { playbackLiveQuery } from '@/sharedQueries';
 import { humanizeError } from '@/utils/apiError';
-import { etatDeSerie, etatDeSurface, etatDeVoisins, ouvrirFiche } from '@/composables/useMediaOverlay';
+import { etatDeSerie, etatDeVoisins, ouvrirFiche } from '@/composables/useMediaOverlay';
 import { episodeLabel } from '@/utils/episode';
 import { usePreference } from '@/composables/usePreference';
-import { exportHistoryCsv, foldPlaybackRuns, playbackDisplayTitle } from '@/activity/playbackRuns';
+import { exportHistoryCsv, foldPlaybackRuns, playbackDisplayTitle, playbackLocation, type PlaybackRun } from '@/activity/playbackRuns';
 import { plexClientName } from '@/utils/plexClient';
 import type { AnalyzeKpi } from '@/components/templates/analyze/types';
-import type { TrackRecent } from '@/components/templates/track/types';
-import type { UnderstandEvent, UnderstandOutcome } from '@/components/templates/understand/types';
+import type { UnderstandEvent, UnderstandFact, UnderstandOutcome } from '@/components/templates/understand/types';
 
 export function useActivity() {
   const route=useRoute(),router=useRouter();
@@ -331,32 +330,40 @@ export function useActivity() {
   },350);
   watch(matchedUser,()=>applyScope());
 
-  /* Les dernieres lectures terminees, sous le suivi, avant le lien vers l'historique complet. */
-const liveRecent=computed((): TrackRecent[]=>{
-  const surface=etatDeSurface(route.fullPath);
-  const ids=history.value.items.map((row: any)=>row.id).filter((id: any)=>id!=null);
-  return history.value.items.slice(0,5).map((row: any)=>({
-    key:`recent-${sessionKey(row)}`,
-    title:displayTitle(row),
-    detail:[row.user_name,formatDate(row.started_at)].filter(Boolean).join(' · '),
-    poster:row.thumb_url||null,
-    to:row.id!=null?{path:`/activity/session/${row.id}`,state:{...surface,...etatDeVoisins(ids)}}:null,
-  }));
-});
-
 /* L'historique (gabarit Comprendre) : une ligne par reprise repliee, avec son mode de
      lecture comme resultat. Un transcodage est un avertissement, la lecture directe un succes. */
   const historyRuns=computed(()=>foldPlaybackRuns(history.value.items));
   const METHOD_OUTCOME: Record<string, UnderstandOutcome>={direct_play:'success',direct_stream:'info',transcode:'warning',mixed:'warning'};
+  /* Ce qu'une ligne de l'historique dit en plus : combien a ete regarde, a quelle qualite et
+     a quel debit, d'ou. Seules les donnees connues s'affichent. */
+  const runProgress=(run: PlaybackRun): number|null=>{
+    const total=Number(run.item.duration_ms)||0;
+    if(!total)return typeof run.item.progress==='number'?Math.min(100,Math.max(0,run.item.progress)):null;
+    return Math.min(100,Math.round(run.watchedMs/total*100));
+  };
+  const runFacts=(run: PlaybackRun): UnderstandFact[]=>{
+    const item=run.item;
+    const total=Number(item.duration_ms)||0;
+    const quality=[item.quality,item.video_codec&&String(item.video_codec).toUpperCase()].filter(Boolean).join(' · ');
+    const facts: Array<UnderstandFact|null>=[
+      run.watchedMs?{label:'Regardé',value:total?`${formatDuration(run.watchedMs)} sur ${formatDuration(total)}`:formatDuration(run.watchedMs)}:null,
+      quality?{label:'Qualité',value:quality}:null,
+      item.bandwidth_kbps?{label:'Débit',value:formatBandwidth(item.bandwidth_kbps)}:null,
+      item.geo_status?{label:'Lieu',value:playbackLocation(item)}:null,
+    ];
+    return facts.filter((fact): fact is UnderstandFact=>fact!==null);
+  };
   const historyEvents=computed((): UnderstandEvent[]=>historyRuns.value.map((run)=>({
     key:run.key,
     at:run.item.started_at||'',
     outcome:METHOD_OUTCOME[run.method]||'info',
     title:`${playbackDisplayTitle(run.item)||'Lecture Plex'}${run.count>1?` ×${run.count}`:''}`,
-    detail:[run.item.user_name||'Utilisateur Plex',run.count>1?`${run.count} lectures consécutives`:'',formatDuration(run.watchedMs)].filter(Boolean).join(' · '),
+    detail:[run.item.user_name||'Utilisateur Plex',run.count>1?`${run.count} lectures consécutives`:''].filter(Boolean).join(' · '),
     tags:run.method?[playbackMethodLabel(run.method,{fallback:run.method==='mixed'?'Lecture mixte':run.method})]:[],
     context:plexClientName(run.item),
     poster:run.item.thumb_url||null,
+    progress:runProgress(run),
+    facts:runFacts(run),
   })));
   const historySummary=computed(()=>[{key:'total',label:history.value.total>1?'lectures sur la période':'lecture sur la période',value:String(history.value.total)}]);
   function openHistoryEvent(event: UnderstandEvent): void {
@@ -455,7 +462,6 @@ const liveRecent=computed((): TrackRecent[]=>{
     knownUsers,
     liveQuery,
     liveSessions,
-    liveRecent,
     load,
     loadHistory,
     loaded,

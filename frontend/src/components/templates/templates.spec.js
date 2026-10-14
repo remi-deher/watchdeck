@@ -204,6 +204,32 @@ describe('ExploreTemplate', () => {
   });
 });
 
+describe('UnderstandTemplate · ligne enrichie', () => {
+  it('montre la couverture, la barre d’avancement et les données complémentaires', () => {
+    const events = [{ key: 'a', at: '2026-10-14T08:00:00', outcome: 'success', title: 'Film', poster: '/api/playback/thumb?x=1', progress: 62, facts: [{ label: 'Regardé', value: '1 h 12 sur 2 h 00' }, { label: 'Qualité', value: '4K · HEVC' }] }];
+    const wrapper = mount(UnderstandTemplate, { props: { events }, global });
+    expect(wrapper.find('.media-cover').exists()).toBe(true);
+    expect(wrapper.find('.understand-row__progress').attributes('aria-valuenow')).toBe('62');
+    expect(wrapper.findAll('.understand-facts div')).toHaveLength(2);
+    expect(wrapper.find('.understand-facts').text()).toContain('1 h 12 sur 2 h 00');
+    expect(wrapper.find('.understand-facts').text()).toContain('4K · HEVC');
+  });
+
+  it('n’ajoute rien quand une ligne n’a ni donnée ni avancement', () => {
+    const wrapper = mount(UnderstandTemplate, { props: { events: [{ key: 'a', at: '2026-10-14T08:00:00', outcome: 'info', title: 'Seul' }] }, global });
+    expect(wrapper.find('.understand-facts').exists()).toBe(false);
+    expect(wrapper.find('.understand-row__progress').exists()).toBe(false);
+  });
+});
+
+describe('TrackTemplate · bloc au-dessus', () => {
+  it('place l’emplacement before avant le suivi', () => {
+    const wrapper = mount(TrackTemplate, { props: { items: [] }, slots: { before: '<p class="top">Tâches</p>', live: '<p class="live">Lectures</p>' }, global });
+    const html = wrapper.find('.track').html();
+    expect(html.indexOf('class="top"')).toBeLessThan(html.indexOf('class="live"'));
+  });
+});
+
 describe('UnderstandTemplate', () => {
   const now = new Date();
   const at = (daysAgo, hour) => { const d = new Date(now); d.setDate(d.getDate() - daysAgo); d.setHours(hour, 0, 0, 0); return d.toISOString(); };
