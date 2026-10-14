@@ -1,6 +1,6 @@
 /* Ce que la vue « Stockages » confie au gabarit « Gérer » : ses colonnes et ses actions,
  * décrites en données. Les clés d'action sont décodées par la page. */
-import { Cable, Database, Settings } from '@lucide/vue';
+import { Cable, Database, GitCompareArrows, PlugZap, Plus, Settings } from '@lucide/vue';
 import type { ControlAction } from '@/components/ui/ControlTable.vue';
 import type { UiColumn } from '@/components/ui/UiDataTable.vue';
 
@@ -13,9 +13,24 @@ export const LOCATION_COLUMNS: UiColumn[] = [
 export const LOCATION_ROW_ACTIONS = (): ControlAction[] => [{ key: 'configure', label: 'Configurer', icon: Settings }];
 
 export const LOCATION_GLOBAL_ACTIONS: ControlAction[] = [
+  { key: 'mappings', label: 'Correspondances Arr ↔ Plex', icon: GitCompareArrows },
   { key: 'connections', label: 'Gérer les connexions', icon: Cable },
   { key: 'inventory', label: 'Consulter l’inventaire', icon: Database },
 ];
+
+export const CONNECTION_COLUMNS: UiColumn[] = [
+  { key: 'name', label: 'Connexion', card: 'title', sortable: true, sortValue: (row: any) => String(row.name || '').toLocaleLowerCase('fr') },
+  { key: 'method', label: 'Méthode' },
+  { key: 'state', label: 'État' },
+];
+
+/** Configurer, et pour un serveur SSH dont l'identite n'est pas confirmee, la confirmer. */
+export const CONNECTION_ROW_ACTIONS = (row: any): ControlAction[] => [
+  { key: 'configure', label: 'Configurer', icon: Settings },
+  ...(row.method === 'ssh' && !row.trusted ? [{ key: 'trust', label: 'Confirmer le serveur SSH', icon: PlugZap, tone: 'primary' as const }] : []),
+];
+
+export const CONNECTION_GLOBAL_ACTIONS: ControlAction[] = [{ key: 'add', label: 'Ajouter une connexion', icon: Plus, tone: 'primary' }];
 
 export const bytesLabel = (n: number | null | undefined): string => n == null ? '—' : `${(n / 1e9).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} Go`;
 

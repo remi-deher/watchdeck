@@ -531,6 +531,55 @@ describe('CreateTemplate · champs', () => {
   });
 });
 
+describe('CreateTemplate · liste à cocher, champs dynamiques, action secondaire', () => {
+  const button = (label) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === label);
+  const build = (calls) => {
+    const found = { dossiers: ['/a', '/b'] };
+    return {
+      noun: 'une tâche',
+      another: 'une autre tâche',
+      secondaryActions: [{ key: 'save', label: 'Enregistrer sans lancer' }],
+      initial: () => ({ picks: ['/a'], protectedKeys: [] }),
+      steps: [{
+        key: 'choix',
+        label: 'Choix',
+        title: 'Quoi ?',
+        fields: (values) => [
+          { key: 'picks', type: 'checklist', label: 'Dossiers', options: found.dossiers.map((value) => ({ value, label: value, action: 'Conserver ici' })), onAction: (value) => { calls.push(['protect', value]); } },
+          ...(values.picks.length ? [{ key: 'note', type: 'note', label: 'Résumé', text: `${values.picks.length} choisi(s)` }] : []),
+        ],
+      }],
+      submit: async (values, action) => { calls.push(['submit', action, [...values.picks]]); return { message: 'Fait' }; },
+    };
+  };
+
+  it('coche et décoche, déclenche l’action d’un élément, adapte les champs aux réponses', async () => {
+    const { default: CreateTemplate } = await import('./CreateTemplate.vue');
+    const calls = [];
+    const wrapper = mount(CreateTemplate, { props: { open: true, definition: build(calls) }, attachTo: document.body, global });
+    await flushPromises();
+    expect(document.body.textContent).toContain('1 choisi(s)');
+    const boxes = () => [...document.querySelectorAll('.create__checklist [role="checkbox"]')];
+    boxes()[1].click(); await flushPromises();
+    expect(document.body.textContent).toContain('2 choisi(s)');
+    boxes()[0].click(); boxes()[1].click(); await flushPromises();
+    expect(document.body.textContent).not.toContain('choisi(s)');
+    [...document.querySelectorAll('.create__checklist button')].filter((b) => b.textContent.trim() === 'Conserver ici')[1].click();
+    expect(calls).toContainEqual(['protect', '/b']);
+    wrapper.unmount();
+  });
+
+  it('transmet la clé de l’action secondaire à la création', async () => {
+    const { default: CreateTemplate } = await import('./CreateTemplate.vue');
+    const calls = [];
+    const wrapper = mount(CreateTemplate, { props: { open: true, definition: build(calls) }, attachTo: document.body, global });
+    await flushPromises();
+    button('Enregistrer sans lancer').click(); await flushPromises();
+    expect(calls).toContainEqual(['submit', 'save', ['/a']]);
+    wrapper.unmount();
+  });
+});
+
 describe('AnalyzeTemplate', () => {
   const leads = Array.from({ length: 7 }, (_, i) => ({ key: `l${i}`, text: `Constat ${i}` }));
 
