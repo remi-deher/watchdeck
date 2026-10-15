@@ -12,7 +12,7 @@ withDefaults(defineProps<{ tone?: 'neutral' | 'info' | 'success' | 'warning' | '
 </script>
 
 <style scoped lang="scss">
-.ui-badge { display: inline-flex; flex: none; align-items: center; gap: var(--space-1); max-width: 100%; min-height: 24px; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius-xs); background: var(--surface-2); color: var(--muted); font-size: var(--fs-xs); font-weight: 650; white-space: nowrap; }
+.ui-badge { display: inline-flex; flex: none; align-items: center; justify-content: center; gap: var(--space-1); max-width: 100%; min-height: 24px; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius-xs); background: var(--surface-2); color: var(--muted); font-size: var(--fs-xs); font-weight: 650; white-space: nowrap; }
 .ui-badge--pill,.ui-badge:has(.ui-status-dot) { min-height: 26px; padding-inline: 9px; border-radius: var(--radius-pill); }
 .ui-status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in srgb,currentColor 14%,transparent); }
 .is-success { color: var(--on-green-solid); border-color: var(--green-solid); background: color-mix(in srgb, var(--green-solid) 88%, var(--surface)); }
