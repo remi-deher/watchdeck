@@ -32,7 +32,15 @@ export function useMediaDetail() {
   const { addToast } = useToast();
   const kind = computed(() => String(route.params.kind || ''));
   const mediaId = computed(() => String(route.params.id || ''));
-  const mediaQueryKey = computed(() => ['media', kind.value, mediaId.value] as const);
+  // La fiche decouverte depend aussi du type de media et de l'espace d'identifiants.
+  // TMDB/TVDB et films/series peuvent partager le meme identifiant numerique.
+  const mediaQueryKey = computed(() => [
+    'media',
+    kind.value,
+    mediaId.value,
+    String(route.query.media_type || ''),
+    String(route.query.id_type || ''),
+  ] as const);
 
   const {
     requesting: recRequesting,

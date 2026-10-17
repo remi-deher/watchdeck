@@ -19,60 +19,16 @@
       </CollapsibleTrigger>
     </div>
 
-    <!-- Barre visuelle segmentée -->
-    <div
-      class="timeline-track-wrapper"
-      role="progressbar"
-      :aria-valuenow="progressPercent"
-      aria-valuemin="0"
-      aria-valuemax="100"
-    >
-      <div class="timeline-track">
-        <div
-          v-for="(seg, idx) in normalizedSegments"
-          :key="seg.id || idx"
-          :class="[
-            'timeline-segment',
-            `seg-${seg.state}`,
-            seg.playback_method ? `method-${seg.playback_method}` : '',
-            { 'is-selected': highlightedIndex === idx },
-            { 'is-live': isLiveActiveSegment(seg, idx) }
-          ]"
-          :style="{ width: `${seg.percentWidth}%` }"
-          :title="segmentTooltip(seg)"
-          tabindex="0"
-          @click="selectSegment(idx)"
-          @keydown.enter="selectSegment(idx)"
-          @keydown.space.prevent="selectSegment(idx)"
-        >
-          <span class="live-pulse" v-if="isLiveActiveSegment(seg, idx)" />
-          <span class="sr-only">{{ segmentTooltip(seg) }}</span>
-        </div>
-      </div>
-
-      <!-- Repères temporels (Ticks) sous la barre -->
-      <div class="timeline-ticks" aria-hidden="true">
-        <span>0:00</span>
-        <span v-if="totalDurationMs > 60000">{{ formatDuration(Math.round(totalDurationMs / 2)) }}</span>
-        <span>{{ formatDuration(totalDurationMs) }}</span>
-      </div>
-    </div>
-
-    <!-- Légende récapitulative -->
-    <div class="timeline-legend">
-      <div class="legend-item" v-if="hasDirectPlay">
-        <span class="legend-dot dot-direct"></span>
-        <span>Lecture directe ({{ formatDuration(directPlayMs) }})</span>
-      </div>
-      <div class="legend-item" v-if="hasTranscode">
-        <span class="legend-dot dot-transcode"></span>
-        <span>Transcodage ({{ formatDuration(transcodeMs) }})</span>
-      </div>
-      <div class="legend-item" v-if="hasPause">
-        <span class="legend-dot dot-pause"></span>
-        <span>Pause ({{ formatDuration(pausedMs) }})</span>
-      </div>
-    </div>
+    <!-- Barre segmentée, repères temporels et légende récapitulative -->
+    <UiSegmentTrack
+      :segments="trackSegments"
+      :total="totalDurationMs"
+      :selected="highlightedIndex"
+      :progress="progressPercent"
+      :ticks="ticks"
+      :legend="legend"
+      @select="selectSegment"
+    />
 
     <!-- Journal détaillé des segments (Dépliable) -->
     <transition name="expand">
@@ -132,18 +88,13 @@ import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui
 import { computed, ref } from 'vue';
 import { ChevronDown, Clock, FastForward, Pause, Play, RotateCw, Zap } from '@lucide/vue';
 import { formatDurationExact as formatDuration, formatTime } from '@/utils/format';
+import UiSegmentTrack, { type TrackLegendItem } from '@/components/ui/UiSegmentTrack.vue';
+import {
+  playbackTrackSegments, segmentStateLabel, sessionDurationMs, sessionProgressPercent, sessionSegments, sessionTotals,
+} from '@/activity/sessionTimeline';
 
-interface Segment {
-  id?: number;
-  state: string;
-  playback_method?: string | null;
-  started_at?: string | null;
-  ended_at?: string | null;
-  duration_ms: number;
-  view_offset_start_ms?: number;
-  view_offset_end_ms?: number;
-}
-
+/* Déroulé d'une lecture : la barre commune (UiSegmentTrack) nourrie des passages de la
+   session, et leur journal dépliable. Les calculs vivent dans `@/activity/sessionTimeline`. */
 const props = defineProps<{
   session: Record<string, any>;
 }>();
@@ -151,137 +102,36 @@ const props = defineProps<{
 const isExpanded = ref(false);
 const highlightedIndex = ref<number | null>(null);
 
-
-
 function selectSegment(idx: number) {
   isExpanded.value = true;
   highlightedIndex.value = idx;
 }
 
-const segments = computed<Segment[]>(() => {
-  if (Array.isArray(props.session?.segments) && props.session.segments.length > 0) {
-    return props.session.segments;
-  }
-  // Fallback si pas de segments détaillés
-  const watched = props.session?.progress_ms || props.session?.watched_ms || 0;
-  if (watched > 0) {
-    return [
-      {
-        state: props.session?.state || 'playing',
-        playback_method: props.session?.playback_method || 'direct_play',
-        duration_ms: watched,
-        view_offset_start_ms: props.session?.initial_progress_ms || 0,
-        view_offset_end_ms: watched,
-      },
-    ];
-  }
-  return [];
-});
-
+const segments = computed(() => sessionSegments(props.session));
 const hasTimelineData = computed(() => segments.value.length > 0 || (props.session?.duration_ms || 0) > 0);
-
-const totalDurationMs = computed(() => {
-  return Math.max(
-    props.session?.duration_ms || 0,
-    props.session?.progress_ms || 0,
-    segments.value.reduce((acc, s) => acc + (s.duration_ms || 0), 0),
-    1
-  );
-});
-
-const totalTimelineMs = computed(() => {
-  const totalSegMs = segments.value.reduce((acc, s) => acc + (s.duration_ms || 0), 0);
-  return Math.max(totalSegMs, totalDurationMs.value, 1);
-});
-
-const progressPercent = computed(() => {
-  return Math.min(
-    100,
-    Math.round(((props.session?.progress_ms || props.session?.watched_ms || 0) / totalDurationMs.value) * 100)
-  );
-});
-
-const normalizedSegments = computed(() => {
-  const total = totalTimelineMs.value;
-  return segments.value.map((seg) => {
-    const dur = Math.max(seg.duration_ms || 0, 1000); // Au moins 1s visible
-    const percentWidth = Math.max(0.8, (dur / total) * 100);
-    return {
-      ...seg,
-      percentWidth,
-    };
-  });
-});
-
-const directPlayMs = computed(() => {
-  return segments.value
-    .filter((s) => s.state === 'playing' && s.playback_method !== 'transcode')
-    .reduce((acc, s) => acc + (s.duration_ms || 0), 0);
-});
-
-const transcodeMs = computed(() => {
-  return segments.value
-    .filter((s) => s.state === 'playing' && s.playback_method === 'transcode')
-    .reduce((acc, s) => acc + (s.duration_ms || 0), 0);
-});
-
-const pausedMs = computed(() => {
-  return (
-    props.session?.paused_ms ||
-    segments.value
-      .filter((s) => s.state === 'paused')
-      .reduce((acc, s) => acc + (s.duration_ms || 0), 0)
-  );
-});
-
-const pauseCount = computed(() => {
-  return segments.value.filter((s) => s.state === 'paused').length;
-});
-
-const hasDirectPlay = computed(() => directPlayMs.value > 0);
-const hasTranscode = computed(() => transcodeMs.value > 0);
+const totalDurationMs = computed(() => sessionDurationMs(props.session, segments.value));
+const progressPercent = computed(() => sessionProgressPercent(props.session, totalDurationMs.value));
+const trackSegments = computed(() => playbackTrackSegments(props.session, segments.value));
+const totals = computed(() => sessionTotals(props.session, segments.value));
+const pausedMs = computed(() => totals.value.pausedMs);
+const pauseCount = computed(() => totals.value.pauseCount);
 const hasPause = computed(() => pausedMs.value > 0);
+const activePlayRatio = computed(() => totals.value.activePlayRatio);
 
-const activePlayRatio = computed<number | null>(() => {
-  const totalPlay = directPlayMs.value + transcodeMs.value;
-  const totalOverall = totalPlay + pausedMs.value;
-  if (totalOverall <= 0) return null;
-  return Math.round((totalPlay / totalOverall) * 100);
+const ticks = computed(() => {
+  const total = totalDurationMs.value;
+  return ['0:00', ...(total > 60000 ? [formatDuration(Math.round(total / 2))] : []), formatDuration(total)];
 });
 
-function isLiveActiveSegment(seg: Segment, idx: number): boolean {
-  return (
-    idx === segments.value.length - 1 &&
-    props.session?.state === 'playing' &&
-    !props.session?.ended_at &&
-    seg.state === 'playing'
-  );
-}
-
-function segmentStateLabel(seg: Segment): string {
-  if (seg.state === 'paused') return 'Pause';
-  if (seg.state === 'buffering') return 'Mise en mémoire tampon';
-  if (seg.state === 'playing') {
-    return seg.playback_method === 'transcode' ? 'Lecture (Transcodage)' : 'Lecture directe';
-  }
-  return 'Session';
-}
-
-function segmentTooltip(seg: Segment): string {
-  const label = segmentStateLabel(seg);
-  const dur = formatDuration(seg.duration_ms);
-  let timeStr = '';
-  if (seg.started_at) {
-    const start = formatTime(seg.started_at);
-    const end = seg.ended_at ? formatTime(seg.ended_at) : 'en cours';
-    timeStr = ` [${start} - ${end}]`;
-  }
-  let offsetStr = '';
-  if (seg.view_offset_start_ms !== undefined && seg.view_offset_end_ms !== undefined) {
-    offsetStr = ` (Position : ${formatDuration(seg.view_offset_start_ms)} -> ${formatDuration(seg.view_offset_end_ms)})`;
-  }
-  return `${label} : ${dur}${timeStr}${offsetStr}`;
-}
+const legend = computed(() => {
+  const { directPlayMs, transcodeMs } = totals.value;
+  const items: Array<TrackLegendItem | null> = [
+    directPlayMs > 0 ? { key: 'direct', label: `Lecture directe (${formatDuration(directPlayMs)})`, tone: 'success' } : null,
+    transcodeMs > 0 ? { key: 'transcode', label: `Transcodage (${formatDuration(transcodeMs)})`, tone: 'warning' } : null,
+    hasPause.value ? { key: 'pause', label: `Pause (${formatDuration(pausedMs.value)})`, tone: 'neutral' } : null,
+  ];
+  return items.filter((item): item is TrackLegendItem => item !== null);
+});
 </script>
 
 <style scoped>
@@ -297,7 +147,6 @@ function segmentTooltip(seg: Segment): string {
   border: 0;
   border-radius: var(--radius-sm);
 }
-
 .timeline-header {
   display: flex;
   flex-wrap: wrap;
@@ -305,7 +154,6 @@ function segmentTooltip(seg: Segment): string {
   align-items: center;
   gap: 0.5rem;
 }
-
 /* Sur mobile, le titre et le badge passent a la ligne plutot que d'ecraser le bouton
    (« 10 segment / s » sur deux lignes). */
 .header-left {
@@ -315,12 +163,7 @@ function segmentTooltip(seg: Segment): string {
   gap: 0.5rem;
   min-width: 0;
 }
-
-.timeline-title,
-.timeline-ratio-badge {
-  white-space: nowrap;
-}
-
+.timeline-title, .timeline-ratio-badge { white-space: nowrap; }
 .timeline-title {
   font-size: var(--fs-xs);
   font-weight: 600;
@@ -328,7 +171,6 @@ function segmentTooltip(seg: Segment): string {
   letter-spacing: 0.05em;
   color: var(--text-muted);
 }
-
 .timeline-ratio-badge {
   font-size: var(--fs-xs);
   font-weight: 600;
@@ -338,7 +180,6 @@ function segmentTooltip(seg: Segment): string {
   color: var(--green);
   border: 1px solid color-mix(in srgb, var(--green) 25%, transparent);
 }
-
 .timeline-toggle-btn {
   display: flex;
   flex: none;
@@ -355,138 +196,13 @@ function segmentTooltip(seg: Segment): string {
   cursor: pointer;
   transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
-
 .timeline-toggle-btn:hover {
   background: var(--bg-surface-hover, rgb(var(--ink) / 0.08));
   color: var(--text-primary);
   border-color: var(--border-strong, rgb(var(--ink) / 0.2));
 }
-
-.toggle-chevron {
-  transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
-}
-
-.toggle-chevron.is-open {
-  transform: rotate(180deg);
-}
-
-.timeline-track-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.timeline-track {
-  display: flex;
-  height: 0.8rem;
-  background: var(--bg-surface-soft, rgb(var(--ink) / 0.06));
-  border-radius: var(--radius-pill);
-  overflow: hidden;
-  gap: 2px;
-  padding: 1px;
-  box-shadow: inset 0 1px 2px rgb(var(--shadow-color) / calc(0.3 * var(--shadow-scale)));
-}
-
-.timeline-segment {
-  position: relative;
-  height: 100%;
-  border-radius: var(--radius-xs);
-  transition: opacity var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard), filter var(--motion-duration-instant) var(--motion-ease-standard);
-  cursor: pointer;
-}
-
-.timeline-segment:hover,
-.timeline-segment:focus-visible {
-  opacity: 0.9;
-  filter: brightness(1.25);
-  transform: scaleY(1.15);
-  outline: 1px solid var(--accent);
-}
-
-.timeline-segment.is-selected {
-  outline: 2px solid var(--text);
-  filter: brightness(1.3);
-}
-
-.seg-playing {
-  background: var(--green); /* Emerald 500 */
-}
-
-.seg-playing.method-transcode {
-  background: var(--amber); /* Amber 500 */
-}
-
-.seg-paused {
-  background: var(--slate); /* Slate 500 */
-}
-
-.seg-buffering {
-  background: var(--violet); /* Purple 500 */
-}
-
-.live-pulse {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 4px;
-  background: var(--text);
-  border-radius: var(--radius-pill);
-  animation: pulse-glow 1.5s infinite ease-in-out;
-}
-
-@keyframes pulse-glow {
-  0%, 100% {
-    opacity: 0.3;
-  }
-  50% {
-    opacity: 1;
-    box-shadow: 0 0 6px var(--text);
-  }
-}
-
-.timeline-ticks {
-  display: flex;
-  justify-content: space-between;
-  font-size: var(--fs-xs);
-  font-weight: 500;
-  color: var(--text-muted);
-  padding: 0 0.15rem;
-}
-
-.timeline-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.85rem;
-  font-size: var(--fs-xs);
-  color: var(--text-secondary);
-  margin-top: 0.1rem;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.legend-dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 50%;
-}
-
-.dot-direct {
-  background: var(--green);
-}
-
-.dot-transcode {
-  background: var(--amber);
-}
-
-.dot-pause {
-  background: var(--slate);
-}
-
+.toggle-chevron { transition: transform var(--motion-duration-fast) var(--motion-ease-standard); }
+.toggle-chevron.is-open { transform: rotate(180deg); }
 /* Journal détaillé des segments */
 .segments-log-drawer {
   display: flex;
@@ -496,7 +212,6 @@ function segmentTooltip(seg: Segment): string {
   padding-top: 0.6rem;
   border-top: 1px solid var(--border-subtle, rgb(var(--ink) / 0.08));
 }
-
 .log-header {
   display: flex;
   justify-content: space-between;
@@ -504,18 +219,8 @@ function segmentTooltip(seg: Segment): string {
   font-size: var(--fs-xs);
   color: var(--text-muted);
 }
-
-.log-eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-weight: 600;
-}
-
-.log-stats {
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
+.log-eyebrow { text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+.log-stats { color: var(--text-secondary); font-weight: 500; }
 .segments-list {
   list-style: none;
   margin: 0;
@@ -526,7 +231,6 @@ function segmentTooltip(seg: Segment): string {
   max-height: 180px;
   overflow-y: auto;
 }
-
 .segment-row {
   display: flex;
   align-items: center;
@@ -538,18 +242,12 @@ function segmentTooltip(seg: Segment): string {
   cursor: pointer;
   transition: background-color var(--motion-duration-instant) var(--motion-ease-standard), border-color var(--motion-duration-instant) var(--motion-ease-standard), color var(--motion-duration-instant) var(--motion-ease-standard), box-shadow var(--motion-duration-instant) var(--motion-ease-standard), opacity var(--motion-duration-instant) var(--motion-ease-standard), transform var(--motion-duration-instant) var(--motion-ease-standard);
 }
-
 .segment-row:hover,
 .segment-row:focus-visible {
   background: var(--bg-surface-hover, rgb(var(--ink) / 0.08));
   border-color: var(--border-strong, rgb(var(--ink) / 0.15));
 }
-
-.segment-row.row-highlighted {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--blue) 12%, transparent);
-}
-
+.segment-row.row-highlighted { border-color: var(--accent); background: color-mix(in srgb, var(--blue) 12%, transparent); }
 .segment-icon-wrapper {
   display: flex;
   align-items: center;
@@ -559,26 +257,10 @@ function segmentTooltip(seg: Segment): string {
   border-radius: 50%;
   flex-shrink: 0;
 }
-
-.row-playing .segment-icon-wrapper {
-  background: color-mix(in srgb, var(--green) 15%, transparent);
-  color: var(--green);
-}
-
-.row-playing .icon-transcode {
-  color: var(--amber-text);
-}
-
-.row-paused .segment-icon-wrapper {
-  background: color-mix(in srgb, var(--slate) 15%, transparent);
-  color: var(--muted);
-}
-
-.row-buffering .segment-icon-wrapper {
-  background: color-mix(in srgb, var(--violet) 15%, transparent);
-  color: var(--violet-text);
-}
-
+.row-playing .segment-icon-wrapper { background: color-mix(in srgb, var(--green) 15%, transparent); color: var(--green); }
+.row-playing .icon-transcode { color: var(--amber-text); }
+.row-paused .segment-icon-wrapper { background: color-mix(in srgb, var(--slate) 15%, transparent); color: var(--muted); }
+.row-buffering .segment-icon-wrapper { background: color-mix(in srgb, var(--violet) 15%, transparent); color: var(--violet-text); }
 .segment-main-info {
   display: flex;
   flex-direction: column;
@@ -586,26 +268,14 @@ function segmentTooltip(seg: Segment): string {
   gap: 0.15rem;
   min-width: 0;
 }
-
 .segment-title-line {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 0.5rem;
 }
-
-.segment-name {
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.segment-duration-tag {
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
+.segment-name { font-size: var(--fs-xs); font-weight: 600; color: var(--text-primary); }
+.segment-duration-tag { font-size: var(--fs-xs); font-weight: 600; color: var(--text-secondary); }
 .segment-sub-info {
   display: flex;
   flex-wrap: wrap;
@@ -613,32 +283,13 @@ function segmentTooltip(seg: Segment): string {
   font-size: var(--fs-xs);
   color: var(--text-muted);
 }
-
-.info-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
+.info-pill { display: inline-flex; align-items: center; gap: 0.25rem; }
 /* Animations de transition */
 .expand-enter-active,
 .expand-leave-active {
   transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), opacity var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
   overflow: hidden;
 }
-
-.expand-enter-from,
-.expand-leave-to {
-  opacity: 0;
-  max-height: 0;
-  transform: translateY(-4px);
-}
-
-.expand-enter-to,
-.expand-leave-from {
-  opacity: 1;
-  max-height: 250px;
-  transform: translateY(0);
-}
-
+.expand-enter-from, .expand-leave-to { opacity: 0; max-height: 0; transform: translateY(-4px); }
+.expand-enter-to, .expand-leave-from { opacity: 1; max-height: 250px; transform: translateY(0); }
 </style>

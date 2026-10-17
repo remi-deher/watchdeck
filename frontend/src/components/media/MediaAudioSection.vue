@@ -22,7 +22,7 @@
         >
           <template #season-header="{ season }">
             <div class="season-summary-row">
-              <strong>Saison {{ season.season_number }}{{ season.name && !/^(saison|season)\s*\d+$/i.test(season.name) ? ` — ${season.name}` : '' }}</strong>
+              <strong>{{ seasonHeading(season) }}</strong>
               <div class="inline-row compact season-badges">
                 <span class="badge available" v-if="season.counts?.vf">VF: {{ season.counts.vf }}</span>
                 <span class="badge" v-if="season.counts?.vo">VO: {{ season.counts.vo }}</span>
@@ -30,11 +30,7 @@
                 <span class="badge danger" v-if="season.counts?.absent">Absent: {{ season.counts.absent }}</span>
                 <span class="badge pending_approval" v-if="season.counts?.tba">TBA: {{ season.counts.tba }}</span>
                 <span class="badge" v-if="season.episode_count">{{ season.episode_count }} ep.</span>
-                <!-- Badges sous-titre saison -->
-                <UiTooltip :focusable="false" v-if="season.counts?.sub_fr_no_track" text="Épisodes sans aucune piste de sous-titre : les sous-titres sont probablement incrustés dans l’image."><span class="badge" style="background:var(--muted);color:var(--bg)">Sous-titres incrustés : {{ season.counts.sub_fr_no_track }}</span></UiTooltip>
-                <UiTooltip :focusable="false" v-if="season.counts?.sub_fr_absent" text="Épisodes non-francophones sans sous-titre FR complet"><span class="badge danger">Sub FR absent: {{ season.counts.sub_fr_absent }}</span></UiTooltip>
-                <UiTooltip :focusable="false" v-if="season.counts?.sub_fr_not_default" text="Épisodes avec sous-titre FR complet non activé par défaut"><span class="badge pending">Sub FR non activé: {{ season.counts.sub_fr_not_default }}</span></UiTooltip>
-                <UiTooltip :focusable="false" v-if="season.counts?.forced_fr_not_default" text="Épisodes francophones avec sous-titre forcé FR (sign/trad) non activé par défaut"><span class="badge language-tag vf-secondary">Forcé FR non activé: {{ season.counts.forced_fr_not_default }}</span></UiTooltip>
+                <MediaSubtitleAlerts :alerts="seasonSubtitleAlerts(season.counts)" context="season" :focusable="false" />
                 <UiButton icon-only v-if="admin && sourceId" @click.prevent.stop="openAlignModal('season', season.season_number)" title="Aligner les pistes de cette saison sur Plex" aria-label="Aligner la saison">
                   <SlidersHorizontal :size="15" />
                 </UiButton>
@@ -53,81 +49,41 @@
           </template>
 
           <template #episode="{ season, episode: ep }">
-            <div class="episode-row" @click="toggleEpisode(season.season_number, ep.episode)">
-              <div class="episode-main">
-                <img
-                  v-if="ep.still_url"
-                  :src="ep.still_url"
-                  alt=""
-                  class="episode-still"
+            <MediaEpisodeRow
+              :number="ep.episode"
+              :title="ep.title"
+              :still="ep.still_url"
+              :air-date="ep.air_date"
+              :overview="ep.overview"
+              :expanded="isEpisodeExpanded(season.season_number, ep.episode)"
+              @toggle="toggleEpisode(season.season_number, ep.episode)"
+            >
+              <template #actions>
+                <UiTooltip v-if="ep.isKnownEpisode === false" text="Non reconnu par Sonarr/TheTVDB : compté hors statut VF/VO/Mixte de la série"><span class="badge pending">Hors TVDB</span></UiTooltip>
+                <UiButton icon-only v-if="admin && sourceId && ep.isKnownEpisode !== false && ep.status !== 'tba'" @click.prevent.stop="openAlignModal('episode', season.season_number, ep.episode)" title="Aligner les pistes de cet épisode sur Plex" aria-label="Aligner l'épisode">
+                  <SlidersHorizontal :size="14" />
+                </UiButton>
+                <VfUpgradeButton
+                  v-if="admin && sourceType && sourceId && ep.isKnownEpisode !== false && ep.status !== 'tba'"
+                  :source-type="sourceType"
+                  :source-id="sourceId"
+                  scope="episode"
+                  :season-number="season.season_number"
+                  :episode-number="ep.episode"
+                  :media-title="mediaTitle"
+                  label="Rechercher"
+                />
+                <button
+                  class="badge episode-status-btn"
+                  :class="episodeStatusClass(ep.status)"
+                  @click.stop="ep.status !== 'unknown' && $emit('correction', 'episode', season.season_number, ep.episode)"
+                  :title="ep.status === 'unknown' ? 'Chargement...' : 'Signaler une correction'"
                 >
-                <div v-else class="episode-still"></div>
-                <div class="episode-body">
-                  <div class="episode-title-row">
-                    <strong class="episode-title">{{ ep.episode }}. {{ ep.title || `Episode ${ep.episode}` }}</strong>
-                    <span class="episode-actions">
-                      <UiTooltip v-if="ep.isKnownEpisode === false" text="Non reconnu par Sonarr/TheTVDB : compté hors statut VF/VO/Mixte de la série"><span class="badge pending">Hors TVDB</span></UiTooltip>
-                      <UiButton icon-only v-if="admin && sourceId && ep.isKnownEpisode !== false && ep.status !== 'tba'" @click.prevent.stop="openAlignModal('episode', season.season_number, ep.episode)" title="Aligner les pistes de cet épisode sur Plex" aria-label="Aligner l'épisode">
-                        <SlidersHorizontal :size="14" />
-                      </UiButton>
-                      <VfUpgradeButton
-                        v-if="admin && sourceType && sourceId && ep.isKnownEpisode !== false && ep.status !== 'tba'"
-                        :source-type="sourceType"
-                        :source-id="sourceId"
-                        scope="episode"
-                        :season-number="season.season_number"
-                        :episode-number="ep.episode"
-                        :media-title="mediaTitle"
-                        label="Rechercher"
-                      />
-                      <button
-                        class="badge episode-status-btn"
-                        :class="{'available': ep.status === 'vf', 'language-tag vf-secondary': ep.status === 'vf_secondary', 'danger': ep.status === 'absent', 'pending_approval': ep.status === 'tba', 'pending': ep.status === 'unknown'}"
-                        @click.stop="ep.status !== 'unknown' && $emit('correction', 'episode', season.season_number, ep.episode)"
-                        :title="ep.status === 'unknown' ? 'Chargement...' : 'Signaler une correction'"
-                      >
-                        {{ episodeStatusLabel(ep.status) }}
-                      </button>
-                    </span>
-                  </div>
-                  <p v-if="formatAirDate(ep.air_date)" class="episode-air-date">{{ formatAirDate(ep.air_date) }}</p>
-                  <p v-if="ep.overview" class="episode-overview">{{ ep.overview }}</p>
-                </div>
-              </div>
-              <div v-if="isEpisodeExpanded(season.season_number, ep.episode)" class="episode-detail" @click.stop>
-                <div class="episode-detail-line">
-                  <span class="episode-detail-label">Langues audio</span>
-                  <span v-if="ep.tracks?.length" class="episode-detail-value">
-                    <span v-for="(track, i) in ep.tracks" :key="`t-${i}`" class="badge" :class="track.is_fr ? 'available' : ''">
-                      {{ track.label }}{{ track.is_default ? ' (par défaut)' : '' }}
-                    </span>
-                  </span>
-                  <span v-else class="episode-detail-empty">Aucune piste audio detectee.</span>
-                </div>
-                <div class="episode-detail-line">
-                  <span class="episode-detail-label">Sous-titres</span>
-                  <span v-if="ep.subtitles?.length" class="episode-detail-value">
-                    <span v-for="(sub, i) in ep.subtitles" :key="`s-${i}`" class="badge" :class="sub.is_fr && sub.is_forced ? 'language-tag vf-secondary' : sub.is_fr ? 'available' : ''">
-                      {{ sub.label }}{{ sub.is_forced ? ' (forcé)' : '' }}{{ sub.is_default ? ' (par défaut)' : '' }}
-                    </span>
-                  </span>
-                  <span v-else class="episode-detail-empty">Aucun sous-titre detecte.</span>
-                </div>
-                <!-- Alertes sous-titre épisode (uniquement si les pistes sont connues) -->
-                <div v-if="ep.tracks?.length || ep.subtitles?.length" class="episode-detail-line episode-sub-alerts">
-                  <span class="episode-detail-label">Alertes</span>
-                  <span class="episode-detail-value">
-                    <template v-if="!subtitleAlerts(ep.tracks, ep.subtitles).subFrNoTrack && !subtitleAlerts(ep.tracks, ep.subtitles).subFrAbsent && !subtitleAlerts(ep.tracks, ep.subtitles).subFrNotDefault && !subtitleAlerts(ep.tracks, ep.subtitles).forcedFrNotDefault">
-                      <span class="badge available">Sous-titres OK</span>
-                    </template>
-                    <UiTooltip v-if="subtitleAlerts(ep.tracks, ep.subtitles).subFrNoTrack" text="Aucune piste de sous-titre détectée : les sous-titres sont probablement incrustés dans l’image."><span class="badge" style="background:var(--muted);color:var(--bg)">Sous-titres incrustés</span></UiTooltip>
-                    <UiTooltip v-if="subtitleAlerts(ep.tracks, ep.subtitles).subFrAbsent" text="Pas de sous-titre français complet pour cet épisode non-francophone"><span class="badge danger">Sous-titre FR absent</span></UiTooltip>
-                    <UiTooltip v-if="subtitleAlerts(ep.tracks, ep.subtitles).subFrNotDefault" text="Sous-titre FR complet présent mais non activé par défaut"><span class="badge pending">Sous-titre FR non activé</span></UiTooltip>
-                    <UiTooltip v-if="subtitleAlerts(ep.tracks, ep.subtitles).forcedFrNotDefault" text="Sous-titre FR sign/traduction présent mais non activé par défaut"><span class="badge language-tag vf-secondary">Forcé FR non activé</span></UiTooltip>
-                  </span>
-                </div>
-              </div>
-            </div>
+                  {{ episodeStatusLabel(ep.status) }}
+                </button>
+              </template>
+              <MediaStreamsDetail :tracks="ep.tracks" :subtitles="ep.subtitles" @click.stop />
+            </MediaEpisodeRow>
           </template>
         </SeasonEpisodeList>
         <p v-if="!displayedSeasons.length" class="empty">{{ missingOnly ? 'Aucun épisode manquant.' : 'Aucun détail de saison disponible.' }}</p>
@@ -158,45 +114,12 @@
             />
           </div>
         </div>
-        <!-- Badges sous-titre film -->
         <div v-if="movieSubtitleAlerts" class="subtitle-alerts">
-          <UiTooltip v-if="movieSubtitleAlerts.subFrNoTrack" text="Aucune piste de sous-titre détectée : les sous-titres sont probablement incrustés dans l’image."><span class="badge subtitle-alert-badge" style="background:var(--muted);color:var(--bg)">Sous-titres incrustés</span></UiTooltip>
-          <UiTooltip v-if="movieSubtitleAlerts.subFrAbsent" text="Ce film non-francophone n'a pas de sous-titre français complet"><span class="badge danger subtitle-alert-badge">Sous-titre FR absent</span></UiTooltip>
-          <UiTooltip v-if="movieSubtitleAlerts.subFrNotDefault" text="Un sous-titre français complet est présent mais non activé par défaut"><span class="badge pending subtitle-alert-badge">Sous-titre FR non activé</span></UiTooltip>
-          <UiTooltip v-if="movieSubtitleAlerts.forcedFrNotDefault" text="Un sous-titre FR sign/traduction est présent mais non activé par défaut"><span class="badge language-tag vf-secondary subtitle-alert-badge">Sous-titre forcé FR non activé</span></UiTooltip>
+          <MediaSubtitleAlerts :alerts="movieSubtitleAlerts" context="movie" />
         </div>
-        <UiCollapsible class="season-details track-group" v-if="vfDetail.tracks?.length" :unmount-on-hide="false" trigger-class="track-group-summary collapsible-trigger" content-class="collapsible-content">
-          <template #trigger>
-            <span>Audio ({{ vfDetail.tracks.length }})</span>
-            <ChevronDown :size="16" />
-          </template>
-          <div class="track-group-body">
-            <article v-for="(track, index) in vfDetail.tracks" :key="'audio-'+index" class="detail-row track-row">
-              <div>
-                <strong>{{ track.lang ? track.lang.toUpperCase() : 'Inconnu' }} <span v-if="track.is_default" class="track-default-tag">(Par défaut)</span></strong>
-                <span>{{ track.label || 'Audio' }}</span>
-              </div>
-              <span class="badge" :class="track.is_fr ? 'available' : ''">{{ track.lang ? track.lang.toUpperCase() : '??' }}</span>
-            </article>
-          </div>
-        </UiCollapsible>
+        <MediaTrackGroup v-if="vfDetail.tracks?.length" class="track-group" title="Audio" :tracks="vfDetail.tracks" fallback-label="Audio" highlight-fr />
         <p v-if="!vfDetail.tracks?.length" class="empty track-empty">Aucune piste audio detectee.</p>
-
-        <UiCollapsible class="season-details" v-if="vfDetail.subtitles?.length" :unmount-on-hide="false" trigger-class="track-group-summary collapsible-trigger" content-class="collapsible-content">
-          <template #trigger>
-            <span>Sous-titres ({{ vfDetail.subtitles.length }})</span>
-            <ChevronDown :size="16" />
-          </template>
-          <div class="track-group-body">
-            <article v-for="(sub, index) in vfDetail.subtitles" :key="'sub-'+index" class="detail-row track-row">
-              <div>
-                <strong>{{ sub.lang ? sub.lang.toUpperCase() : 'Inconnu' }} <span v-if="sub.is_default" class="track-default-tag">(Par défaut)</span></strong>
-                <span>{{ sub.label || 'Sous-titre' }}</span>
-              </div>
-              <span class="badge">{{ sub.lang ? sub.lang.toUpperCase() : '??' }}</span>
-            </article>
-          </div>
-        </UiCollapsible>
+        <MediaTrackGroup v-if="vfDetail.subtitles?.length" title="Sous-titres" :tracks="vfDetail.subtitles" fallback-label="Sous-titre" />
       </div>
     </div>
     <p v-else-if="envelopeError" class="notice error-text">Échec du chargement de l'analyse VF.</p>
@@ -217,21 +140,23 @@
 
 <script setup lang="ts">
 import UiTooltip from '@/components/ui/UiTooltip.vue';
-import UiCollapsible from '@/components/ui/UiCollapsible.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 import { computed, ref } from "vue";
-import { MessageSquareWarning, ChevronDown, SlidersHorizontal } from "@lucide/vue";
+import { MessageSquareWarning, SlidersHorizontal } from "@lucide/vue";
 import VfUpgradeButton from "@/components/media/VfUpgradeButton.vue";
 import SeasonEpisodeList from "@/components/media/SeasonEpisodeList.vue";
 import AlignStreamsModal from "@/components/media/AlignStreamsModal.vue";
-import { formatAirDate as formatSharedAirDate } from '@/utils/format';
-
-export interface SubtitleAlertsResult {
-  subFrNoTrack: boolean;
-  subFrAbsent: boolean;
-  subFrNotDefault: boolean;
-  forcedFrNotDefault: boolean;
-}
+import MediaEpisodeRow from "@/components/media/MediaEpisodeRow.vue";
+import MediaStreamsDetail from "@/components/media/MediaStreamsDetail.vue";
+import MediaSubtitleAlerts from "@/components/media/MediaSubtitleAlerts.vue";
+import MediaTrackGroup from "@/components/media/MediaTrackGroup.vue";
+import {
+  episodeStatusClass,
+  episodeStatusLabel,
+  seasonHeading,
+  seasonSubtitleAlerts,
+  subtitleAlerts,
+} from '@/utils/mediaStreams';
 
 const props = withDefaults(
   defineProps<{
@@ -263,30 +188,6 @@ const emit = defineEmits<{
   (e: 'expand-season', seasonNumber: number): void;
   (e: 'aligned', payload: any): void;
 }>();
-
-function subtitleAlerts(tracks: any[] = [], subtitles: any[] = []): SubtitleAlertsResult {
-  const isFrancophone = tracks.some((t) => t.is_fr);
-  const fullFrSubs = subtitles.filter((s) => s.is_fr && !s.is_forced);
-  const forcedFrSubs = subtitles.filter((s) => s.is_fr && s.is_forced);
-
-  if (!isFrancophone) {
-    const hasAnyTrack = subtitles.length > 0;
-    const hasFullFr = fullFrSubs.length > 0;
-    const fullFrIsDefault = fullFrSubs.some((s) => s.is_default);
-    return {
-      subFrNoTrack: !hasAnyTrack,
-      subFrAbsent: hasAnyTrack && !hasFullFr,
-      subFrNotDefault: hasFullFr && !fullFrIsDefault,
-      forcedFrNotDefault: false,
-    };
-  }
-  return {
-    subFrNoTrack: false,
-    subFrAbsent: false,
-    subFrNotDefault: false,
-    forcedFrNotDefault: forcedFrSubs.length > 0 && !forcedFrSubs.some((s) => s.is_default),
-  };
-}
 
 const movieSubtitleAlerts = computed(() => {
   if (!props.vfDetail || props.vfDetail.media_type !== 'movie') return null;
@@ -326,7 +227,6 @@ function onStreamsAligned(payload: any) {
   }
 }
 
-const EPISODE_STATUS_LABELS: Record<string, string> = { vf: 'VF', vf_secondary: 'VF (sec.)', vo: 'VO', absent: 'ABSENT', tba: 'TBA', unknown: '…' };
 const displayedSeasons = computed(() => {
   const seasons = props.vfDetail?.seasons || [];
   const filtered = props.missingOnly ? seasons.filter((season: any) => (season.counts?.absent || 0) > 0) : seasons;
@@ -336,9 +236,6 @@ const displayedSeasons = computed(() => {
 });
 function episodeDisplayFilter(ep: any): boolean {
   return props.missingOnly ? ep.status === 'absent' : true;
-}
-function episodeStatusLabel(status: string): string {
-  return EPISODE_STATUS_LABELS[status] || status.toUpperCase();
 }
 
 const expandedEpisode = ref<string | null>(null);
@@ -352,31 +249,9 @@ function toggleEpisode(seasonNumber: number, episodeNumber: number): void {
 function isEpisodeExpanded(seasonNumber: number, episodeNumber: number): boolean {
   return expandedEpisode.value === episodeKey(seasonNumber, episodeNumber);
 }
-
-function formatAirDate(airDate: string): string {
-  return formatSharedAirDate(airDate);
-}
 </script>
 
 <style scoped lang="scss">
-.movie-audio-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-bottom: 0.75rem;
-}
-.movie-audio-head h2 {
-  margin: 0;
-}
-.season-block {
-  display: block;
-  margin-bottom: 0.5rem;
-  padding: 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
 .season-summary-row {
   display: flex;
   align-items: center;
@@ -387,161 +262,20 @@ function formatAirDate(airDate: string): string {
 .season-badges {
   gap: 4px;
 }
-.season-loading {
-  padding: 0.5rem 0;
-  color: var(--muted);
-  font-size: var(--fs-md);
-}
-.episode-list {
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  padding-left: 0.5rem;
-  border-left: 2px solid var(--border);
-}
-.episode-main {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-}
-.episode-still {
-  flex-shrink: 0;
-  width: 120px;
-  height: 68px;
-  object-fit: cover;
-  border-radius: var(--radius-xs);
-  background: var(--surface-hover);
-}
-.episode-body {
-  flex: 1;
-  min-width: 0;
-}
-.episode-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-.episode-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.episode-actions {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 4px;
-}
 .episode-status-btn {
   cursor: pointer;
-}
-.episode-air-date {
-  margin: 2px 0 0;
-  color: var(--muted);
-  font-size: var(--fs-sm);
-}
-.episode-overview {
-  display: -webkit-box;
-  overflow: hidden;
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: var(--fs-sm);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 .track-group {
   margin-bottom: 0.5rem;
 }
-.track-group-.collapsible-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem;
-  border-radius: var(--radius-sm);
-  background: var(--surface-hover);
-  font-weight: 500;
-  cursor: pointer;
-}
-/* Pistes en pastilles sur plusieurs colonnes (2 sur mobile) : dix sous-titres tiennent
-   en quelques lignes au lieu d'une longue colonne. */
-.track-group-body {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
-  gap: 6px;
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  padding-left: 0.5rem;
-  border-left: 2px solid var(--border);
-}
-/* Reste en ligne sur mobile (la regle globale des .detail-row les empile) : langue a
-   gauche, pastille a droite, pour garder des cartes basses. */
-.track-row {
-  flex-direction: row;
-  align-items: center;
-  text-align: left;
-  min-height: 0;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-.track-default-tag {
-  opacity: 0.8;
-  font-weight: normal;
-  font-size: var(--fs-sm);
-}
 .track-empty {
   margin-bottom: 0.5rem;
-}
-.episode-row {
-  margin-bottom: 10px;
-  padding: 6px;
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-}
-.episode-row:hover {
-  background: var(--surface-hover);
-}
-.episode-detail {
-  display: grid;
-  gap: 6px;
-  margin-top: 8px;
-  padding: 8px 10px;
-  border-left: 2px solid var(--accent);
-  border-radius: var(--radius-xs);
-  background: rgba(0, 0, 0, .2);
-  cursor: default;
-}
-.episode-detail-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--fs-sm);
-}
-.episode-detail-label {
-  flex: 0 0 auto;
-  min-width: 90px;
-  color: var(--muted);
-  font-weight: 600;
-}
-.episode-detail-value {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.episode-detail-empty {
-  color: var(--muted);
 }
 .subtitle-alerts {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 0.75rem;
-}
-.episode-sub-alerts {
-  margin-top: 4px;
-  padding-top: 6px;
-  border-top: 1px solid var(--border);
 }
 
 .show-audio-head {
@@ -554,8 +288,12 @@ function formatAirDate(airDate: string): string {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--space-3);
   margin-bottom: var(--space-3);
+}
+.movie-audio-head h2 {
+  margin: 0;
 }
 
 .movie-audio-actions {

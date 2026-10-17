@@ -4,21 +4,13 @@
       <h2>Parcours du média</h2>
       <span>{{ progressLabel }}</span>
     </div>
-    <ol class="workflow-timeline">
-      <li v-for="step in steps" :key="step.key" :class="`is-${step.state}`">
-        <span class="workflow-marker">
-          <Check v-if="step.state === 'completed'" />
-          <TriangleAlert v-else-if="step.state === 'error'" />
-          <Circle v-else />
-        </span>
-        <div>
-          <strong>{{ step.label }}</strong>
-          <small v-if="step.occurred_at" :title="formatDate(step.occurred_at)">{{ formatRelativeDate(step.occurred_at) }}</small>
-          <small v-else-if="step.state === 'current'">Étape actuelle</small>
-          <small v-else-if="step.state === 'upcoming'">À venir</small>
-        </div>
-      </li>
-    </ol>
+    <StepTimeline :steps="timelineSteps">
+      <template #meta="{ step }">
+        <small v-if="step.at" class="workflow-step-meta" :title="formatDate(step.at)">{{ formatRelativeDate(step.at) }}</small>
+        <small v-else-if="step.state === 'current'" class="workflow-step-meta">Étape actuelle</small>
+        <small v-else-if="step.state === 'upcoming'" class="workflow-step-meta">À venir</small>
+      </template>
+    </StepTimeline>
 
     <div v-if="history?.length" class="workflow-history">
       <div class="workflow-history-heading">
@@ -52,7 +44,8 @@
 <script setup lang="ts">
 import { formatDateTime as formatDate, formatRelativeDate } from '@/utils/format';
 import { computed, ref, watch } from 'vue';
-import { Check, ChevronDown, ChevronUp, Circle, RefreshCw, Sparkles, TriangleAlert } from '@lucide/vue';
+import { Check, ChevronDown, ChevronUp, RefreshCw, Sparkles, TriangleAlert } from '@lucide/vue';
+import StepTimeline, { type TimelineStep } from '@/components/ui/StepTimeline.vue';
 import UiChipGroup from '@/components/ui/UiChipGroup.vue';
 import type { RequestJourney } from '@/types/generated/mediaAvailability';
 
@@ -85,6 +78,13 @@ const props = withDefaults(
   }
 );
 const steps = computed(() => props.journey?.steps ?? props.steps);
+/* Le serveur dit « completed » ; la frise commune dit « done ». */
+const timelineSteps = computed<TimelineStep[]>(() => steps.value.map((step) => ({
+  key: step.key,
+  label: step.label,
+  at: step.occurred_at,
+  state: step.state === 'completed' ? 'done' : (['current', 'upcoming', 'error'].includes(step.state) ? step.state : 'upcoming') as TimelineStep['state'],
+})));
 const progressLabel = computed(() => {
   const current = steps.value.find((step) => step.state === 'current' || step.state === 'error');
   return current?.label || steps.value.at(-1)?.label || '';
@@ -144,22 +144,9 @@ const hiddenCount = computed(() =>
 .workflow-heading { display: flex; justify-content: space-between; gap: var(--space-3); align-items: baseline; margin-bottom: 16px; }
 .workflow-heading h2 { margin: 0; font-size: var(--fs-base); }
 .workflow-heading span { color: var(--muted); font-size: var(--fs-sm); text-align: right; }
-.workflow-timeline { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
-.workflow-timeline li { position: relative; display: flex; align-items: flex-start; gap: var(--space-2); padding: 0 0 18px; color: var(--muted); text-align: left; }
-.workflow-timeline li::after { content: ''; position: absolute; z-index: 0; top: 24px; bottom: 0; left: 11px; width: 2px; background: var(--border); }
-.workflow-timeline li:last-child::after { display: none; content: none; }
+.workflow-step-meta { color: var(--muted); font-size: var(--fs-xs); white-space: nowrap; cursor: default; }
 .workflow-marker { position: relative; z-index: 1; flex: 0 0 24px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--surface-2); border: 2px solid var(--border); }
-.workflow-timeline li > div { min-width: 0; padding-top: 3px; }
 .workflow-marker :deep(svg) { width: 13px; height: 13px; }
-.workflow-timeline strong, .workflow-timeline small { display: block; }
-.workflow-timeline strong { color: inherit; font-size: var(--fs-sm); line-height: 1.25; }
-.workflow-timeline small { margin-top: 4px; font-size: var(--fs-xs); cursor: default; }
-.workflow-timeline .is-completed { color: var(--green-text); }
-.workflow-timeline .is-completed::after { background: var(--success); }
-.workflow-timeline .is-current { color: var(--text); }
-.workflow-timeline .is-current .workflow-marker { border-color: var(--accent); color: var(--accent); }
-.workflow-timeline .is-error { color: var(--red-text); }
-.workflow-timeline .is-error .workflow-marker { border-color: currentColor; }
 .workflow-history { margin-top: 4px; padding-top: 16px; border-top: 1px solid var(--border); }
 .workflow-history-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2); margin-bottom: 10px; }
 .workflow-history h3 { margin: 0; font-size: var(--fs-sm); color: var(--muted); font-weight: 650; }
@@ -185,7 +172,5 @@ const hiddenCount = computed(() =>
   .workflow-card { padding: 19px 20px; }
   .workflow-heading h2 { font-size: var(--fs-lg); }
   .workflow-heading span { font-size: var(--fs-sm); }
-  .workflow-timeline strong { font-size: var(--fs-md); line-height: 1.35; }
-  .workflow-timeline small { font-size: var(--fs-sm); }
 }
 </style>
