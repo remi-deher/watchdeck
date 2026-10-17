@@ -10,7 +10,7 @@
     :active-tab="route.path"
     tabs-label="Vues de l’encodage"
     :state="state"
-    :error="status?.connected === false ? `FileFlows ne répond pas : ${status.error || 'connexion impossible'}` : ''"
+    :error="status?.connected === false ? `FileFlows ne répond pas : ${status.error || 'connexion impossible'}` : error"
     loading-message="Connexion à FileFlows…"
     :unconfigured="UNCONFIGURED"
     @retry="statusQuery.refetch()"
@@ -33,7 +33,7 @@ import type { SubnavItem } from '@/components/ui/AppSubnav.vue';
 import EncodingCommandBar from './EncodingCommandBar.vue';
 
 defineOptions({ inheritAttrs: false });
-defineProps<{ title: string }>();
+const props = defineProps<{ title: string; error?: string }>();
 
 const UNCONFIGURED = {
   title: 'FileFlows n’est pas branché',
@@ -66,6 +66,6 @@ const state = computed<PageState>(() => {
   if (!status.value) return 'loading';
   if (!status.value.configured) return 'unconfigured';
   if (status.value.connected === false) return 'error';
-  return 'ready';
+  return props.error ? 'error' : 'ready';
 });
 </script>

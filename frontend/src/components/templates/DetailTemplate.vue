@@ -12,11 +12,11 @@
     <UiButton v-if="back" class="detail__back" size="sm" variant="ghost" @click="emit('back')"><template #icon><ArrowLeft /></template>Retour</UiButton>
     <!-- L'en-tete commun des fiches (SheetHero), celui de la fiche media : banniere qui ne
          porte que l'image, affiche qui en chevauche le bas, texte dessous. -->
-    <SheetHero :image-url="backdrop || null" :variant="variant" stack-on-mobile fade :dock="['badges', 'dates', 'actions']" class="detail__hero">
+    <SheetHero :image-url="backdropSrc" :variant="variant" stack-on-mobile fade :dock="['badges', 'dates', 'actions']" class="detail__hero">
       <template v-if="$slots.overlay" #overlay><slot name="overlay" /></template>
       <template #poster>
         <div class="detail__cover" :class="{ 'is-square': posterShape === 'square' }">
-          <img v-if="poster && !posterFailed" :src="posterSrc" :srcset="posterSrcset" sizes="(max-width: 767px) 140px, 220px" alt="" loading="eager" fetchpriority="high" decoding="async" @error="posterFailed = true" />
+          <img v-if="posterUrl && !posterFailed" :src="posterSrc" :srcset="posterSrcset" sizes="(max-width: 767px) 140px, 220px" alt="" loading="eager" fetchpriority="high" decoding="async" @error="posterFailed = true" />
           <component :is="icon || FileQuestion" v-else aria-hidden="true" />
         </div>
       </template>
@@ -99,6 +99,7 @@ import { computed, ref, watch } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import { AlertTriangle, ArrowLeft, FileQuestion, MoreHorizontal } from '@lucide/vue';
 import { proxyUrl, srcSetFor } from '@/utils/mediaImage';
+import type { MediaRef } from '@/types';
 import SheetHero from '@/components/ui/SheetHero.vue';
 import SheetSummary from '@/components/ui/SheetSummary.vue';
 import UiButton from '@/components/ui/UiButton.vue';
@@ -113,6 +114,8 @@ export type { DetailAction, DetailAlert, DetailBadge, DetailFact, DetailTab, Det
 const props = withDefaults(
   defineProps<{
     title: string;
+    /** Un media de la bibliotheque, transmis entier : affiche et fond en viennent d'office. */
+    media?: MediaRef | null;
     poster?: string | null;
     /** Image de la banniere (fond de film, pochette…). */
     backdrop?: string | null;
@@ -141,15 +144,18 @@ const props = withDefaults(
     /** Fiche ouverte en pleine page par son adresse : un « Retour » en tete (en feuille, on la ferme). */
     back?: boolean;
   }>(),
-  { poster: null, backdrop: null, eyebrow: '', summary: '', variant: 'sheet', icon: null, meta: () => [], badges: () => [], actions: () => [], alert: null, tabs: () => [], tab: '', facts: () => [], dates: () => [], loading: false, posterShape: 'portrait', back: false },
+  { media: null, poster: null, backdrop: null, eyebrow: '', summary: '', variant: 'sheet', icon: null, meta: () => [], badges: () => [], actions: () => [], alert: null, tabs: () => [], tab: '', facts: () => [], dates: () => [], loading: false, posterShape: 'portrait', back: false },
 );
 const emit = defineEmits<{ action: [key: string]; 'update:tab': [key: string]; back: [] }>();
 
 const router = useRouter();
+/* Un media se transmet entier : affiche et fond viennent de lui, sauf image donnee a part. */
+const posterUrl = computed(() => props.poster || props.media?.poster_url || '');
+const backdropSrc = computed(() => props.backdrop || (props.media?.backdrop_url ? proxyUrl(props.media.backdrop_url, { kind: 'backdrop' }) : null));
 /* `/api/playback/thumb` est servie par l'application : proxyUrl la laisse telle quelle, il faut lui demander la
    largeur voulue (sinon la capture Plex entiere, reduite par le navigateur). */
 const posterSrc = computed(() => {
-  const url = props.poster || '';
+  const url = posterUrl.value;
   if (url.startsWith('/api/playback/thumb')) {
     const parsed = new URL(url, window.location.origin);
     parsed.searchParams.set('width', '660');
@@ -157,9 +163,9 @@ const posterSrc = computed(() => {
   }
   return proxyUrl(url, { width: 780 });
 });
-const posterSrcset = computed(() => ((props.poster || '').startsWith('/api/playback/thumb') ? undefined : srcSetFor(props.poster || '', { width: 780 })));
+const posterSrcset = computed(() => (posterUrl.value.startsWith('/api/playback/thumb') ? undefined : srcSetFor(posterUrl.value, { width: 780 })));
 const posterFailed = ref(false);
-watch(() => props.poster, () => { posterFailed.value = false; });
+watch(posterUrl, () => { posterFailed.value = false; });
 /* Trois actions visibles au plus ; celles qui se declarent `menu`, et le reste au-dela, vont dans « … ». */
 const visible = computed(() => props.actions.filter((action) => !action.menu).slice(0, 3));
 const shownActions = visible;

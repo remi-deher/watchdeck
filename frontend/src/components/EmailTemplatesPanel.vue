@@ -75,7 +75,23 @@ import UiSegmentedControl from '@/components/ui/UiSegmentedControl.vue';
 import { computed, markRaw, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { queryKeys } from '@/queryKeys';
-import { Ban,CircleAlert,CircleCheck,Eye,FileWarning,Film,MailCheck,Palette,RotateCcw,Send,ShieldAlert,Sparkles,Tv,Undo2,UserRoundCheck } from '@lucide/vue';
+import {
+  Ban,
+  CircleAlert,
+  CircleCheck,
+  Eye,
+  FileWarning,
+  Film,
+  MailCheck,
+  Palette,
+  RotateCcw,
+  Send,
+  ShieldAlert,
+  Sparkles,
+  Tv,
+  Undo2,
+  UserRoundCheck,
+} from '@lucide/vue';
 import { api } from '@/api';
 import EmailEventEditor from './email/EmailEventEditor.vue';
 import EmailSharedSettings from './email/EmailSharedSettings.vue';
@@ -86,121 +102,712 @@ import { useSettingsPage } from '@/composables/useSettingsPage';
 import { useConfirm } from '@/composables/useConfirm';
 import { useToast } from '@/composables/useToast';
 
-const page=useSettingsPage();
-const sections=computed(()=>[
-  {key:'simulation',title:'Simulation',description:'Choisissez le destinataire et le scénario pour voir ce qu\'il recevrait.',icon:UserRoundCheck,keywords:['aperçu','utilisateur','scénario','éligibilité'],dirty:false},
-  {key:'models',title:'Modèles d\'emails',description:'Déclencheurs, contenu et apparence des messages.',icon:MailCheck,keywords:['email','modèle','objet','apparence','test'],dirty:isDirty.value},
+const page = useSettingsPage();
+const sections = computed(() => [
+  {
+    key: 'simulation',
+    title: 'Simulation',
+    description: "Choisissez le destinataire et le scénario pour voir ce qu'il recevrait.",
+    icon: UserRoundCheck,
+    keywords: ['aperçu', 'utilisateur', 'scénario', 'éligibilité'],
+    dirty: false,
+  },
+  {
+    key: 'models',
+    title: "Modèles d'emails",
+    description: 'Déclencheurs, contenu et apparence des messages.',
+    icon: MailCheck,
+    keywords: ['email', 'modèle', 'objet', 'apparence', 'test'],
+    dirty: isDirty.value,
+  },
 ]);
-const seriesEventTypes=['episode_available','season_started','season_partial','season_complete','series_partial','series_complete'];
-const eventGroups=[
-  {label:'Demandes',items:[
-    {key:'request',label:'Demande enregistrée',description:'Confirmation de la demande',icon:markRaw(MailCheck)},
-    {key:'failure',label:'Échec de transmission',description:'Envoi vers Sonarr ou Radarr impossible',icon:markRaw(FileWarning)},
-  ]},
-  {label:'Disponibilité',items:[
-    {key:'available',label:'Film disponible',description:'Première disponibilité du film',icon:markRaw(Film)},
-    {key:'episode_available',label:'Épisode disponible',description:'Un épisode isolé',icon:markRaw(Tv)},
-    {key:'season_started',label:'Saison démarrée',description:'Premier épisode de la saison',icon:markRaw(Tv)},
-    {key:'season_partial',label:'Saison partielle',description:'Plusieurs episodes, saison incomplete',icon:markRaw(Tv)},
-    {key:'season_complete',label:'Saison complete',description:'Une saison entierement disponible',icon:markRaw(Tv)},
-    {key:'series_partial',label:'Plusieurs saisons',description:'Certaines saisons seulement',icon:markRaw(Tv)},
-    {key:'series_complete',label:'Série complète',description:'Toutes les saisons attendues',icon:markRaw(Tv)},
-  ]},
-  {label:'Suivi et administration',items:[
-    {key:'upgrade',label:'Amelioration VF',description:'Passage connu de VO vers VF',icon:markRaw(Sparkles)},
-    {key:'correction',label:'Correction',description:'Message manuel de correction',icon:markRaw(ShieldAlert)},
-    {key:'cancelled',label:'Demande annulée',description:'Demande annulée et bloquée par un administrateur',icon:markRaw(Ban)},
-  ]},
+const seriesEventTypes = ['episode_available', 'season_started', 'season_partial', 'season_complete', 'series_partial', 'series_complete'];
+const eventGroups = [
+  {
+    label: 'Demandes',
+    items: [
+      { key: 'request', label: 'Demande enregistrée', description: 'Confirmation de la demande', icon: markRaw(MailCheck) },
+      { key: 'failure', label: 'Échec de transmission', description: 'Envoi vers Sonarr ou Radarr impossible', icon: markRaw(FileWarning) },
+    ],
+  },
+  {
+    label: 'Disponibilité',
+    items: [
+      { key: 'available', label: 'Film disponible', description: 'Première disponibilité du film', icon: markRaw(Film) },
+      { key: 'episode_available', label: 'Épisode disponible', description: 'Un épisode isolé', icon: markRaw(Tv) },
+      { key: 'season_started', label: 'Saison démarrée', description: 'Premier épisode de la saison', icon: markRaw(Tv) },
+      { key: 'season_partial', label: 'Saison partielle', description: 'Plusieurs episodes, saison incomplete', icon: markRaw(Tv) },
+      { key: 'season_complete', label: 'Saison complete', description: 'Une saison entierement disponible', icon: markRaw(Tv) },
+      { key: 'series_partial', label: 'Plusieurs saisons', description: 'Certaines saisons seulement', icon: markRaw(Tv) },
+      { key: 'series_complete', label: 'Série complète', description: 'Toutes les saisons attendues', icon: markRaw(Tv) },
+    ],
+  },
+  {
+    label: 'Suivi et administration',
+    items: [
+      { key: 'upgrade', label: 'Amelioration VF', description: 'Passage connu de VO vers VF', icon: markRaw(Sparkles) },
+      { key: 'correction', label: 'Correction', description: 'Message manuel de correction', icon: markRaw(ShieldAlert) },
+      { key: 'cancelled', label: 'Demande annulée', description: 'Demande annulée et bloquée par un administrateur', icon: markRaw(Ban) },
+    ],
+  },
 ];
-const eventTypes=eventGroups.flatMap(group=>group.items);
-const scenarioMap={
-  available:[{value:'movie_generic',label:'Film sans langue'},{value:'movie_vo',label:'Film en VO'},{value:'movie_vf',label:'Film en VF'}],
-  episode_available:[{value:'default',label:'Episode generique'},{value:'episode_vo',label:'Episode en VO'},{value:'episode_vf',label:'Episode en VF'}],
-  season_started:[{value:'default',label:'Premier épisode'},{value:'season_start_vf',label:'Premier épisode en VF'}],
-  season_partial:[{value:'default',label:'6 episodes sur 10'}],
-  season_complete:[{value:'default',label:'Une saison sur plusieurs'},{value:'season_complete_vf',label:'Saison complete en VF'}],
-  series_partial:[{value:'default',label:'3 saisons completes sur 5'}],
-  series_complete:[{value:'default',label:'Toutes les saisons completes'}],
-  upgrade:[{value:'movie_vf',label:'Film passe en VF'},{value:'episode_vf',label:'Episode passe en VF'},{value:'season_complete_vf',label:'Saison passee en VF'}],
-  request:[{value:'default',label:'Nouvelle demande'}],failure:[{value:'default',label:'Sonarr indisponible'}],correction:[{value:'default',label:'Correction manuelle'}],
+const eventTypes = eventGroups.flatMap((group) => group.items);
+const scenarioMap = {
+  available: [
+    { value: 'movie_generic', label: 'Film sans langue' },
+    { value: 'movie_vo', label: 'Film en VO' },
+    { value: 'movie_vf', label: 'Film en VF' },
+  ],
+  episode_available: [
+    { value: 'default', label: 'Episode generique' },
+    { value: 'episode_vo', label: 'Episode en VO' },
+    { value: 'episode_vf', label: 'Episode en VF' },
+  ],
+  season_started: [
+    { value: 'default', label: 'Premier épisode' },
+    { value: 'season_start_vf', label: 'Premier épisode en VF' },
+  ],
+  season_partial: [{ value: 'default', label: '6 episodes sur 10' }],
+  season_complete: [
+    { value: 'default', label: 'Une saison sur plusieurs' },
+    { value: 'season_complete_vf', label: 'Saison complete en VF' },
+  ],
+  series_partial: [{ value: 'default', label: '3 saisons completes sur 5' }],
+  series_complete: [{ value: 'default', label: 'Toutes les saisons completes' }],
+  upgrade: [
+    { value: 'movie_vf', label: 'Film passe en VF' },
+    { value: 'episode_vf', label: 'Episode passe en VF' },
+    { value: 'season_complete_vf', label: 'Saison passee en VF' },
+  ],
+  request: [{ value: 'default', label: 'Nouvelle demande' }],
+  failure: [{ value: 'default', label: 'Sonarr indisponible' }],
+  correction: [{ value: 'default', label: 'Correction manuelle' }],
 };
-const variables=[
-  {tag:'{titre}',description:"Titre de l'œuvre"},{tag:'{type}',description:'Le film ou la série'},{tag:'{media_type_et_titre}',description:'Type et titre combinés'},{tag:'{annee}',description:'Année de sortie'},{tag:'{affiche}',description:"URL de l'affiche"},{tag:'{details_saison_episode}',description:'Saison et épisode'},{tag:'{numero_saison}',description:'Numéro seul de la saison, par exemple 1'},{tag:'{saison}',description:'Libelle complet, par exemple Saison 1'},{tag:'{saisons_concernees}',description:'Saisons du mail, par exemple Saison 1, 2 et 4'},{tag:'{langue}',description:'Version VF ou VO'},{tag:'{nom_utilisateur}',description:'Nom du demandeur'},{tag:'{synopsis}',description:'Résumé du média'},{tag:'{raison}',description:"Raison de l'echec"},{tag:'{corrections}',description:'Corrections appliquees'},{tag:'{note_correction}',description:'Note de correction'},{tag:'{message_admin}',description:'Votre texte libre, dans un encadre attribue (rien si vide)'},{tag:'{resume_disponibilite}',description:'Resume complet de la disponibilite'},{tag:'{saisons_disponibles}',description:'Numeros des saisons disponibles'},{tag:'{saisons_completes}',description:'Numeros des saisons completes'},{tag:'{saisons_partielles}',description:'Numeros des saisons partielles'},{tag:'{saisons_manquantes}',description:'Numeros des saisons encore absentes'},{tag:'{nombre_saisons_disponibles}',description:'Nombre de saisons disponibles'},{tag:'{nombre_saisons_completes}',description:'Nombre de saisons completes'},{tag:'{nombre_saisons_attendues}',description:'Nombre total de saisons attendues'},{tag:'{nombre_episodes_disponibles}',description:'Nombre d episodes disponibles dans le lot'},
+const variables = [
+  { tag: '{titre}', description: "Titre de l'œuvre" },
+  { tag: '{type}', description: 'Le film ou la série' },
+  { tag: '{media_type_et_titre}', description: 'Type et titre combinés' },
+  { tag: '{annee}', description: 'Année de sortie' },
+  { tag: '{affiche}', description: "URL de l'affiche" },
+  { tag: '{details_saison_episode}', description: 'Saison et épisode' },
+  { tag: '{numero_saison}', description: 'Numéro seul de la saison, par exemple 1' },
+  { tag: '{saison}', description: 'Libelle complet, par exemple Saison 1' },
+  { tag: '{saisons_concernees}', description: 'Saisons du mail, par exemple Saison 1, 2 et 4' },
+  { tag: '{langue}', description: 'Version VF ou VO' },
+  { tag: '{nom_utilisateur}', description: 'Nom du demandeur' },
+  { tag: '{synopsis}', description: 'Résumé du média' },
+  { tag: '{raison}', description: "Raison de l'echec" },
+  { tag: '{corrections}', description: 'Corrections appliquees' },
+  { tag: '{note_correction}', description: 'Note de correction' },
+  { tag: '{message_admin}', description: 'Votre texte libre, dans un encadre attribue (rien si vide)' },
+  { tag: '{resume_disponibilite}', description: 'Resume complet de la disponibilite' },
+  { tag: '{saisons_disponibles}', description: 'Numeros des saisons disponibles' },
+  { tag: '{saisons_completes}', description: 'Numeros des saisons completes' },
+  { tag: '{saisons_partielles}', description: 'Numeros des saisons partielles' },
+  { tag: '{saisons_manquantes}', description: 'Numeros des saisons encore absentes' },
+  { tag: '{nombre_saisons_disponibles}', description: 'Nombre de saisons disponibles' },
+  { tag: '{nombre_saisons_completes}', description: 'Nombre de saisons completes' },
+  { tag: '{nombre_saisons_attendues}', description: 'Nombre total de saisons attendues' },
+  { tag: '{nombre_episodes_disponibles}', description: 'Nombre d episodes disponibles dans le lot' },
 ];
-const variableTags={request:['{titre}','{type}','{annee}','{nom_utilisateur}','{synopsis}'],failure:['{titre}','{raison}','{nom_utilisateur}'],correction:['{titre}','{details_saison_episode}','{numero_saison}','{saison}','{saisons_concernees}','{corrections}','{message_admin}','{note_correction}','{nom_utilisateur}'],cancelled:['{titre}','{media_type_et_titre}','{message_admin}','{motif}','{nom_utilisateur}']};
-const viewModes=[{key:'edit',label:'Édition'},{key:'split',label:'Partagée'},{key:'preview',label:'Aperçu'}];
-const viewModeOptions=viewModes.map(mode=>({value:mode.key,label:mode.label}));
-const eventType=ref('request'),showAppearance=ref(false),viewMode=ref('split'),deviceMode=ref('desktop'),users=ref<any[]>([]),previewHtml=ref(''),previewVariant=ref('default'),previewUser=ref('');
+const variableTags = {
+  request: ['{titre}', '{type}', '{annee}', '{nom_utilisateur}', '{synopsis}'],
+  failure: ['{titre}', '{raison}', '{nom_utilisateur}'],
+  correction: [
+    '{titre}',
+    '{details_saison_episode}',
+    '{numero_saison}',
+    '{saison}',
+    '{saisons_concernees}',
+    '{corrections}',
+    '{message_admin}',
+    '{note_correction}',
+    '{nom_utilisateur}',
+  ],
+  cancelled: ['{titre}', '{media_type_et_titre}', '{message_admin}', '{motif}', '{nom_utilisateur}'],
+};
+const viewModes = [
+  { key: 'edit', label: 'Édition' },
+  { key: 'split', label: 'Partagée' },
+  { key: 'preview', label: 'Aperçu' },
+];
+const viewModeOptions = viewModes.map((mode) => ({ value: mode.key, label: mode.label }));
+const eventType = ref('request'),
+  showAppearance = ref(false),
+  viewMode = ref('split'),
+  deviceMode = ref('desktop'),
+  users = ref<any[]>([]),
+  previewHtml = ref(''),
+  previewVariant = ref('default'),
+  previewUser = ref('');
 /* Reussites et echecs passent par des notifications, pas par des bandeaux dans l'editeur. */
-const toast=useToast();
-const error=ref(''),message=ref(''),previewing=ref(false),hasPrevious=ref(false),simulationSettings=ref<Record<string, any>>({});
-watch(error,(value)=>{if(value)toast.error('Modèles d’emails',value)});
-watch(message,(value)=>{if(value){toast.success(value);message.value=''}});
-const savedSnapshot=ref('');
-let timer: ReturnType<typeof setTimeout> | undefined;
-const models=reactive<Record<string, any>>(Object.fromEntries(eventTypes.map(entry=>[entry.key,{template:'',subject:'',accent_color:'#e5a00d',badge_text:'',headline_text:'',show_synopsis:true,initialTemplate:'',initialSubject:''}])));
-const shared=reactive<Record<string, any>>({email_header_brand:'Watchdeck',email_header_subtitle:'Notification Plex',email_footer_template:'',email_brand_color:'#e5a00d',email_show_poster:true,email_show_genres:true,email_show_requester:true,email_show_header_subtitle:true,email_requester_label:'Demande par',email_poster_width:100,email_media_layout:'left',email_bg_color:'#0d0d0d',email_card_bg_color:'#141414',email_font_family:'arial',email_card_width:600,email_card_border_radius:10,email_synopsis_font_size:'normal',email_show_tmdb_link:true,email_show_plex_button:true});
-const {dialog:confirmDialog,askConfirm,resolveConfirm}=useConfirm();
-const queryClient=useQueryClient();
-const templatesQuery=useQuery({queryKey:['settings','email-templates'],queryFn:()=>api<Record<string,any>>('/api/email-templates')});
-const usersQuery=useQuery({queryKey:queryKeys.users.list,queryFn:()=>api<any[]>('/api/users')});
-const templatesMutation=useMutation({
-  mutationFn:({path,method='POST',body}:{path:string;method?:string;body?:any;invalidate?:boolean})=>api<any>(path,{method,...(body?{body:JSON.stringify(body)}:{})}),
-  retry:0,
-  onSuccess:(_data,variables)=>variables.invalidate===false?undefined:queryClient.invalidateQueries({queryKey:['settings','email-templates']}),
+const toast = useToast();
+const error = ref(''),
+  message = ref(''),
+  previewing = ref(false),
+  hasPrevious = ref(false),
+  simulationSettings = ref<Record<string, any>>({});
+watch(error, (value) => {
+  if (value) toast.error('Modèles d’emails', value);
 });
-const busy=computed(()=>templatesMutation.isPending.value);
-const current=computed(()=>models[eventType.value]);
-const currentEvent=computed(()=>eventTypes.find(entry=>entry.key===eventType.value)||eventTypes[0]);
-const scenarios=computed(()=>(scenarioMap as Record<string, any>)[eventType.value]||scenarioMap.request);
-const selectedUser=computed(()=>users.value.find((user: any)=>String(user.id)===String(previewUser.value))||null);
-const modelState=computed(()=>current.value.template!==current.value.initialTemplate||current.value.subject!==current.value.initialSubject?'Modifie':'Enregistre');
-const isDirty=computed(()=>Boolean(savedSnapshot.value)&&JSON.stringify(payload())!==savedSnapshot.value);
-const currentVariables=computed(()=>{const tags=(variableTags as Record<string, string[]>)[eventType.value];if(!tags)return variables;return variables.filter(item=>tags.includes(item.tag))});
-const eligibility=computed(()=>simulateEligibility(selectedUser.value));
+watch(message, (value) => {
+  if (value) {
+    toast.success(value);
+    message.value = '';
+  }
+});
+const savedSnapshot = ref('');
+let timer: ReturnType<typeof setTimeout> | undefined;
+const models = reactive<Record<string, any>>(
+  Object.fromEntries(
+    eventTypes.map((entry) => [
+      entry.key,
+      {
+        template: '',
+        subject: '',
+        accent_color: '#e5a00d',
+        badge_text: '',
+        headline_text: '',
+        show_synopsis: true,
+        initialTemplate: '',
+        initialSubject: '',
+      },
+    ]),
+  ),
+);
+const shared = reactive<Record<string, any>>({
+  email_header_brand: 'Watchdeck',
+  email_header_subtitle: 'Notification Plex',
+  email_footer_template: '',
+  email_brand_color: '#e5a00d',
+  email_show_poster: true,
+  email_show_genres: true,
+  email_show_requester: true,
+  email_show_header_subtitle: true,
+  email_requester_label: 'Demande par',
+  email_poster_width: 100,
+  email_media_layout: 'left',
+  email_bg_color: '#0d0d0d',
+  email_card_bg_color: '#141414',
+  email_font_family: 'arial',
+  email_card_width: 600,
+  email_card_border_radius: 10,
+  email_synopsis_font_size: 'normal',
+  email_show_tmdb_link: true,
+  email_show_plex_button: true,
+});
+const { dialog: confirmDialog, askConfirm, resolveConfirm } = useConfirm();
+const queryClient = useQueryClient();
+const templatesQuery = useQuery({
+  queryKey: ['settings', 'email-templates'],
+  queryFn: () => api<Record<string, any>>('/api/email-templates'),
+});
+const usersQuery = useQuery({ queryKey: queryKeys.users.list, queryFn: () => api<any[]>('/api/users') });
+const templatesMutation = useMutation({
+  mutationFn: ({ path, method = 'POST', body }: { path: string; method?: string; body?: any; invalidate?: boolean }) =>
+    api<any>(path, { method, ...(body ? { body: JSON.stringify(body) } : {}) }),
+  retry: 0,
+  onSuccess: (_data, variables) =>
+    variables.invalidate === false ? undefined : queryClient.invalidateQueries({ queryKey: ['settings', 'email-templates'] }),
+});
+const busy = computed(() => templatesMutation.isPending.value);
+const current = computed(() => models[eventType.value]);
+const currentEvent = computed(() => eventTypes.find((entry) => entry.key === eventType.value) || eventTypes[0]);
+const scenarios = computed(() => (scenarioMap as Record<string, any>)[eventType.value] || scenarioMap.request);
+const selectedUser = computed(() => users.value.find((user: any) => String(user.id) === String(previewUser.value)) || null);
+const modelState = computed(() =>
+  current.value.template !== current.value.initialTemplate || current.value.subject !== current.value.initialSubject
+    ? 'Modifie'
+    : 'Enregistre',
+);
+const isDirty = computed(() => Boolean(savedSnapshot.value) && JSON.stringify(payload()) !== savedSnapshot.value);
+const currentVariables = computed(() => {
+  const tags = (variableTags as Record<string, string[]>)[eventType.value];
+  if (!tags) return variables;
+  return variables.filter((item) => tags.includes(item.tag));
+});
+const eligibility = computed(() => simulateEligibility(selectedUser.value));
 
-function userName(user: any): string {return user.custom_name||user.display_name||user.plex_user_id}
-function inherited(user: any, key: string, fallback: any): any {return user?.[key]??fallback}
-function simulateEligibility(user: any): { ok: boolean; title: string; detail: string } {
-  if(!user)return{ok:true,title:'Aperçu avec un utilisateur exemple',detail:'Sélectionnez un utilisateur pour simuler ses préférences réelles.'};
-  const s=simulationSettings.value;
-  if(!s.email_enabled)return{ok:false,title:'Email non envoyé',detail:'Le canal email est désactivé globalement.'};
-  if(s.notification_hold_enabled)return{ok:false,title:'Email conserve dans la file',detail:'La bascule de blocage des notifications est active.'};
-  if(user.enabled===false)return{ok:false,title:'Email non envoyé',detail:'Cet utilisateur est désactivé.'};
-  const requestEvent=eventType.value==='request',failureEvent=eventType.value==='failure';
-  if(requestEvent&&(!s.email_on_request||user.notify_on_request===false))return{ok:false,title:'Email non envoyé',detail:'Les confirmations de demande sont désactivées pour cet utilisateur.'};
-  if(failureEvent&&!s.email_on_failure)return{ok:false,title:'Email non envoyé',detail:'Les notifications d’échec sont désactivées globalement.'};
-  if(!requestEvent&&!failureEvent&&eventType.value!=='upgrade'&&(!s.email_on_available||user.notify_on_available===false))return{ok:false,title:'Email non envoyé',detail:'Les notifications de disponibilité sont désactivées pour cet utilisateur.'};
-  if(eventType.value==='upgrade'&&!s.email_on_vf_available)return{ok:false,title:'Email non envoyé',detail:'Les notifications d’amélioration VF sont désactivées globalement.'};
-  const languageScenario=previewVariant.value.includes('_vf')||eventType.value==='upgrade';
-  const movieScenario=eventType.value==='available'||(eventType.value==='upgrade'&&previewVariant.value==='movie_vf');
-  const vfPreference=movieScenario?user.notify_vf_movie:user.notify_vf_series;
-  if(languageScenario&&vfPreference===false)return{ok:false,title:'Email non envoyé',detail:`Le suivi VF des ${movieScenario?'films':'series'} est désactivé pour cet utilisateur.`};
-  const granularity=inherited(user,'series_notify_granularity',s.series_notify_granularity||'jalons');
-  if(eventType.value==='episode_available'&&granularity!=='tout')return{ok:false,title:'Email non envoyé',detail:`Granularité ${granularity} : les épisodes individuels ne sont pas annoncés.`};
-  if(['season_started','season_partial','season_complete'].includes(eventType.value)&&granularity==='minimal')return{ok:false,title:'Email non envoyé',detail:'Granularité minimale : seule la série complète est annoncée.'};
-  const address=user.notification_email||user.plex_email;
-  if(!address&&!s.has_fallback_recipient)return{ok:false,title:'Email non envoyé',detail:'Aucune adresse utilisateur ni adresse de repli.'};
-  return{ok:true,title:'Email envoyé à cet utilisateur',detail:`Destinataire : ${address||'adresse SMTP de repli'}${user.notify_admin&&s.has_admin_recipient?' · administrateur en copie':''}.`};
+function userName(user: any): string {
+  return user.custom_name || user.display_name || user.plex_user_id;
 }
-function selectEvent(key: string): void {eventType.value=key;showAppearance.value=false;previewVariant.value=((scenarioMap as Record<string, any>)[key]||scenarioMap.request)[0].value}
-function selectMobile(key: string): void {if(key==='appearance')showAppearance.value=true;else selectEvent(key)}
-function payload(): Record<string, any> {const data: Record<string, any> ={...shared};for(const entry of eventTypes){const model=models[entry.key];data[`email_${entry.key}_template`]=model.template;data[`email_${entry.key}_subject`]=model.subject||null;data[`email_${entry.key}_accent_color`]=model.accent_color||null;data[`email_${entry.key}_badge_text`]=model.badge_text||null;data[`email_${entry.key}_headline_text`]=model.headline_text||null;data[`email_${entry.key}_show_synopsis`]=model.show_synopsis}return data}
-function previewPayload(extra: Record<string, any> ={}): Record<string, any> {return{template:current.value.template,subject:current.value.subject,type:eventType.value,user_id:previewUser.value||null,preview_variant:previewVariant.value,header_brand:shared.email_header_brand,header_subtitle:shared.email_header_subtitle,footer_template:shared.email_footer_template,brand_color:shared.email_brand_color,show_header_subtitle:shared.email_show_header_subtitle,show_poster:shared.email_show_poster,show_genres:shared.email_show_genres,show_requester:shared.email_show_requester,requester_label:shared.email_requester_label,poster_width:shared.email_poster_width,media_layout:shared.email_media_layout,bg_color:shared.email_bg_color,card_bg_color:shared.email_card_bg_color,font_family:shared.email_font_family,card_width:shared.email_card_width,card_border_radius:shared.email_card_border_radius,synopsis_font_size:shared.email_synopsis_font_size,show_tmdb_link:shared.email_show_tmdb_link,show_plex_button:shared.email_show_plex_button,accent_color:current.value.accent_color,badge_text:current.value.badge_text,headline_text:current.value.headline_text,show_synopsis:current.value.show_synopsis,...extra}}
-function fill(data: Record<string, any>): void {for(const entry of eventTypes){const model=models[entry.key];model.template=data[`email_${entry.key}_template`]||'';model.subject=data[`email_${entry.key}_subject`]||'';model.initialTemplate=model.template;model.initialSubject=model.subject;model.accent_color=data[`email_${entry.key}_accent_color`]||data.email_available_accent_color||'#e5a00d';model.badge_text=data[`email_${entry.key}_badge_text`]||data.email_available_badge_text||'';model.headline_text=data[`email_${entry.key}_headline_text`]||data.email_available_headline_text||'';model.show_synopsis=data[`email_${entry.key}_show_synopsis`]!==false}for(const key of Object.keys(shared))if(data[key]!=null)shared[key]=data[key];hasPrevious.value=Boolean(data.has_previous_version);simulationSettings.value=data.simulation_settings||{};savedSnapshot.value=JSON.stringify(payload())}
-async function save(): Promise<void> {error.value='';try{await templatesMutation.mutateAsync({path:'/api/email-templates',method:'PUT',body:payload()});savedSnapshot.value=JSON.stringify(payload());message.value='Modèles enregistrés.';hasPrevious.value=true;for(const model of Object.values(models)){model.initialTemplate=model.template;model.initialSubject=model.subject}await preview()}catch(e: any){error.value=e.message}}
-async function reset(): Promise<void> {if(!await askConfirm({title:'Rétablir tous les modèles ?',message:'Tous les contenus et réglages visuels seront remplacés par leurs valeurs par défaut.',confirmLabel:'Rétablir',danger:true}))return;try{await templatesMutation.mutateAsync({path:'/api/email-templates/reset'});message.value='Modeles retablis.'}catch(e: any){error.value=e.message}}
-async function restorePrevious(): Promise<void> {try{await templatesMutation.mutateAsync({path:'/api/email-templates/restore-previous'});message.value='Version précédente restaurée.'}catch(e: any){error.value=e.message}}
-async function preview(): Promise<void> {clearTimeout(timer);previewing.value=true;try{const response=await fetch('/api/email-preview',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(previewPayload())});if(!response.ok)throw new Error((await response.json()).detail);previewHtml.value=await response.text()}catch(e: any){error.value=e.message}finally{previewing.value=false}}
-function schedulePreview(): void {clearTimeout(timer);timer=setTimeout(preview,500)}
-async function testSend(mode: string): Promise<void> {if(mode==='user'&&!await askConfirm({title:'Envoyer le test à cet utilisateur ?',message:`Un email réel sera envoyé à ${userName(selectedUser.value)}.`,confirmLabel:'Envoyer'}))return;try{const data=await templatesMutation.mutateAsync({path:'/api/email-templates/test-send',body:previewPayload({recipient_mode:mode}),invalidate:false});message.value=data.message}catch(e: any){error.value=e.message}}
-function cancel(): void {if(templatesQuery.data.value){fill(templatesQuery.data.value);void preview()}}
-watch(()=>templatesQuery.data.value,(data)=>{if(data){fill(data);void preview()}},{immediate:true});watch(()=>usersQuery.data.value,(rows)=>{if(rows)users.value=rows},{immediate:true});watch([eventType,previewVariant,previewUser],schedulePreview);watch(shared,schedulePreview,{deep:true});watch(models,schedulePreview,{deep:true});onBeforeUnmount(()=>{clearTimeout(timer)});
+function inherited(user: any, key: string, fallback: any): any {
+  return user?.[key] ?? fallback;
+}
+function simulateEligibility(user: any): { ok: boolean; title: string; detail: string } {
+  if (!user)
+    return {
+      ok: true,
+      title: 'Aperçu avec un utilisateur exemple',
+      detail: 'Sélectionnez un utilisateur pour simuler ses préférences réelles.',
+    };
+  const s = simulationSettings.value;
+  if (!s.email_enabled) return { ok: false, title: 'Email non envoyé', detail: 'Le canal email est désactivé globalement.' };
+  if (s.notification_hold_enabled)
+    return { ok: false, title: 'Email conserve dans la file', detail: 'La bascule de blocage des notifications est active.' };
+  if (user.enabled === false) return { ok: false, title: 'Email non envoyé', detail: 'Cet utilisateur est désactivé.' };
+  const requestEvent = eventType.value === 'request',
+    failureEvent = eventType.value === 'failure';
+  if (requestEvent && (!s.email_on_request || user.notify_on_request === false))
+    return { ok: false, title: 'Email non envoyé', detail: 'Les confirmations de demande sont désactivées pour cet utilisateur.' };
+  if (failureEvent && !s.email_on_failure)
+    return { ok: false, title: 'Email non envoyé', detail: 'Les notifications d’échec sont désactivées globalement.' };
+  if (!requestEvent && !failureEvent && eventType.value !== 'upgrade' && (!s.email_on_available || user.notify_on_available === false))
+    return { ok: false, title: 'Email non envoyé', detail: 'Les notifications de disponibilité sont désactivées pour cet utilisateur.' };
+  if (eventType.value === 'upgrade' && !s.email_on_vf_available)
+    return { ok: false, title: 'Email non envoyé', detail: 'Les notifications d’amélioration VF sont désactivées globalement.' };
+  const languageScenario = previewVariant.value.includes('_vf') || eventType.value === 'upgrade';
+  const movieScenario = eventType.value === 'available' || (eventType.value === 'upgrade' && previewVariant.value === 'movie_vf');
+  const vfPreference = movieScenario ? user.notify_vf_movie : user.notify_vf_series;
+  if (languageScenario && vfPreference === false)
+    return {
+      ok: false,
+      title: 'Email non envoyé',
+      detail: `Le suivi VF des ${movieScenario ? 'films' : 'series'} est désactivé pour cet utilisateur.`,
+    };
+  const granularity = inherited(user, 'series_notify_granularity', s.series_notify_granularity || 'jalons');
+  if (eventType.value === 'episode_available' && granularity !== 'tout')
+    return { ok: false, title: 'Email non envoyé', detail: `Granularité ${granularity} : les épisodes individuels ne sont pas annoncés.` };
+  if (['season_started', 'season_partial', 'season_complete'].includes(eventType.value) && granularity === 'minimal')
+    return { ok: false, title: 'Email non envoyé', detail: 'Granularité minimale : seule la série complète est annoncée.' };
+  const address = user.notification_email || user.plex_email;
+  if (!address && !s.has_fallback_recipient)
+    return { ok: false, title: 'Email non envoyé', detail: 'Aucune adresse utilisateur ni adresse de repli.' };
+  return {
+    ok: true,
+    title: 'Email envoyé à cet utilisateur',
+    detail: `Destinataire : ${address || 'adresse SMTP de repli'}${user.notify_admin && s.has_admin_recipient ? ' · administrateur en copie' : ''}.`,
+  };
+}
+function selectEvent(key: string): void {
+  eventType.value = key;
+  showAppearance.value = false;
+  previewVariant.value = ((scenarioMap as Record<string, any>)[key] || scenarioMap.request)[0].value;
+}
+function selectMobile(key: string): void {
+  if (key === 'appearance') showAppearance.value = true;
+  else selectEvent(key);
+}
+function payload(): Record<string, any> {
+  const data: Record<string, any> = { ...shared };
+  for (const entry of eventTypes) {
+    const model = models[entry.key];
+    data[`email_${entry.key}_template`] = model.template;
+    data[`email_${entry.key}_subject`] = model.subject || null;
+    data[`email_${entry.key}_accent_color`] = model.accent_color || null;
+    data[`email_${entry.key}_badge_text`] = model.badge_text || null;
+    data[`email_${entry.key}_headline_text`] = model.headline_text || null;
+    data[`email_${entry.key}_show_synopsis`] = model.show_synopsis;
+  }
+  return data;
+}
+function previewPayload(extra: Record<string, any> = {}): Record<string, any> {
+  return {
+    template: current.value.template,
+    subject: current.value.subject,
+    type: eventType.value,
+    user_id: previewUser.value || null,
+    preview_variant: previewVariant.value,
+    header_brand: shared.email_header_brand,
+    header_subtitle: shared.email_header_subtitle,
+    footer_template: shared.email_footer_template,
+    brand_color: shared.email_brand_color,
+    show_header_subtitle: shared.email_show_header_subtitle,
+    show_poster: shared.email_show_poster,
+    show_genres: shared.email_show_genres,
+    show_requester: shared.email_show_requester,
+    requester_label: shared.email_requester_label,
+    poster_width: shared.email_poster_width,
+    media_layout: shared.email_media_layout,
+    bg_color: shared.email_bg_color,
+    card_bg_color: shared.email_card_bg_color,
+    font_family: shared.email_font_family,
+    card_width: shared.email_card_width,
+    card_border_radius: shared.email_card_border_radius,
+    synopsis_font_size: shared.email_synopsis_font_size,
+    show_tmdb_link: shared.email_show_tmdb_link,
+    show_plex_button: shared.email_show_plex_button,
+    accent_color: current.value.accent_color,
+    badge_text: current.value.badge_text,
+    headline_text: current.value.headline_text,
+    show_synopsis: current.value.show_synopsis,
+    ...extra,
+  };
+}
+function fill(data: Record<string, any>): void {
+  for (const entry of eventTypes) {
+    const model = models[entry.key];
+    model.template = data[`email_${entry.key}_template`] || '';
+    model.subject = data[`email_${entry.key}_subject`] || '';
+    model.initialTemplate = model.template;
+    model.initialSubject = model.subject;
+    model.accent_color = data[`email_${entry.key}_accent_color`] || data.email_available_accent_color || '#e5a00d';
+    model.badge_text = data[`email_${entry.key}_badge_text`] || data.email_available_badge_text || '';
+    model.headline_text = data[`email_${entry.key}_headline_text`] || data.email_available_headline_text || '';
+    model.show_synopsis = data[`email_${entry.key}_show_synopsis`] !== false;
+  }
+  for (const key of Object.keys(shared)) if (data[key] != null) shared[key] = data[key];
+  hasPrevious.value = Boolean(data.has_previous_version);
+  simulationSettings.value = data.simulation_settings || {};
+  savedSnapshot.value = JSON.stringify(payload());
+}
+async function save(): Promise<void> {
+  error.value = '';
+  try {
+    await templatesMutation.mutateAsync({ path: '/api/email-templates', method: 'PUT', body: payload() });
+    savedSnapshot.value = JSON.stringify(payload());
+    message.value = 'Modèles enregistrés.';
+    hasPrevious.value = true;
+    for (const model of Object.values(models)) {
+      model.initialTemplate = model.template;
+      model.initialSubject = model.subject;
+    }
+    await preview();
+  } catch (e: any) {
+    error.value = e.message;
+  }
+}
+async function reset(): Promise<void> {
+  if (
+    !(await askConfirm({
+      title: 'Rétablir tous les modèles ?',
+      message: 'Tous les contenus et réglages visuels seront remplacés par leurs valeurs par défaut.',
+      confirmLabel: 'Rétablir',
+      danger: true,
+    }))
+  )
+    return;
+  try {
+    await templatesMutation.mutateAsync({ path: '/api/email-templates/reset' });
+    message.value = 'Modeles retablis.';
+  } catch (e: any) {
+    error.value = e.message;
+  }
+}
+async function restorePrevious(): Promise<void> {
+  try {
+    await templatesMutation.mutateAsync({ path: '/api/email-templates/restore-previous' });
+    message.value = 'Version précédente restaurée.';
+  } catch (e: any) {
+    error.value = e.message;
+  }
+}
+async function preview(): Promise<void> {
+  clearTimeout(timer);
+  previewing.value = true;
+  try {
+    const response = await fetch('/api/email-preview', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(previewPayload()),
+    });
+    if (!response.ok) throw new Error((await response.json()).detail);
+    previewHtml.value = await response.text();
+  } catch (e: any) {
+    error.value = e.message;
+  } finally {
+    previewing.value = false;
+  }
+}
+function schedulePreview(): void {
+  clearTimeout(timer);
+  timer = setTimeout(preview, 500);
+}
+async function testSend(mode: string): Promise<void> {
+  if (
+    mode === 'user' &&
+    !(await askConfirm({
+      title: 'Envoyer le test à cet utilisateur ?',
+      message: `Un email réel sera envoyé à ${userName(selectedUser.value)}.`,
+      confirmLabel: 'Envoyer',
+    }))
+  )
+    return;
+  try {
+    const data = await templatesMutation.mutateAsync({
+      path: '/api/email-templates/test-send',
+      body: previewPayload({ recipient_mode: mode }),
+      invalidate: false,
+    });
+    message.value = data.message;
+  } catch (e: any) {
+    error.value = e.message;
+  }
+}
+function cancel(): void {
+  if (templatesQuery.data.value) {
+    fill(templatesQuery.data.value);
+    void preview();
+  }
+}
+watch(
+  () => templatesQuery.data.value,
+  (data) => {
+    if (data) {
+      fill(data);
+      void preview();
+    }
+  },
+  { immediate: true },
+);
+watch(
+  () => usersQuery.data.value,
+  (rows) => {
+    if (rows) users.value = rows;
+  },
+  { immediate: true },
+);
+watch([eventType, previewVariant, previewUser], schedulePreview);
+watch(shared, schedulePreview, { deep: true });
+watch(models, schedulePreview, { deep: true });
+onBeforeUnmount(() => {
+  clearTimeout(timer);
+});
 </script>
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
-.studio-head{display:flex;justify-content:flex-end}.simulation-bar{display:flex;gap: var(--space-3);align-items:end;flex-wrap:wrap;padding:12px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm)}.simulation-bar label{display:grid;gap: var(--space-1);min-width:180px;font-size:var(--fs-sm);color:var(--muted)}.simulation-bar select{width:100%}.view-switch{display:flex;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}.view-switch button{display:flex;gap: var(--space-2);align-items:center;border:0;border-right:1px solid var(--border);border-radius:0;background:transparent;color:var(--muted);padding:9px 11px}.view-switch button:last-child{border-right:0}.view-switch button.active{background:var(--accent);color:#111}.view-switch svg,.template-sidebar svg{width:16px}.simulation-result{display:flex;gap: var(--space-3);align-items:center;padding:11px 13px;border-radius:var(--radius-sm);border:1px solid}.simulation-result svg{width:20px;flex:none}.simulation-result div{display:grid;gap: var(--space-1)}.simulation-result span{font-size:var(--fs-sm)}.simulation-result.eligible{border-color:color-mix(in srgb, var(--green) 35%, transparent);background:color-mix(in srgb, var(--green) 8%, transparent);color: var(--green-text)}.simulation-result.ineligible{border-color:color-mix(in srgb, var(--red) 35%, transparent);background:color-mix(in srgb, var(--red) 8%, transparent);color: var(--red-text)}.studio-layout{display:grid;grid-template-columns:240px minmax(0,1fr) minmax(340px,.85fr);gap: var(--space-4);align-items:start}.studio-layout.mode-edit{grid-template-columns:240px minmax(0,1fr)}.studio-layout.mode-preview{grid-template-columns:240px minmax(0,1fr)}.template-sidebar{position:sticky;top:16px;display:grid;gap: var(--space-4);max-height:calc(100vh - 32px);overflow:auto;padding-right:4px}.template-group{display:grid;gap: var(--space-1)}.template-group>span{font-size:var(--fs-xs);color:var(--muted);padding:0 8px 4px}.template-group button{display:flex;gap: var(--space-2);text-align:left;align-items:flex-start;border:0;background:transparent;color:var(--text);padding:9px;border-radius:var(--radius-sm)}.template-group button:hover{background:var(--surface-2)}.template-group button.active{background:color-mix(in srgb, var(--accent) 14%, transparent);color:var(--accent)}.template-group button span{display:grid;gap: var(--space-1)}.template-group small{color:var(--muted);font-size:var(--fs-xs);line-height:1.3}.studio-editor{min-width:0;display:grid;gap: var(--space-4)}.editor-title{display:flex;justify-content:space-between;gap: var(--space-3);align-items:flex-start}.editor-title h3{margin:0}.editor-title p{margin:4px 0 0;color:var(--muted);font-size:var(--fs-sm)}.studio-actions{display:flex;justify-content:flex-end;gap: var(--space-2);flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--border)}.mobile-model-select{display:none}.mode-preview :deep(.preview-panel){position:static}.mode-preview :deep(.preview-panel iframe){height:760px}
-@container page (max-width: 957px) {.studio-layout,.studio-layout.mode-edit,.studio-layout.mode-preview{grid-template-columns:210px minmax(0,1fr)}.mode-split .studio-editor,.mode-split :deep(.preview-panel){grid-column:2}.mode-split :deep(.preview-panel){position:static}.template-sidebar{grid-row:1/span 2}}
-@include bp.until(tablet) {.studio-head .actions{width:100%;overflow:auto;flex-wrap:nowrap}.simulation-bar{display:grid;grid-template-columns:1fr}.simulation-bar label{min-width:0}.view-switch{width:100%}.view-switch button{flex:1;justify-content:center}.mobile-model-select{display:grid;gap: var(--space-1)}.template-sidebar{display:none}.studio-layout,.studio-layout.mode-edit,.studio-layout.mode-preview{grid-template-columns:1fr}.mode-split .studio-editor,.mode-split :deep(.preview-panel){grid-column:1}.studio-actions{position:sticky;bottom:0;background:var(--surface);padding:10px 0;z-index:2}.studio-actions button{flex:1;min-width:140px}.mode-preview :deep(.preview-panel iframe){height:640px}}
+.studio-head {
+  display: flex;
+  justify-content: flex-end;
+}
+.simulation-bar {
+  display: flex;
+  gap: var(--space-3);
+  align-items: end;
+  flex-wrap: wrap;
+  padding: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.simulation-bar label {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 180px;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+.simulation-bar select {
+  width: 100%;
+}
+.view-switch {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.view-switch button {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  border: 0;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 9px 11px;
+}
+.view-switch button:last-child {
+  border-right: 0
+}
+.view-switch button.active {
+  background: var(--accent);
+  color: #111;
+}
+.view-switch svg,
+.template-sidebar svg {
+  width: 16px;
+}
+.simulation-result {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  padding: 11px 13px;
+  border-radius: var(--radius-sm);
+  border: 1px solid;
+}
+.simulation-result svg {
+  width: 20px;
+  flex: none;
+}
+.simulation-result div {
+  display: grid;
+  gap: var(--space-1);
+}
+.simulation-result span {
+  font-size: var(--fs-sm);
+}
+.simulation-result.eligible {
+  border-color: color-mix(in srgb, var(--green) 35%, transparent);
+  background: color-mix(in srgb, var(--green) 8%, transparent);
+  color: var(--green-text);
+}
+.simulation-result.ineligible {
+  border-color: color-mix(in srgb, var(--red) 35%, transparent);
+  background: color-mix(in srgb, var(--red) 8%, transparent);
+  color: var(--red-text);
+}
+.studio-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0,1fr) minmax(340px,.85fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+.studio-layout.mode-edit {
+  grid-template-columns: 240px minmax(0,1fr);
+}
+.studio-layout.mode-preview {
+  grid-template-columns: 240px minmax(0,1fr);
+}
+.template-sidebar {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: var(--space-4);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding-right: 4px;
+}
+.template-group {
+  display: grid;
+  gap: var(--space-1);
+}
+.template-group>span {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  padding: 0 8px 4px;
+}
+.template-group button {
+  display: flex;
+  gap: var(--space-2);
+  text-align: left;
+  align-items: flex-start;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 9px;
+  border-radius: var(--radius-sm);
+}
+.template-group button:hover {
+  background: var(--surface-2);
+}
+.template-group button.active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+.template-group button span {
+  display: grid;
+  gap: var(--space-1);
+}
+.template-group small {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  line-height: 1.3;
+}
+.studio-editor {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+.editor-title {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+.editor-title h3 {
+  margin: 0
+}
+.editor-title p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+.studio-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.mobile-model-select {
+  display: none;
+}
+.mode-preview :deep(.preview-panel) {
+  position: static;
+}
+.mode-preview :deep(.preview-panel iframe) {
+  height: 760px;
+}
+@container page (max-width: 957px) {
+  .studio-layout,
+  .studio-layout.mode-edit,
+  .studio-layout.mode-preview {
+    grid-template-columns: 210px minmax(0,1fr);
+  }
+  .mode-split .studio-editor,
+  .mode-split :deep(.preview-panel) {
+    grid-column: 2
+  }
+  .mode-split :deep(.preview-panel) {
+    position: static;
+  }
+  .template-sidebar {
+    grid-row: 1/span 2;
+  }
+}
+@include bp.until(tablet) {
+  .studio-head .actions {
+    width: 100%;
+    overflow: auto;
+    flex-wrap: nowrap;
+  }
+  .simulation-bar {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .simulation-bar label {
+    min-width: 0
+  }
+  .view-switch {
+    width: 100%;
+  }
+  .view-switch button {
+    flex: 1;
+    justify-content: center;
+  }
+  .mobile-model-select {
+    display: grid;
+    gap: var(--space-1);
+  }
+  .template-sidebar {
+    display: none;
+  }
+  .studio-layout,
+  .studio-layout.mode-edit,
+  .studio-layout.mode-preview {
+    grid-template-columns: 1fr;
+  }
+  .mode-split .studio-editor,
+  .mode-split :deep(.preview-panel) {
+    grid-column: 1
+  }
+  .studio-actions {
+    position: sticky;
+    bottom: 0;
+    background: var(--surface);
+    padding: 10px 0;
+    z-index: 2
+  }
+  .studio-actions button {
+    flex: 1;
+    min-width: 140px;
+  }
+  .mode-preview :deep(.preview-panel iframe) {
+    height: 640px;
+  }
+}
 </style>

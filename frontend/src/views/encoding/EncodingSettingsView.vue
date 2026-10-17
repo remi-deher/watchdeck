@@ -2,9 +2,8 @@
   <!-- Reglages de l'encodage (gabarit Configurer) : sections par intention, un seul
        enregistrement pour la page. Appliques par la tache « Pilotage FileFlows » (chaque
        minute). -->
-  <EncodingShell title="Réglages" v-model:query="query" :search="{ placeholder: 'Rechercher un réglage…', kind: 'filter', scope: 'Réglages de l’encodage' }">
-    <UiFeedback v-if="controlQuery.isError.value" type="error" :message="humanizeError(controlQuery.error.value)" />
-    <ConfigureTemplate v-else :sections="sections" :query="query" :dirty="dirty" :saving="saveMutation.isPending.value" @save="saveMutation.mutate()" @cancel="reset">
+  <EncodingShell :error="controlQuery.isError.value ? humanizeError(controlQuery.error.value) : ''" title="Réglages" @retry="controlQuery.refetch()" v-model:query="query" :search="{ placeholder: 'Rechercher un réglage…', kind: 'filter', scope: 'Réglages de l’encodage' }">
+    <ConfigureTemplate :sections="sections" :query="query" :dirty="dirty" :saving="saveMutation.isPending.value" @save="saveMutation.mutate()" @cancel="reset">
       <template #section-runners>
         <UiRadioCards v-model="form.runners_mode" label="Nombre de runners" :options="runnersModes" />
         <ConfigureField v-if="form.runners_mode === 'manual'" label="Nombre de runners" :help="`Fichiers traités en même temps (offre gratuite : ${control?.max_runners} au plus).`">
@@ -53,7 +52,6 @@ import { queryKeys } from '@/queryKeys';
 import { humanizeError } from '@/utils/apiError';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
-import UiFeedback from '@/components/ui/UiFeedback.vue';
 import UiNumberField from '@/components/ui/UiNumberField.vue';
 import UiRadioCards from '@/components/ui/UiRadioCards.vue';
 import EncodingShell from '@/components/encoding/EncodingShell.vue';
