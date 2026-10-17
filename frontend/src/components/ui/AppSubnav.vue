@@ -278,6 +278,7 @@ watch(
   display: flex;
   flex: none;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2);
   min-height: var(--touch-target);
   padding: 0 14px;

@@ -190,6 +190,8 @@ function choisir(next: unknown): void {
 .ui-chip-group--center { justify-content: center; }
 .ui-chip-group > :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ui-chip-group :deep(.count) {
+  display: inline-grid;
+  place-items: center;
   min-width: 24px;
   padding: 2px 6px;
   border-radius: var(--radius-pill);

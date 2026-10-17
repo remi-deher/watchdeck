@@ -56,6 +56,7 @@ const active = computed<FilterChip[]>(() =>
   display: inline-flex;
   gap: 6px;
   align-items: center;
+  justify-content: center;
   min-height: 30px;
   padding: 0 10px 0 12px;
   border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
