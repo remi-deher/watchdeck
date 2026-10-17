@@ -236,7 +236,17 @@ const queryClient = useQueryClient();
 const { addToast } = useToast();
 const kind = computed(() => String(route.params.kind || ''));
 const mediaId = computed(() => String(route.params.id || ''));
-const mediaQueryKey = computed(() => ['media', kind.value, mediaId.value] as const);
+// Une fiche de découverte dépend aussi du type de média et de l’espace d’identifiants.
+// TMDB et TVDB peuvent partager le même nombre, tout comme un film et une série :
+// sans ces paramètres dans la clé, Vue Query pouvait réutiliser une réponse vide
+// d’une autre fiche et afficher « Cette fiche est introuvable ».
+const mediaQueryKey = computed(() => [
+  'media',
+  kind.value,
+  mediaId.value,
+  String(route.query.media_type || ''),
+  String(route.query.id_type || ''),
+] as const);
 
 const {
   requesting: recRequesting,
