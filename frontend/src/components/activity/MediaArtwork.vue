@@ -48,5 +48,51 @@ const imageUrl = computed(() => {
 </script>
 
 <style scoped lang="scss">
-.media-artwork{display:grid;place-items:center;flex:none;overflow:hidden;border:0;border-radius:var(--radius-sm);background:linear-gradient(145deg,#252525,#121212);color:var(--muted)}.media-artwork.small{width:42px;height:58px}.media-artwork.medium{width:54px;height:76px}.media-artwork.history{width:64px;height:92px}.media-artwork.large{width:104px;height:150px}.media-artwork.poster,.media-artwork.backdrop{width:100%;height:100%;border-radius:0}.media-artwork img{width:100%;height:100%;object-fit:cover}.media-artwork svg{width:30%;height:auto}@container page (max-width: 444px) {.media-artwork.history{width:58px;height:84px}}
+.media-artwork {
+  display: grid;
+  place-items: center;
+  flex: none;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(145deg, var(--surface-3), var(--surface-sunken));
+  color: var(--muted);
+}
+.media-artwork.small {
+  width: 42px;
+  height: 58px;
+}
+.media-artwork.medium {
+  width: 54px;
+  height: 76px;
+}
+.media-artwork.history {
+  width: 64px;
+  height: 92px;
+}
+.media-artwork.large {
+  width: 104px;
+  height: 150px;
+}
+.media-artwork.poster,
+.media-artwork.backdrop {
+  width: 100%;
+  height: 100%;
+  border-radius: 0
+}
+.media-artwork img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.media-artwork svg {
+  width: 30%;
+  height: auto;
+}
+@container page (max-width: 444px) {
+  .media-artwork.history {
+    width: 58px;
+    height: 84px;
+  }
+}
 </style>

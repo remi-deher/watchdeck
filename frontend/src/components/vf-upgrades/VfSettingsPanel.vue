@@ -1,9 +1,9 @@
 <template>
   <!-- Les reglages VF, dans la feuille ouverte depuis la page des ameliorations : les
        memes que la page Reglages, sur le meme store -- toute modification enregistree ici
-       s'y applique aussi. -->
+       s'y applique aussi. L'enregistrement est celui du gabarit Configurer (barre de
+       l'onglet) : la feuille lui fournit l'etat et les deux gestes, comme la page Reglages. -->
   <div class="vf-settings-panel">
-    <UiFeedback v-if="error" type="error" :message="error" />
     <div v-if="loading" class="vf-settings-loading" aria-hidden="true">
       <div class="skeleton-line title" />
       <div class="skeleton-line sub" />
@@ -16,28 +16,17 @@
       <SettingsValidationSummary />
       <VfUpgradesSettingsTab />
     </template>
-
-    <div class="vf-settings-actions">
-      <UiFeedback v-if="message" type="success" :message="message" />
-      <span v-else-if="isDirty" class="vf-settings-dirty">{{ changedCount }} modification(s) non enregistrée(s)</span>
-      <UiButton variant="ghost" :disabled="saving" @click="requestClose">
-        {{ isDirty ? 'Annuler' : 'Fermer' }}
-      </UiButton>
-      <UiButton variant="primary" :loading="saving" :disabled="!isDirty" @click="persist">
-        Enregistrer
-      </UiButton>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import UiButton from '@/components/ui/UiButton.vue';
-import UiFeedback from '@/components/ui/UiFeedback.vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import SettingsValidationSummary from '@/components/settings/SettingsValidationSummary.vue';
 import VfUpgradesSettingsTab from '@/components/settings/VfUpgradesSettingsTab.vue';
+import { provideSettingsPage } from '@/composables/useSettingsPage';
+import { useErrorToast } from '@/composables/useErrorToast';
+import { useToast } from '@/composables/useToast';
 import {
-  changedFields,
   discardChanges,
   error,
   isDirty,
@@ -50,7 +39,9 @@ import {
 const emit = defineEmits<{ (e: 'close'): void; (e: 'saved'): void }>();
 
 const loading = ref(false);
-const changedCount = computed(() => changedFields().length);
+const toast = useToast();
+useErrorToast(() => error.value);
+watch(message, (value) => { if (value) { toast.success(value); message.value = ''; } });
 
 /* Rechargement a chaque ouverture : le store est un singleton partage avec la page
    Reglages, et la valeur en base a pu changer depuis (autre onglet, autre
@@ -66,9 +57,9 @@ onMounted(async () => {
 });
 
 function requestClose(): void {
-  /* Fermer sans enregistrer doit rendre le formulaire a son etat serveur : sans cela,
-     les valeurs saisies survivraient dans le store partage et repartiraient au
-     prochain enregistrement d'une autre section. */
+  /* Annuler rend le formulaire a son etat serveur : sans cela, les valeurs saisies
+     survivraient dans le store partage et repartiraient au prochain enregistrement d'une
+     autre section. */
   discardChanges();
   emit('close');
 }
@@ -77,6 +68,8 @@ async function persist(): Promise<void> {
   await save();
   if (!error.value) emit('saved');
 }
+
+provideSettingsPage({ query: ref(''), dirty: computed(() => isDirty.value), saving, save: () => { void persist(); }, cancel: requestClose });
 </script>
 
 <style scoped lang="scss">
@@ -87,22 +80,4 @@ async function persist(): Promise<void> {
 }
 
 .vf-settings-panel { display: grid; gap: var(--space-4); }
-.vf-settings-actions {
-  position: sticky;
-  bottom: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  padding: var(--space-3) 0;
-  border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
-}
-
-.vf-settings-dirty {
-  margin-right: auto;
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
-}
 </style>

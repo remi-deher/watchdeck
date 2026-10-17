@@ -14,7 +14,6 @@
     :error="error"
     @retry="reload"
   >
-    <UiFeedback v-if="error && rows.length" type="warning" title="Chargement partiel" :message="error" retry @retry="reload" />
     <TrackTemplate
       :items="items"
       :recent="recent"
@@ -40,7 +39,7 @@ import { formatDateShort, formatRelativeDate } from '@/utils/format';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import PageTemplate from '@/components/templates/PageTemplate.vue';
 import TrackTemplate, { type TrackItem, type TrackRecent } from '@/components/templates/TrackTemplate.vue';
-import UiFeedback from '@/components/ui/UiFeedback.vue';
+import { useErrorToast } from '@/composables/useErrorToast';
 import CreateTemplate, { type CreateResult } from '@/components/templates/CreateTemplate.vue';
 import { idleCreation } from '@/creations/idle';
 import { manualImportCreation } from '@/creations/manualImport';
@@ -73,6 +72,7 @@ const updated = computed(() => (updatedAt.value ? `Mis à jour ${formatRelativeD
 const manualRow = ref<any>(null);
 const manualDefinition = computed(() => (manualRow.value ? manualImportCreation(manualRow.value) : idleCreation));
 const { addToast } = useToast();
+useErrorToast(() => (rows.value.length ? error.value : ''), { title: 'Chargement partiel', type: 'warning', retry: () => reload() });
 function onAction(item: TrackItem, key: string): void {
   const row = byKey.value.get(item.key);
   if (!row) return;
