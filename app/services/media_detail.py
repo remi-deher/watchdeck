@@ -40,6 +40,14 @@ def _media_payload(
     arr_url: str | None,
     season_rows: list[dict] | None = None,
     backdrop_url: str | None = None,
+    runtime: int | None = None,
+    genres: list[str] | None = None,
+    directors: list[str] | None = None,
+    creators: list[str] | None = None,
+    production_countries: list[str] | None = None,
+    vote: float | None = None,
+    vote_count: int | None = None,
+    trailer_url: str | None = None,
     release_dates: dict | None = None,
     first_air_date: str | None = None,
     current_season_air_date: str | None = None,
@@ -68,6 +76,14 @@ def _media_payload(
         "poster_url": wrap_image_proxy(media_obj.poster_url),
         "backdrop_url": wrap_backdrop_proxy(backdrop_url or (media_ref(media_obj) or {}).get("backdrop_url")),
         "overview": media_obj.overview,
+        "runtime": runtime,
+        "genres": genres or [],
+        "directors": directors or [],
+        "creators": creators or [],
+        "production_countries": production_countries or [],
+        "vote": vote,
+        "vote_count": vote_count or 0,
+        "trailer_url": trailer_url,
         "has_vf": media_obj.has_vf,
         "vf_granularity": media_obj.vf_granularity,
         "fr_is_default": media_obj.fr_is_default,
@@ -319,6 +335,14 @@ async def build_media_detail(
     media_history = build_media_history(vf_suggestions, diagnostic_events, all_issues)
 
     backdrop_url = None
+    runtime = None
+    genres = []
+    directors = []
+    creators = []
+    production_countries = []
+    vote = None
+    vote_count = 0
+    trailer_url = None
     saga = None
     recommendations = []
     similar = []
@@ -331,6 +355,14 @@ async def build_media_detail(
         try:
             detail = await tmdb.detail(db, media_obj.media_type, int(media_obj.tmdb_id))
             backdrop_url = detail.get("backdrop_url")
+            runtime = detail.get("runtime")
+            genres = detail.get("genres", [])
+            directors = detail.get("directors", [])
+            creators = detail.get("creators", [])
+            production_countries = detail.get("production_countries", [])
+            vote = detail.get("vote")
+            vote_count = detail.get("vote_count", 0)
+            trailer_url = detail.get("trailer_url")
             saga = detail.get("saga")
             recommendations = await annotate_rail_items(db, detail.get("recommendations", []))
             similar = await annotate_rail_items(db, detail.get("similar", []))
@@ -511,6 +543,14 @@ async def build_media_detail(
             arr_url=arr_url,
             season_rows=seasons.get(availability_request.id) if availability_request else None,
             backdrop_url=backdrop_url,
+            runtime=runtime,
+            genres=genres,
+            directors=directors,
+            creators=creators,
+            production_countries=production_countries,
+            vote=vote,
+            vote_count=vote_count,
+            trailer_url=trailer_url,
             release_dates=release_dates,
             first_air_date=first_air_date,
             current_season_air_date=current_season_air_date,
