@@ -581,16 +581,18 @@ async def detail(db: AsyncSession, media_type: str, tmdb_id: int) -> dict:
     base = _norm({**data, "media_type": mt}, mt) or {}
     credits = data.get("credits") or {}
     crew = credits.get("crew") or []
-    directors = list(dict.fromkeys(
-        person.get("name") for person in crew
-        if person.get("job") == "Director" and person.get("name")
-    ))
-    creators = list(dict.fromkeys(
-        person.get("name") for person in (data.get("created_by") or [])
-        if person.get("name")
-    ))
+    directors = list(
+        dict.fromkeys(person.get("name") for person in crew if person.get("job") == "Director" and person.get("name"))
+    )
+    creators = list(
+        dict.fromkeys(person.get("name") for person in (data.get("created_by") or []) if person.get("name"))
+    )
     videos = (data.get("videos") or {}).get("results") or []
-    trailers = [video for video in videos if video.get("site") == "YouTube" and video.get("type") == "Trailer" and video.get("key")]
+    trailers = [
+        video
+        for video in videos
+        if video.get("site") == "YouTube" and video.get("type") == "Trailer" and video.get("key")
+    ]
     trailers.sort(key=lambda video: (not bool(video.get("official")), video.get("name") or ""))
     trailer_url = f"https://www.youtube.com/watch?v={trailers[0]['key']}" if trailers else None
     saga = None
@@ -608,7 +610,9 @@ async def detail(db: AsyncSession, media_type: str, tmdb_id: int) -> dict:
             "runtime": data.get("runtime") or (data.get("episode_run_time") or [None])[0],
             "directors": directors,
             "creators": creators,
-            "production_countries": [country.get("name") for country in data.get("production_countries", []) if country.get("name")],
+            "production_countries": [
+                country.get("name") for country in data.get("production_countries", []) if country.get("name")
+            ],
             "vote_count": data.get("vote_count") or 0,
             "trailer_url": trailer_url,
             "status": data.get("status"),
