@@ -64,6 +64,12 @@
   --grid-gutter: 12px;
   --touch-target: 44px;
   --media-placeholder: var(--surface-2);
+  /* Tuile sombre des logos de sources (plateformes, studios) : identique dans les deux
+     themes, les logos etant pensés pour un fond sombre. */
+  --logo-tile: #131419;
+  --logo-tile-from: #1c1e26;
+  --logo-tile-to: #101115;
+  --logo-ink: #ffffff;
   /* Source unique des dimensions d'affiches pour les grilles et les rails. */
   --poster-grid-min: 220px;
   --poster-grid-gap: var(--space-4);

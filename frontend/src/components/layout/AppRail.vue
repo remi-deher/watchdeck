@@ -351,29 +351,6 @@ watch(() => groups.value.length, () => void nextTick(measureOverflow));
   font-weight: 700;
 }
 
-.app-rail__subnav {
-  display: grid;
-  gap: 2px;
-  margin: 2px 0 var(--space-2) 20px !important;
-  padding: 0 0 0 var(--space-2) !important;
-  border-left: 1px solid var(--border);
-}
-.app-rail__sublink {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 36px;
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-sm);
-  color: var(--muted);
-  font-size: var(--fs-xs);
-  text-decoration: none;
-}
-.app-rail__sublink svg { flex: none; width: 15px; height: 15px; }
-.app-rail__sublink .app-rail__external { width: 13px; height: 13px; margin-left: auto; opacity: .6; }
-.app-rail__sublink:hover { color: var(--text); background: var(--surface); }
-.app-rail__sublink[aria-current='page'] { color: var(--accent); font-weight: 700; }
-
 /* L'espace Administration compte dix zones et leurs sections : au pas du rail de
    l'application, la derniere zone sortait d'un ecran de 900 px. Les cibles se resserrent
    a la souris ; au doigt elles gardent le seuil tactile. */
@@ -381,7 +358,6 @@ watch(() => groups.value.length, () => void nextTick(measureOverflow));
   .app-rail[data-space='admin'] .app-rail__link { min-height: 36px; }
   .app-rail[data-space='admin'] .app-rail__group + .app-rail__group { padding-top: var(--space-2); }
   .app-rail[data-space='admin'] .app-rail__group-label { margin-bottom: var(--space-1); }
-  .app-rail[data-space='admin'] .app-rail__sublink { min-height: 30px; }
 }
 
 .app-rail__back {

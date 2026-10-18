@@ -61,5 +61,41 @@ const selectionStyle = computed(() => selection.value ? { left: `${Math.min(sele
 </script>
 
 <style scoped lang="scss">
-.line-chart{display:grid;gap:4px;min-width:0}.line-chart__head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2)}.line-chart__head small{color:var(--muted);font-size:var(--fs-xs)}.line-chart__reset{padding:3px 10px;border:1px solid var(--border);border-radius:var(--radius-pill);background:var(--surface-2);color:var(--text);font:inherit;font-size:var(--fs-xs);cursor:pointer}.line-chart__plot{position:relative;min-width:0;cursor:crosshair;touch-action:pan-y}.line-chart__selection{position:absolute;inset-block:0;background:color-mix(in srgb,var(--accent) 16%,transparent);pointer-events:none}
+.line-chart {
+  display: grid;
+  gap: 4px;
+  min-width: 0
+}
+.line-chart__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.line-chart__head small {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+.line-chart__reset {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.line-chart__plot {
+  position: relative;
+  min-width: 0;
+  cursor: crosshair;
+  touch-action: pan-y;
+}
+.line-chart__selection {
+  position: absolute;
+  inset-block: 0;
+  background: color-mix(in srgb,var(--accent) 16%,transparent);
+  pointer-events: none;
+}
 </style>
