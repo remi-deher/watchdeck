@@ -136,7 +136,7 @@
          entierement vide : l'erreur etait bien stockee, mais son affichage vivait a
          l'interieur du bloc `detail`, qui ne se montait jamais. -->
     <UiEmptyState
-      v-else-if="!pending"
+      v-else-if="!detail && !pending"
       :title="error ? 'Cette fiche n’a pas pu être chargée' : 'Cette fiche est introuvable'"
       :message="error || 'Le média a peut-être été retiré de la bibliothèque, ou le lien a vieilli.'"
     >
