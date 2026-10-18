@@ -192,6 +192,27 @@ def test_person_detail_returns_annotated_filmography(client):
     assert "in_library" in payload["credits"][0]
 
 
+def test_discover_detail_proxies_tmdb_artwork(client):
+    detail = {
+        "tmdb_id": 27205,
+        "media_type": "movie",
+        "title": "Inception",
+        "poster_url": "https://image.tmdb.org/t/p/w342/poster.jpg",
+        "backdrop_url": "https://image.tmdb.org/t/p/w1280/backdrop.jpg",
+        "recommendations": [],
+        "similar": [],
+    }
+    with patch("app.routers.discover_api.tmdb.detail", new=AsyncMock(return_value=detail)):
+        response = client.get("/api/discover/detail?media_type=movie&tmdb_id=27205")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["poster_url"].startswith("/api/image-proxy?url=")
+    assert "image.tmdb.org%2Ft%2Fp%2Fw500%2Fposter.jpg" in payload["poster_url"]
+    assert payload["backdrop_url"].startswith("/api/image-proxy?url=")
+    assert "image.tmdb.org%2Ft%2Fp%2Foriginal%2Fbackdrop.jpg" in payload["backdrop_url"]
+
+
 def test_trending_returns_paginated_annotated_envelope(client):
     payload = {
         "items": [{"tmdb_id": 42, "media_type": "movie", "title": "Film"}],
