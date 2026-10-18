@@ -181,26 +181,31 @@ export function useMediaDetail() {
     return ({ summary: 'Résumé', missing: 'Éléments manquants', audio: audioLabel, requests: 'Demandes', calendar: 'Calendrier', encoding: 'Encodage' } as Record<string, string>)[value];
   }
 
-  function mediaPath(core = false): string {
-    const id = route.params.id;
-    if (kind.value === 'discover') {
+  function mediaPathFor(key: readonly [string, string, string, string, string], core = false): string {
+    const [, routeKind, id, mediaType, idType] = key;
+    if (routeKind === 'discover') {
       const p = new URLSearchParams();
-      p.set('media_type', String(route.query.media_type || ''));
-      if (route.query.id_type === 'tvdb') p.set('tvdb_id', String(id)); else p.set('tmdb_id', String(id));
+      p.set('media_type', mediaType);
+      if (idType === 'tvdb') p.set('tvdb_id', id); else p.set('tmdb_id', id);
       return `/api/discover/detail?${p}`;
     }
-    if (kind.value === 'request') return `/api/media/detail?request_id=${id}${core ? '&core=true' : ''}`;
+    if (routeKind === 'request') return `/api/media/detail?request_id=${id}${core ? '&core=true' : ''}`;
     return `/api/media/detail?library_id=${id}${core ? '&core=true' : ''}`;
   }
 
   const mediaQuery = useQuery({
     queryKey: mediaQueryKey,
-    queryFn: async () => {
-      if (kind.value === 'discover') return api(mediaPath());
-      const payload = await api<MediaDetailResponse>(mediaPath());
+    queryFn: async ({ queryKey }) => {
+      const [, routeKind] = queryKey;
+      const path = mediaPathFor(queryKey);
+      if (routeKind === 'discover') return api(path);
+      const payload = await api<MediaDetailResponse>(path);
       return { ...payload.media, ...payload };
     },
     staleTime: 60_000,
+    // Afficher le cache tout de suite, puis le revalider à chaque réouverture : une fiche
+    // partielle due à une panne temporaire d'un enrichissement ne reste pas figée en cache.
+    refetchOnMount: 'always',
   });
   const detail = computed<any>(() => mediaQuery.data.value || null);
   const loading = computed(() => mediaQuery.isPending.value || mediaQuery.isFetching.value);
@@ -211,11 +216,11 @@ export function useMediaDetail() {
   // Ce que la carte touchee savait deja, pour dessiner la fiche avant sa reponse.
   const apercu = apercuRecent();
 
-  /* La feuille prend la couleur du bas de l'affiche, celui qui touche son fond. L'affiche est
-     lue a la meme URL que celle que la banniere affiche : le navigateur la a deja. */
+  /* Le prélèvement de couleur dessine l'affiche dans un canvas : passer par le proxy même
+     pour TMDB évite de dépendre de ses en-têtes CORS et réutilise le cache d'images local. */
   const posterSrc = computed(() => {
     const source = (detail.value || apercu)?.poster_url;
-    return source ? proxyUrl(source, { width: 780 }) : null;
+    return source ? proxyUrl(source, { width: 780, forceProxy: true }) : null;
   });
   const tint = usePosterTint(() => posterSrc.value);
   const tintStyle = computed(() => (tint.value && posterSrc.value
