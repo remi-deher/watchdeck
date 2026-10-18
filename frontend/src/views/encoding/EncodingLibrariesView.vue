@@ -2,9 +2,8 @@
   <!-- Bibliotheques FileFlows (gabarit Configurer) : chacune s'active, se scanne et se
        modifie (flow, dossier Plex correspondant, alternance) dans la fenetre commune. Les
        changements s'appliquent aussitot : rien a enregistrer pour la page. -->
-  <EncodingShell title="Bibliothèques" v-model:query="query" :search="{ placeholder: 'Rechercher un réglage…', kind: 'filter', scope: 'Bibliothèques de l’encodage' }">
-    <UiFeedback v-if="librariesQuery.isError.value" type="error" :message="humanizeError(librariesQuery.error.value)" />
-    <ConfigureTemplate v-else :sections="SECTIONS" :query="query">
+  <EncodingShell :error="librariesQuery.isError.value ? humanizeError(librariesQuery.error.value) : ''" title="Bibliothèques" @retry="librariesQuery.refetch()" v-model:query="query" :search="{ placeholder: 'Rechercher un réglage…', kind: 'filter', scope: 'Bibliothèques de l’encodage' }">
+    <ConfigureTemplate :sections="SECTIONS" :query="query">
       <template #section-libraries>
         <p v-if="librariesQuery.isPending.value" class="libs-muted">Chargement des bibliothèques…</p>
         <ResourceList v-else :resources="resources" empty-text="Aucune bibliothèque dans FileFlows." @toggle="(r, on) => patch(r.key, { enabled: on })" @action="onAction" @edit="openEdit" />
@@ -30,7 +29,6 @@ import { queryKeys } from '@/queryKeys';
 import { humanizeError } from '@/utils/apiError';
 import { formatRelativeDate } from '@/utils/format';
 import UiButton from '@/components/ui/UiButton.vue';
-import UiFeedback from '@/components/ui/UiFeedback.vue';
 import EncodingShell from '@/components/encoding/EncodingShell.vue';
 import ConfigureTemplate, { type ConfigureResource, type ResourceTone } from '@/components/templates/ConfigureTemplate.vue';
 import ConfigureField from '@/components/templates/configure/ConfigureField.vue';

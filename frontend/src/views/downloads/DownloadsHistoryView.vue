@@ -12,7 +12,6 @@
     :error="error"
     @retry="load"
   >
-    <UiFeedback v-for="entry in errors" :key="entry.instance_id" type="warning" :title="entry.instance_name" message="Historique temporairement indisponible pour cette instance." />
     <UnderstandTemplate
       :events="events"
       :exportable="false"
@@ -35,13 +34,14 @@ import { historyToEvent } from '@/downloads/queueTrack';
 import { queueDetailPath } from '@/downloads/queueRules';
 import PageTemplate from '@/components/templates/PageTemplate.vue';
 import UnderstandTemplate, { type UnderstandEvent } from '@/components/templates/UnderstandTemplate.vue';
-import UiFeedback from '@/components/ui/UiFeedback.vue';
+import { useErrorToast } from '@/composables/useErrorToast';
 
 const route = useRoute();
 const router = useRouter();
 const query = ref('');
 const error = ref('');
 const { history, errors, loading, hasMore, load, loadMore } = useDownloadHistory(() => ({ source: '', instanceId: '' }), (message) => { error.value = message; });
+useErrorToast(() => errors.value.map((entry) => entry.instance_name).join(', '), { title: 'Historique temporairement indisponible', type: 'warning' });
 onMounted(() => { void load(); });
 
 const events = computed<UnderstandEvent[]>(() => {

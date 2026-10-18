@@ -62,8 +62,7 @@
               <UiCheckboxField v-model="hideWatched" label="Masquer les médias déjà vus" @update:model-value="reloadPersonalized" />
             </div>
           </header>
-          <UiFeedback v-if="personalized.error" type="error" :message="personalized.error" retry @retry="loadPersonalized" />
-          <MediaRail v-else title="Parce que vous avez regardé…" :items="personalized.recommended.items" :loading="personalized.loading" allow-request :requesting="requesting" @request="requestMedia" />
+          <MediaRail v-if="!personalized.error" title="Parce que vous avez regardé…" :items="personalized.recommended.items" :loading="personalized.loading" allow-request :requesting="requesting" @request="requestMedia" />
           <MediaRail v-if="personalized.preferred_genres.items.length" title="Dans vos genres préférés" :items="personalized.preferred_genres.items" allow-request :requesting="requesting" @request="requestMedia" />
           <MediaRail v-if="personalized.unwatched_popular.items.length" title="Populaires et jamais vus" :items="personalized.unwatched_popular.items" allow-request :requesting="requesting" @request="requestMedia" />
           <MediaRail v-if="personalized.followed_series.items.length" title="Nouveaux épisodes de vos séries suivies" :items="personalized.followed_series.items" allow-request :requesting="requesting" @request="requestMedia" />
@@ -151,7 +150,7 @@ import MediaPosterCard from '@/components/media/MediaPosterCard.vue';
 import RequestOptionsModal from '@/components/media/RequestOptionsModal.vue';
 import FilterGroupList from '@/components/ui/FilterGroupList.vue';
 import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
-import UiFeedback from '@/components/ui/UiFeedback.vue';
+import { useErrorToast } from '@/composables/useErrorToast';
 import { EXPLORER_TABS, explorerTabFor } from '@/navigation';
 import { useToast } from '@/composables/useToast';
 import { mediaRequestKey } from '@/composables/useDirectMediaRequest';
@@ -174,13 +173,21 @@ const {
 const toast = useToast();
 watch(requestError, (message) => { if (message) { toast.error('Demande impossible', message); requestError.value = ''; } });
 watch(requestSuccess, (message) => { if (message) { toast.success(message); requestSuccess.value = ''; } });
+useErrorToast(() => personalized.error, { title: 'Recommandations indisponibles', retry: loadPersonalized });
 </script>
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
 
 /* « Pour vous » : une rangee propre a la page, dans un cadre teinte. */
-.personalized-discovery { display: grid; gap: var(--space-5); padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: color-mix(in srgb, var(--surface) 92%, var(--accent) 8%); }
+.personalized-discovery {
+  display: grid;
+  gap: var(--space-5);
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface) 92%, var(--accent) 8%);
+}
 .personalized-header { display: flex; align-items: start; justify-content: space-between; gap: var(--space-4); }
 .personalized-header h2 { margin: 2px 0 0; font-size: var(--fs-xl); }
 .personalized-header p { max-width: 680px; margin: 5px 0 0; color: var(--muted); font-size: var(--fs-sm); }
