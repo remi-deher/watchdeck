@@ -22,7 +22,7 @@ from ..services import tmdb
 from ..services.media_annotate import annotate_media_items as _annotate
 from ..services.media_annotate import annotate_page as _annotate_page
 from ..services.media_annotate import annotate_rail_items as _annotate_rail
-from ..utils import run_section_safe
+from ..utils import run_section_safe, wrap_backdrop_proxy, wrap_rail_poster
 
 logger = logging.getLogger(__name__)
 
@@ -657,6 +657,10 @@ async def get_detail(
             raise HTTPException(400, "tmdb_id ou tvdb_id requis.")
 
         d = await tmdb.detail(db, media_type, tmdb_id)
+        # Le navigateur ne doit pas interroger directement le CDN TMDB : le proxy
+        # fournit une origine de même site et garde les images en cache local.
+        d["poster_url"] = wrap_rail_poster(d.get("poster_url"))
+        d["backdrop_url"] = wrap_backdrop_proxy(d.get("backdrop_url"))
         await _annotate(db, [d])
         if d.get("request_id"):
             req = (await db.execute(select(MediaRequest).filter(MediaRequest.id == d["request_id"]))).scalars().first()
