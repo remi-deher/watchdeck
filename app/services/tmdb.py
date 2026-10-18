@@ -573,12 +573,26 @@ def _current_season_air_date(data: dict) -> Optional[str]:
 
 async def detail(db: AsyncSession, media_type: str, tmdb_id: int) -> dict:
     mt = "movie" if media_type in ("movie", "movies") else "tv"
-    append = "external_ids,recommendations,similar,credits"
+    append = "external_ids,recommendations,similar,credits,videos"
     if mt == "movie":
         append += ",release_dates"
     data = await _get(db, f"/{mt}/{tmdb_id}", {"append_to_response": append})
     ext = data.get("external_ids") or {}
     base = _norm({**data, "media_type": mt}, mt) or {}
+    credits = data.get("credits") or {}
+    crew = credits.get("crew") or []
+    directors = list(dict.fromkeys(
+        person.get("name") for person in crew
+        if person.get("job") == "Director" and person.get("name")
+    ))
+    creators = list(dict.fromkeys(
+        person.get("name") for person in (data.get("created_by") or [])
+        if person.get("name")
+    ))
+    videos = (data.get("videos") or {}).get("results") or []
+    trailers = [video for video in videos if video.get("site") == "YouTube" and video.get("type") == "Trailer" and video.get("key")]
+    trailers.sort(key=lambda video: (not bool(video.get("official")), video.get("name") or ""))
+    trailer_url = f"https://www.youtube.com/watch?v={trailers[0]['key']}" if trailers else None
     saga = None
     collection = data.get("belongs_to_collection") if mt == "movie" else None
     if collection and collection.get("id"):
@@ -592,6 +606,11 @@ async def detail(db: AsyncSession, media_type: str, tmdb_id: int) -> dict:
             "imdb_id": ext.get("imdb_id") or data.get("imdb_id"),
             "genres": [g.get("name") for g in data.get("genres", [])],
             "runtime": data.get("runtime") or (data.get("episode_run_time") or [None])[0],
+            "directors": directors,
+            "creators": creators,
+            "production_countries": [country.get("name") for country in data.get("production_countries", []) if country.get("name")],
+            "vote_count": data.get("vote_count") or 0,
+            "trailer_url": trailer_url,
             "status": data.get("status"),
             "number_of_seasons": data.get("number_of_seasons"),
             "next_episode_to_air": data.get("next_episode_to_air"),

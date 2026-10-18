@@ -146,7 +146,11 @@ const waitingReason = computed(() => props.detail?.journey
   : props.detail?.waiting_reason);
 const factsLine = computed(() => {
   const d = props.detail || {};
-  return [d.year, d.vote ? `★ ${d.vote}` : '', d.genres?.length ? d.genres.join(', ') : '']
+  const runtime = Number(d.runtime);
+  const duration = runtime > 0
+    ? (isShow.value ? `~${runtime} min/épisode` : `${runtime} min`)
+    : '';
+  return [d.year, d.vote ? `★ ${d.vote}` : '', duration, d.genres?.length ? d.genres.join(', ') : '']
     .filter(Boolean)
     .join(' · ');
 });
