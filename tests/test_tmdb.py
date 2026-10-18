@@ -195,6 +195,67 @@ async def test_person_detail_normalizes_and_deduplicates_credits(db):
     assert [(item["media_type"], item["tmdb_id"]) for item in result["credits"]] == [("movie", 550), ("show", 1399)]
 
 
+@pytest.mark.asyncio
+async def test_detail_returns_editorial_metadata_and_official_trailer(db):
+    payload = {
+        "id": 27205,
+        "title": "Inception",
+        "release_date": "2010-07-16",
+        "runtime": 148,
+        "vote_average": 8.4,
+        "vote_count": 35000,
+        "genres": [{"name": "Science-fiction"}],
+        "production_countries": [{"name": "États-Unis"}],
+        "credits": {
+            "cast": [{"id": 1, "name": "Acteur", "character": "Rôle"}],
+            "crew": [
+                {"job": "Director", "name": "Christopher Nolan"},
+                {"job": "Director", "name": "Christopher Nolan"},
+            ],
+        },
+        "videos": {
+            "results": [
+                {"site": "YouTube", "type": "Trailer", "key": "fan-cut", "official": False},
+                {"site": "YouTube", "type": "Trailer", "key": "official-cut", "official": True},
+                {"site": "Vimeo", "type": "Trailer", "key": "ignored"},
+            ]
+        },
+    }
+    with patch("app.services.tmdb._get", new=AsyncMock(return_value=payload)) as get:
+        result = await tmdb.detail(db, "movie", 27205)
+
+    assert get.await_args.args[1] == "/movie/27205"
+    assert "videos" in get.await_args.args[2]["append_to_response"]
+    assert result["runtime"] == 148
+    assert result["vote"] == 8.4
+    assert result["vote_count"] == 35000
+    assert result["genres"] == ["Science-fiction"]
+    assert result["directors"] == ["Christopher Nolan"]
+    assert result["production_countries"] == ["États-Unis"]
+    assert result["trailer_url"] == "https://www.youtube.com/watch?v=official-cut"
+    assert result["cast"][0]["name"] == "Acteur"
+
+
+@pytest.mark.asyncio
+async def test_detail_uses_series_creators_and_omits_missing_trailer(db):
+    payload = {
+        "id": 1396,
+        "name": "Breaking Bad",
+        "first_air_date": "2008-01-20",
+        "episode_run_time": [47],
+        "created_by": [{"name": "Vince Gilligan"}],
+        "credits": {"cast": [], "crew": []},
+        "videos": {"results": []},
+    }
+    with patch("app.services.tmdb._get", new=AsyncMock(return_value=payload)):
+        result = await tmdb.detail(db, "show", 1396)
+
+    assert result["runtime"] == 47
+    assert result["creators"] == ["Vince Gilligan"]
+    assert result["directors"] == []
+    assert result["trailer_url"] is None
+
+
 # ---------------------------------------------------------------------------
 # check_connection
 # ---------------------------------------------------------------------------
