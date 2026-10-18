@@ -1,11 +1,17 @@
 # Changelog
 
+## 1.90.10 — 2026-10-18
+
 ## 1.90.9 — 2026-10-14
 
 
 ### ♻️ Refactoring
 
 - ramener les primitives Reka derrière des composants communs ([d6b192e](https://github.com/remi-deher/watchdeck/commit/d6b192ec4fa86e8619340245211f4f787bfd7af8))
+
+### 🔧 Maintenance
+
+- v1.90.9 (#868) ([1217697](https://github.com/remi-deher/watchdeck/commit/121769784719f1d309cd9296fdbae095f86d1702))
 ## 1.90.8 — 2026-10-14
 
 
