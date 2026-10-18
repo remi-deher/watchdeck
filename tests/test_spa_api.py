@@ -389,6 +389,41 @@ def test_spa_media_detail_core_skips_slow_enrichment(async_db):
         _cleanup()
 
 
+def test_spa_media_detail_exposes_cached_catalog_metadata(async_db):
+    item = LibraryItem(title="Inception", media_type="movie", year=2010, tmdb_id="27205")
+    async_db.add(item)
+    async_db.commit()
+    client = _client(async_db)
+    metadata = {
+        "runtime": 148,
+        "genres": ["Science-fiction"],
+        "directors": ["Christopher Nolan"],
+        "creators": [],
+        "production_countries": ["États-Unis"],
+        "vote": 8.4,
+        "vote_count": 35000,
+        "trailer_url": "https://www.youtube.com/watch?v=official-cut",
+        "cast": [{"tmdb_id": 1, "name": "Acteur"}],
+        "saga": {"name": "Inception", "items": []},
+    }
+    try:
+        with patch("app.services.media_detail.tmdb.detail", new=AsyncMock(return_value=metadata)):
+            response = client.get(f"/api/media/detail?library_id={item.id}")
+        assert response.status_code == 200
+        media = response.json()["media"]
+        assert media["runtime"] == 148
+        assert media["genres"] == ["Science-fiction"]
+        assert media["directors"] == ["Christopher Nolan"]
+        assert media["production_countries"] == ["États-Unis"]
+        assert media["vote"] == 8.4
+        assert media["vote_count"] == 35000
+        assert media["trailer_url"] == "https://www.youtube.com/watch?v=official-cut"
+        assert response.json()["cast"] == metadata["cast"]
+        assert response.json()["saga"] == metadata["saga"]
+    finally:
+        _cleanup()
+
+
 def test_spa_media_detail_exposes_plex_origin_without_request(async_db):
     item = LibraryItem(title="Plex only", media_type="movie", year=2025)
     async_db.add(item)

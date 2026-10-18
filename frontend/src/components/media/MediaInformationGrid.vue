@@ -30,6 +30,17 @@
         <p v-if="waitingReason" class="information-note">{{ waitingReason }}</p>
       </article>
 
+      <article v-if="editorialFacts.length || detail.trailer_url" class="information-card editorial-card">
+        <header><Info/><div><span>Catalogue</span><strong>Repères du média</strong></div></header>
+        <dl v-if="editorialFacts.length">
+          <div v-for="fact in editorialFacts" :key="fact.label"><dt>{{ fact.label }}</dt><dd>{{ fact.value }}</dd></div>
+        </dl>
+        <a v-if="detail.trailer_url" :href="detail.trailer_url" target="_blank" rel="noopener noreferrer" class="trailer-link">
+          <ExternalLink aria-hidden="true" />Voir la bande-annonce sur YouTube
+        </a>
+        <small v-if="detail.vote_count" class="catalog-source">Note TMDB · {{ Number(detail.vote_count).toLocaleString('fr-FR') }} votes</small>
+      </article>
+
       <article class="information-card">
         <header><Layers3/><div><span>Couverture</span><strong>{{ coverageTitle }}</strong></div></header>
         <dl v-if="detail.media_type==='show' && detail.availability">
@@ -70,7 +81,7 @@ import { isInPlex, plexPresenceLabel, mediaAvailabilityBadge } from "@/utils/med
 import { formatDateTime } from '@/utils/format';
 import MediaLanguageBadge from './MediaLanguageBadge.vue';
 import { computed } from 'vue';
-import { Activity, BellRing, CalendarClock, Layers3, Users } from '@lucide/vue';
+import { Activity, BellRing, CalendarClock, ExternalLink, Info, Layers3, Users } from '@lucide/vue';
 import { isMusicType } from '@/utils/labels';
 
 const props = withDefaults(
@@ -83,6 +94,14 @@ const props = withDefaults(
   }
 );
 const isMusic = computed(() => isMusicType(props.detail?.media_type));
+const editorialFacts = computed(() => {
+  const detail = props.detail || {};
+  const facts = [
+    { label: detail.media_type === 'show' ? 'Création' : 'Réalisation', value: (detail.media_type === 'show' ? detail.creators : detail.directors)?.join(', ') },
+    { label: 'Pays', value: detail.production_countries?.join(', ') },
+  ];
+  return facts.filter((fact) => fact.value);
+});
 const requests = computed(() => props.detail.requests || []);
 const notifications = computed(() => props.detail.notification_history || []);
 const waitingReason = computed(() => props.detail.journey ? props.detail.journey.blocker?.label : props.detail.waiting_reason);
@@ -253,6 +272,19 @@ function eventLabel(log: any): string {
 .empty-copy {
   margin: 0
 }
+.trailer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: fit-content;
+  color: var(--accent);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-decoration: none;
+}
+.trailer-link:hover { text-decoration: underline; }
+.trailer-link svg { width: 15px; height: 15px; }
+.catalog-source { color: var(--muted); font-size: var(--fs-xs); }
 .notification-card {
   grid-column: 1/-1;
 }
