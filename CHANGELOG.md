@@ -1,7 +1,13 @@
 # Changelog
 
+## 1.90.11 — 2026-10-18
+
 ## 1.90.10 — 2026-10-18
 
+
+### 🔧 Maintenance
+
+- v1.90.10 (#877) ([738028c](https://github.com/remi-deher/watchdeck/commit/738028c0597c22022d4dc506bcdacdc71ce642ab))
 ## 1.90.9 — 2026-10-14
 
 
