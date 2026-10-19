@@ -39,7 +39,7 @@
     "knip": "^6.41.0",
     "sass": "^1.105.1",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "vitest": "^5.0.2",
+    "vitest": "^5.0.4",
     "vue-tsc": "^3.3.13"
   },
   "overrides": {
