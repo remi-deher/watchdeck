@@ -21,7 +21,7 @@ redis==5.3.1
 arq==0.28.0
 tzdata==2026.4
 websockets==17.1
-pillow==12.3.0
+pillow==13.0.0
 
 # Verified remote destination hashes used by storage transfers.
 paramiko==5.0.0
