@@ -33,8 +33,8 @@ class MediaRequest(Base):
 
     tmdb_id: Mapped[Optional[str]] = mapped_column(index=True)
     tvdb_id: Mapped[Optional[str]] = mapped_column(index=True)
-    imdb_id: Mapped[Optional[str]]
-    plex_guid: Mapped[Optional[str]]
+    imdb_id: Mapped[Optional[str]] = mapped_column(index=True)
+    plex_guid: Mapped[Optional[str]] = mapped_column(index=True)
     diagnostic_context: Mapped[Optional[str]] = mapped_column(Text, default=None)
 
     status: Mapped[str] = mapped_column(default=RequestStatus.pending, index=True)
@@ -193,6 +193,8 @@ class LibraryItem(Base):
     __tablename__ = "library_items"
     __table_args__ = (
         Index("ix_library_items_added_id", desc("added_at"), "title", "id"),
+        Index("ix_library_items_type_added", "media_type", desc("added_at"), "title", "id"),
+        Index("ix_library_items_type_title", "media_type", "title", "id"),
         Index("ix_library_items_arr_identity", "arr_instance_id", "arr_id"),
     )
 

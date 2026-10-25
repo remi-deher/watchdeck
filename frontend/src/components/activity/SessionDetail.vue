@@ -261,8 +261,8 @@ const bufferEndMs = computed(() => {
 });
 /* Horloge : une seconde de pas tant que la lecture avance, rien sinon. */
 const now = ref(new Date());
-useIntervalFn(() => { now.value = new Date(); }, 1000);
 const advancing = computed(() => isAdvancing(props.session));
+useIntervalFn(() => { if (!document.hidden && advancing.value) now.value = new Date(); }, 1000);
 const positionMs = computed(() => estimateProgressMs(props.session, now.value.getTime()));
 const remainingMs = computed(() => Math.max(0, (props.session.duration_ms || 0) - positionMs.value));
 const percentPlayed = computed(() => {

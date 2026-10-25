@@ -5,11 +5,13 @@ local (déjà dans la bibliothèque Plex, déjà demandé, disponible) en recoup
 les tmdb_id avec LibraryItem et MediaRequest.
 """
 
+import asyncio
 import json
 import logging
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -221,7 +223,29 @@ async def _personalization_seeds(db: AsyncSession, plex_user_id: str, limit: int
     if not sessions:
         return [], set()
 
-    library_rows = (await db.execute(select(LibraryItem).filter(LibraryItem.tmdb_id.isnot(None)))).scalars().all()
+    candidate_titles: set[str] = set()
+    for session in sessions:
+        if session.media_type not in ("movie", "show", "episode"):
+            continue
+        media_type = "show" if session.media_type in ("show", "episode") else "movie"
+        title = session.grandparent_title if media_type == "show" else session.title
+        if title and title.strip():
+            candidate_titles.add(title.casefold().strip())
+
+    if not candidate_titles:
+        return [], set()
+
+    library_stmt = select(
+        LibraryItem.id,
+        LibraryItem.media_type,
+        LibraryItem.title,
+        LibraryItem.year,
+        LibraryItem.tmdb_id,
+    ).filter(
+        LibraryItem.tmdb_id.isnot(None),
+        func.lower(func.trim(LibraryItem.title)).in_(list(candidate_titles)),
+    )
+    library_rows = (await db.execute(library_stmt)).all()
     library_by_identity = {
         (row.media_type, row.title.casefold().strip(), row.year): row
         for row in library_rows
@@ -279,11 +303,21 @@ async def _personalized_sections(
     recommendation_groups: list[list[dict]] = []
     series_groups: list[list[dict]] = []
     genre_counts: dict[int, int] = {}
-    for seed in seeds:
-        try:
-            detail = await tmdb.detail(db, seed["media_type"], int(seed["tmdb_id"]))
-        except Exception as exc:
-            logger.warning("Recommandations TMDB indisponibles pour %s: %s", seed["tmdb_id"], exc)
+
+    sem = asyncio.Semaphore(5)
+
+    async def _fetch_seed_detail(seed: dict):
+        async with sem:
+            try:
+                detail = await tmdb.detail(db, seed["media_type"], int(seed["tmdb_id"]))
+                return seed, detail
+            except Exception as exc:
+                logger.warning("Recommandations TMDB indisponibles pour %s: %s", seed["tmdb_id"], exc)
+                return seed, None
+
+    seed_results = await asyncio.gather(*(_fetch_seed_detail(s) for s in seeds))
+    for seed, detail in seed_results:
+        if not detail:
             continue
         recommendations = detail.get("recommendations") or detail.get("similar") or []
         recommendation_groups.append(recommendations)
@@ -298,26 +332,33 @@ async def _personalized_sections(
     # précisément son prochain épisode, même quand les contenus vus sont masqués.
     followed_series = _merge_unique_media(series_groups, set(), 12)
     preferred_genre = max(genre_counts, key=genre_counts.get) if genre_counts else None
-    preferred = []
-    if preferred_genre:
-        payload, _ = await run_section_safe(
-            tmdb.discover(db, "all", preferred_genre, "popularity.desc", 1, await _discovery_region(db)),
+    region = await _discovery_region(db)
+
+    preferred_coro = (
+        run_section_safe(
+            tmdb.discover(db, "all", preferred_genre, "popularity.desc", 1, region),
             section_name="genres préférés",
             default={},
             logger=logger,
         )
-        if payload:
-            preferred = _merge_unique_media([payload.get("items", [])], excluded)
-
-    popular = []
-    payload, _ = await run_section_safe(
-        tmdb.popular(db, "all", 1, await _discovery_region(db)),
+        if preferred_genre
+        else None
+    )
+    popular_coro = run_section_safe(
+        tmdb.popular(db, "all", 1, region),
         section_name="jamais vus",
         default={},
         logger=logger,
     )
-    if payload:
-        popular = _merge_unique_media([payload.get("items", [])], excluded)
+
+    if preferred_coro:
+        (preferred_payload, _), (popular_payload, _) = await asyncio.gather(preferred_coro, popular_coro)
+    else:
+        preferred_payload = {}
+        popular_payload, _ = await popular_coro
+
+    preferred = _merge_unique_media([preferred_payload.get("items", [])], excluded) if preferred_payload else []
+    popular = _merge_unique_media([popular_payload.get("items", [])], excluded) if popular_payload else []
 
     all_items = [*recommended, *preferred, *popular, *followed_series]
     await _annotate(db, all_items)
@@ -391,23 +432,29 @@ async def get_home(
     )
     payloads: dict[str, dict] = {}
     errors: dict[str, str] = {}
-    for source in source_names:
+
+    async def _load_section_safe(name: str, coro):
         payload, err = await run_section_safe(
-            _fetch_home_section(db, source, region),
-            section_name=source,
+            coro,
+            section_name=name,
             default=None,
             logger=logger,
             log_message="Section Découvrir indisponible: %s",
         )
-        if err is not None:
-            errors[source] = err
-        else:
-            payloads[source] = payload
+        return name, payload, err
 
+    tasks = [_load_section_safe(source, _fetch_home_section(db, source, region)) for source in source_names]
     if "recent_plex" in requested:
-        payloads["recent_plex"] = await _recent_plex_section(db)
+        tasks.append(_load_section_safe("recent_plex", _recent_plex_section(db)))
     if "most_requested" in requested:
-        payloads["most_requested"] = await _most_requested_section(db)
+        tasks.append(_load_section_safe("most_requested", _most_requested_section(db)))
+
+    results = await asyncio.gather(*tasks)
+    for name, payload, err in results:
+        if err is not None:
+            errors[name] = err
+        else:
+            payloads[name] = payload
 
     all_items = [
         item for source, payload in payloads.items() if source in external_sections for item in payload.get("items", [])
@@ -496,9 +543,7 @@ async def get_provider_home(
     payloads: dict[str, dict] = {}
     errors: dict[str, str] = {}
 
-    # hero réutilise movies
-    source_sections = list(dict.fromkeys("movies" if s == "hero" else s for s in requested))
-    for section in source_sections:
+    async def _load_provider_section(section: str):
         payload, err = await run_section_safe(
             _fetch_provider_section(section),
             section_name=section,
@@ -506,6 +551,12 @@ async def get_provider_home(
             logger=logger,
             log_message="Section Découvrir indisponible: %s",
         )
+        return section, payload, err
+
+    # hero réutilise movies
+    source_sections = list(dict.fromkeys("movies" if s == "hero" else s for s in requested))
+    results = await asyncio.gather(*(_load_provider_section(s) for s in source_sections))
+    for section, payload, err in results:
         if err is not None:
             errors[section] = err
         else:

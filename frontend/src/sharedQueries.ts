@@ -9,6 +9,7 @@ export function playbackLiveQuery() {
   return {
     queryKey: queryKeys.playback.live,
     queryFn: ({ signal }: { signal: AbortSignal }) => api<Record<string, any>>('/api/playback/live', { signal }),
+    refetchOnWindowFocus: true,
   };
 }
 
@@ -17,6 +18,7 @@ export function arrQueueQuery() {
     queryKey: queryKeys.downloads.arrQueue,
     queryFn: ({ signal }: { signal: AbortSignal }) => api<any>('/api/arr/queue', { signal }),
     staleTime: 5_000,
+    refetchOnWindowFocus: true,
   };
 }
 

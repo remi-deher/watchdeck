@@ -8,7 +8,7 @@ import sqlalchemy
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -77,15 +77,15 @@ class MediaAddRequest(BaseModel):
 
 async def _media_identity_filter(db: AsyncSession, item) -> list[MediaRequest]:
     """Retourne les demandes qui représentent le même média qu'un LibraryItem ou une demande."""
-    matches: dict[int, MediaRequest] = {}
-    if isinstance(item, LibraryItem):
-        for req in (
-            (await db.execute(select(MediaRequest).filter(MediaRequest.library_item_id == item.id))).scalars().all()
-        ):
-            matches[req.id] = req
+    conditions = []
+    if isinstance(item, LibraryItem) and item.id is not None:
+        conditions.append(MediaRequest.library_item_id == item.id)
+
     for key in identity_keys(item):
         kind = key[0]
         value = key[1] if len(key) > 1 else None
+        if not value:
+            continue
         col = {
             "guid": MediaRequest.plex_guid,
             "tmdb": MediaRequest.tmdb_id,
@@ -93,17 +93,25 @@ async def _media_identity_filter(db: AsyncSession, item) -> list[MediaRequest]:
             "imdb": MediaRequest.imdb_id,
         }.get(kind)
         if col is not None:
-            for req in (await db.execute(select(MediaRequest).filter(col == value))).scalars().all():
-                matches[req.id] = req
-    if getattr(item, "title", None) and getattr(item, "media_type", None):
-        q = select(MediaRequest).filter(
-            MediaRequest.title.ilike(item.title),
-            MediaRequest.media_type == item.media_type,
+            conditions.append(col == value)
+
+    title = getattr(item, "title", None)
+    media_type = getattr(item, "media_type", None)
+    if title and media_type:
+        title_cond = and_(
+            MediaRequest.title.ilike(title),
+            MediaRequest.media_type == media_type,
         )
-        if getattr(item, "year", None):
-            q = q.filter(MediaRequest.year == item.year)
-        for req in (await db.execute(q)).scalars().all():
-            matches[req.id] = req
+        year = getattr(item, "year", None)
+        if year:
+            title_cond = and_(title_cond, MediaRequest.year == year)
+        conditions.append(title_cond)
+
+    if not conditions:
+        return []
+
+    rows = (await db.execute(select(MediaRequest).filter(or_(*conditions)))).scalars().all()
+    matches = {req.id: req for req in rows}
     return sorted(matches.values(), key=lambda r: r.requested_at or datetime.min, reverse=True)
 
 
