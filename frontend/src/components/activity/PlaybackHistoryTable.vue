@@ -45,7 +45,7 @@
 
     <!-- 2. Colonne Date & Heure -->
     <template #cell-date="{ row }">
-      <span class="date-cell">
+      <span class="history-date-cell date-cell">
         <strong>{{ formatDateDay(row.item.started_at) }}</strong>
         <small>{{ formatDateTime(row.item.started_at) }}</small>
       </span>
@@ -140,8 +140,10 @@ const openSessionId = computed(() => {
   return path.startsWith('/activity/session/') ? path.slice('/activity/session/'.length) : '';
 });
 
-const rowClass = (row: PlaybackRun): string =>
-  openSessionId.value && String(row.item.id) === openSessionId.value ? 'is-open' : '';
+const rowClass = (row: PlaybackRun): string => {
+  const isOpen = openSessionId.value && String(row.item.id) === openSessionId.value;
+  return `understand-row${isOpen ? ' is-open' : ''}`;
+};
 
 const COLUMNS: UiColumn<PlaybackRun>[] = [
   { key: 'title', label: 'Titre', required: true, sortable: true, card: 'title' },
