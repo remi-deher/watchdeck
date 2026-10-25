@@ -313,18 +313,18 @@ async def genres(db: AsyncSession, media_type: str) -> list[dict]:
 
 
 GENRE_EQUIVALENTS_MOVIE_TO_SHOW: dict[int, int] = {
-    28: 10759,   # Action -> Action & Aventure
-    12: 10759,   # Aventure -> Action & Aventure
+    28: 10759,  # Action -> Action & Aventure
+    12: 10759,  # Aventure -> Action & Aventure
     878: 10765,  # Science-Fiction -> Sci-Fi & Fantastique
-    14: 10765,   # Fantastique -> Sci-Fi & Fantastique
-    27: 9648,    # Horreur -> Mystère
-    53: 80,      # Thriller -> Crime
+    14: 10765,  # Fantastique -> Sci-Fi & Fantastique
+    27: 9648,  # Horreur -> Mystère
+    53: 80,  # Thriller -> Crime
 }
 
 GENRE_EQUIVALENTS_SHOW_TO_MOVIE: dict[int, int] = {
-    10759: 28,   # Action & Aventure -> Action
+    10759: 28,  # Action & Aventure -> Action
     10765: 878,  # Sci-Fi & Fantastique -> Science-Fiction
-    9648: 27,    # Mystère -> Horreur
+    9648: 27,  # Mystère -> Horreur
 }
 
 
@@ -347,7 +347,11 @@ async def discover(
     mt = "movie" if media_type == "movie" else "tv"
     params = {"page": page, "sort_by": sort_by, "region": region}
     if genre:
-        resolved_genre = GENRE_EQUIVALENTS_MOVIE_TO_SHOW.get(genre, genre) if mt == "tv" else GENRE_EQUIVALENTS_SHOW_TO_MOVIE.get(genre, genre)
+        resolved_genre = (
+            GENRE_EQUIVALENTS_MOVIE_TO_SHOW.get(genre, genre)
+            if mt == "tv"
+            else GENRE_EQUIVALENTS_SHOW_TO_MOVIE.get(genre, genre)
+        )
         params["with_genres"] = resolved_genre
     data = await _get(db, f"/discover/{mt}", params)
     return _norm_page(data, mt)
