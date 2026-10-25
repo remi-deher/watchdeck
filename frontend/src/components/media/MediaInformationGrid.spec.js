@@ -22,3 +22,27 @@ it('affiche la prochaine étape métier du parcours même si le média est prés
   expect(wrapper.text()).toContain('Compléter les épisodes diffusés');
   expect(wrapper.text()).not.toContain('Aucune action requise');
 });
+
+it('masque les cartes opérationnelles pour un média non demandé du catalogue découvrir', () => {
+  const wrapper = mount(MediaInformationGrid, {
+    props: {
+      detail: {
+        title: 'Film Découvrir',
+        media_type: 'movie',
+        directors: ['Jordan Downey'],
+        production_countries: ['United States of America'],
+        vote_count: 14,
+        status: 'Released',
+        requests: [],
+        notification_history: [],
+      },
+    },
+  });
+  expect(wrapper.text()).toContain('Repères du média');
+  expect(wrapper.text()).toContain('Jordan Downey');
+  expect(wrapper.text()).not.toContain('État actuel');
+  expect(wrapper.text()).not.toContain('Couverture');
+  expect(wrapper.text()).not.toContain('Demandes');
+  expect(wrapper.text()).not.toContain('Notifications');
+  expect(wrapper.text()).not.toContain('Prochaines sorties');
+});

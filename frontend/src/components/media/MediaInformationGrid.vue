@@ -2,7 +2,7 @@
   <div class="media-information-grid">
     <!-- Fiche d'information Musique -->
     <template v-if="isMusic">
-      <article class="information-card state-card">
+      <article v-if="inLibrary" class="information-card state-card">
         <header><Activity/><div><span>Bibliothèque Plex</span><strong>{{ isInPlex(detail) ? 'Présent dans Plex' : 'Musique Plex' }}</strong></div></header>
         <dl>
           <div><dt>Type</dt><dd>{{ detail.media_type === 'artist' ? 'Artiste' : 'Album' }}</dd></div>
@@ -11,7 +11,7 @@
         </dl>
       </article>
 
-      <article class="information-card notification-card">
+      <article v-if="notifications.length" class="information-card notification-card">
         <header><BellRing/><div><span>Notifications</span><strong>{{ notifications.length ? `${notifications.length} événement${notifications.length>1?'s':''}` : 'Aucun envoi' }}</strong></div></header>
         <ul v-if="notifications.length" class="compact-list"><li v-for="log in notifications.slice(0,5)" :key="log.id"><div><strong>{{ eventLabel(log) }}</strong><small>{{ log.recipient }} · {{ formatDate(log.sent_at) }}</small></div><span class="badge" :class="log.success?'available':'failed'">{{ log.success ? 'Envoyée' : 'Échec' }}</span></li></ul>
         <p v-else class="empty-copy">Aucune notification enregistrée pour ce média.</p>
@@ -20,7 +20,7 @@
 
     <!-- Fiches d'information Films / Séries -->
     <template v-else>
-      <article class="information-card state-card">
+      <article v-if="isTracked" class="information-card state-card">
         <header><Activity/><div><span>État actuel</span><strong>{{ currentState }}</strong></div></header>
         <dl>
           <div><dt>Plex</dt><dd>{{ plexPresenceLabel(detail) }}</dd></div>
@@ -41,7 +41,7 @@
         <small v-if="detail.vote_count" class="catalog-source">Note TMDB · {{ Number(detail.vote_count).toLocaleString('fr-FR') }} votes</small>
       </article>
 
-      <article class="information-card">
+      <article v-if="hasCoverage" class="information-card">
         <header><Layers3/><div><span>Couverture</span><strong>{{ coverageTitle }}</strong></div></header>
         <dl v-if="detail.media_type==='show' && detail.availability">
           <div v-if="detail.availability.episodes.seasons_total"><dt>Saisons avec fichiers complets · *ARR</dt><dd>{{ detail.availability.episodes.seasons_available }} / {{ detail.availability.episodes.seasons_total }}</dd></div>
@@ -56,18 +56,18 @@
         <dl v-else><div><dt>Disponibilité</dt><dd>{{ plexPresenceLabel(detail) }}</dd></div><div><dt>Langue</dt><dd><MediaLanguageBadge :state="detail" /></dd></div></dl>
       </article>
 
-      <article class="information-card">
+      <article v-if="upcoming.length" class="information-card">
         <header><CalendarClock/><div><span>Prochaines sorties</span><strong>{{ upcoming.length ? `${upcoming.length} planifiée${upcoming.length>1?'s':''}` : 'Aucune sortie' }}</strong></div></header>
         <ul v-if="upcoming.length" class="compact-list"><li v-for="event in upcoming" :key="`${event.date}:${event.subtitle}`"><div><strong>{{ event.subtitle || event.title }}</strong><small>{{ formatDate(event.date) }}</small></div><span class="badge">{{ event.tracked ? 'Suivi' : 'Catalogue' }}</span></li></ul>
         <p v-else class="empty-copy">Aucune date future connue.</p>
       </article>
 
-      <article class="information-card">
+      <article v-if="hasRequests" class="information-card">
         <header><Users/><div><span>Demandes</span><strong>{{ requestersCount }} demandeur{{ requestersCount>1?'s':'' }}</strong></div></header>
         <dl><div><dt>Première demande</dt><dd>{{ firstRequestDate }}</dd></div><div><dt>Source</dt><dd>{{ detail.journey?.origin.label || detail.origin_label || 'Inconnue' }}</dd></div><div><dt>Demandes liées</dt><dd>{{ requests.length }}</dd></div></dl>
       </article>
 
-      <article class="information-card notification-card">
+      <article v-if="notifications.length" class="information-card notification-card">
         <header><BellRing/><div><span>Notifications</span><strong>{{ notifications.length ? `${notifications.length} événement${notifications.length>1?'s':''}` : 'Aucun envoi' }}</strong></div></header>
         <ul v-if="notifications.length" class="compact-list"><li v-for="log in notifications.slice(0,5)" :key="log.id"><div><strong>{{ eventLabel(log) }}</strong><small>{{ log.recipient }} · {{ formatDate(log.sent_at) }}</small></div><span class="badge" :class="log.success?'available':'failed'">{{ log.success ? 'Envoyée' : 'Échec' }}</span></li></ul>
         <p v-else class="empty-copy">Aucune notification enregistrée pour ce média.</p>
@@ -102,17 +102,21 @@ const editorialFacts = computed(() => {
   ];
   return facts.filter((fact) => fact.value);
 });
-const requests = computed(() => props.detail.requests || []);
-const notifications = computed(() => props.detail.notification_history || []);
-const waitingReason = computed(() => props.detail.journey ? props.detail.journey.blocker?.label : props.detail.waiting_reason);
-const currentState = computed(() => props.detail.journey?.label || (props.detail.availability ? mediaAvailabilityBadge(props.detail)?.label : null) || props.detail.operational_status_label || (isInPlex(props.detail) ? 'Disponible' : 'En attente'));
+const requests = computed(() => props.detail?.requests || []);
+const notifications = computed(() => props.detail?.notification_history || []);
+const hasRequests = computed(() => requests.value.length > 0 || Boolean(props.detail?.request_id || props.detail?.requested));
+const inLibrary = computed(() => isInPlex(props.detail || {}) || Boolean(props.detail?.in_library || props.detail?.library_id || props.detail?.library_item_id));
+const isTracked = computed(() => hasRequests.value || inLibrary.value || Boolean(props.detail?.journey || props.detail?.operational_status_label));
+const hasCoverage = computed(() => isTracked.value && (inLibrary.value || Boolean(props.detail?.availability) || seasonRows.value.length > 0));
+const waitingReason = computed(() => props.detail?.journey ? props.detail.journey.blocker?.label : props.detail?.waiting_reason);
+const currentState = computed(() => props.detail?.journey?.label || (props.detail?.availability ? mediaAvailabilityBadge(props.detail)?.label : null) || props.detail?.operational_status_label || (isInPlex(props.detail || {}) ? 'Disponible' : 'En attente'));
 const nextAction = computed(() =>
-  props.detail.journey ? props.detail.journey.next_step?.label || 'Aucune étape attendue' :
-  isInPlex(props.detail)
+  props.detail?.journey ? props.detail.journey.next_step?.label || 'Aucune étape attendue' :
+  isInPlex(props.detail || {})
     ? 'Aucune action requise'
-    : props.detail.waiting_reason
+    : props.detail?.waiting_reason
     ? 'Vérifier le blocage'
-    : props.detail.arr_id
+    : props.detail?.arr_id
     ? 'Attendre Sonarr / Radarr'
     : 'Envoyer vers Sonarr / Radarr'
 );
@@ -133,18 +137,18 @@ const coverage = computed(() => {
   };
 });
 const coverageTitle = computed(() =>
-  props.detail.availability && props.detail.media_type === 'show'
+  props.detail?.availability && props.detail.media_type === 'show'
     ? ({ unknown: 'Couverture inconnue', absent: 'Aucun fichier', partial: 'Fichiers partiels', up_to_date: 'Fichiers à jour sur les épisodes diffusés' } as Record<string, string>)[props.detail.availability.episodes.state]
-    : props.detail.media_type === 'show'
+    : props.detail?.media_type === 'show'
     ? coverage.value.total
       ? `${coverage.value.complete} saison${coverage.value.complete > 1 ? 's' : ''} complète${coverage.value.complete > 1 ? 's' : ''}`
       : 'Couverture inconnue'
-    : isInPlex(props.detail)
+    : isInPlex(props.detail || {})
     ? 'Film disponible'
     : 'Film attendu'
 );
 const upcoming = computed(() =>
-  (props.detail.calendar || []).filter((event: any) => new Date(event.date) > new Date()).slice(0, 3)
+  (props.detail?.calendar || []).filter((event: any) => new Date(event.date) > new Date()).slice(0, 3)
 );
 const requesterIds = computed(
   () =>
@@ -180,6 +184,9 @@ function eventLabel(log: any): string {
   grid-template-columns: repeat(2,minmax(0,1fr));
   gap: var(--space-3);
   margin-bottom: 18px;
+}
+.media-information-grid:empty {
+  display: none;
 }
 .information-card {
   display: grid;
@@ -285,6 +292,9 @@ function eventLabel(log: any): string {
 .trailer-link:hover { text-decoration: underline; }
 .trailer-link svg { width: 15px; height: 15px; }
 .catalog-source { color: var(--muted); font-size: var(--fs-xs); }
+.editorial-card:only-child {
+  grid-column: 1 / -1;
+}
 .notification-card {
   grid-column: 1/-1;
 }
@@ -292,6 +302,7 @@ function eventLabel(log: any): string {
   .media-information-grid {
     grid-template-columns: 1fr;
   }
+  .editorial-card:only-child,
   .notification-card {
     grid-column: auto;
   }
