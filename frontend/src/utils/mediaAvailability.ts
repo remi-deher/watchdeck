@@ -51,8 +51,3 @@ export function mediaAvailabilityBadge(item: AvailabilityLike | null | undefined
   if (item.requested || item.request_id || isRequestStatus) return { label: 'Demandé', variant: 'requested' };
   return null;
 }
-
-export function plexPresenceLabel(item: AvailabilityLike): string {
-  if (item.availability?.plex === 'unknown') return 'Non confirmé';
-  return isInPlex(item) ? 'Présent dans Plex' : 'Absent de Plex';
-}
