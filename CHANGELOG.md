@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.90.16 — 2026-10-25
+
+
+### ⚡ Performance
+
+- optimize history cold start with index, facets caching and client SWR (#917) ([f12f26b](https://github.com/remi-deher/watchdeck/commit/f12f26b6486c693e98ee6903fb90016656e620f1))
 ## 1.90.15 — 2026-10-25
 
 
@@ -47,6 +53,7 @@
 - bump vue-router from 5.3.1 to 5.4.0 (#898) ([a2f013d](https://github.com/remi-deher/watchdeck/commit/a2f013d22b37efce17093c9d45a86e51e97138dd))
 - sync main into dev ([b23c8e1](https://github.com/remi-deher/watchdeck/commit/b23c8e1fc0a2558ba77252f8e7c423df933b4adb))
 - sync main into dev ([02b36c4](https://github.com/remi-deher/watchdeck/commit/02b36c41af44bd6193c0459f1087998eabca7bdd))
+- v1.90.15 (#916) ([9bae122](https://github.com/remi-deher/watchdeck/commit/9bae122334865286cfe254e58ed4ff3e3463679a))
 ## 1.90.14 — 2026-10-25
 
 
