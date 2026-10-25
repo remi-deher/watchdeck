@@ -5,7 +5,7 @@
        cellule y reprend son libelle depuis `data-label`. -->
   <div
     class="table-wrap rich ui-data-table"
-    :class="{ 'is-compact': density === 'compact', 'table-cards': cards }"
+    :class="{ 'is-compact': density === 'compact', 'table-cards': cards, 'is-sticky-header': stickyHeader }"
     role="region"
     tabindex="0"
     :aria-label="label"
@@ -56,7 +56,13 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-if="!visibleRows.length" class="ui-data-table__empty">
+        <tr v-if="loading && !visibleRows.length" v-for="n in loadingRows" :key="`skeleton-${n}`" class="ui-data-table__skeleton-row" aria-hidden="true">
+          <td v-if="selectable" class="ui-data-table__select"><span class="skeleton-shimmer" style="width: 16px; height: 16px;" /></td>
+          <td v-for="col in table.getVisibleLeafColumns()" :key="col.id">
+            <span class="skeleton-shimmer" style="display: block; height: 14px; width: 65%;" />
+          </td>
+        </tr>
+        <tr v-else-if="!visibleRows.length" class="ui-data-table__empty">
           <td :colspan="table.getVisibleLeafColumns().length + (selectable ? 1 : 0)"><slot name="empty">Aucun élément.</slot></td>
         </tr>
         <template v-for="(row, index) in visibleRows" :key="row.id">
@@ -167,8 +173,13 @@ const props = withDefaults(defineProps<{
   /** Pile de cartes sur telephone (defaut). Un tableau de deux ou trois colonnes courtes
    *  reste plus lisible en tableau. */
   cards?: boolean;
+  /** En-têtes collants au défilement vertical. */
+  stickyHeader?: boolean;
+  /** Affichage de lignes squelettes d'attente. */
+  loading?: boolean;
+  loadingRows?: number;
 }>(), {
-  cards: true,
+  cards: true, stickyHeader: false, loading: false, loadingRows: 5,
   sort: null, manualSort: false, selectable: false, selection: () => [], storageKey: '', columnPrefs: null,
   resizable: false, reorderable: false, density: 'comfortable', clickable: false,
   rowClass: undefined, rowExpanded: undefined, limit: 0, rowLabel: undefined,
@@ -363,4 +374,21 @@ function libelleLigne(row: T): string {
 .ui-data-table tbody tr.is-selected { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .ui-data-table__empty td { padding: var(--space-5); color: var(--muted); text-align: center; }
 .ui-data-table.is-compact th, .ui-data-table.is-compact td { padding-top: 6px; padding-bottom: 6px; }
+.ui-data-table.is-sticky-header th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--surface);
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+.skeleton-shimmer {
+  display: inline-block;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border-radius: var(--radius-xs);
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 0.25; }
+}
 </style>
