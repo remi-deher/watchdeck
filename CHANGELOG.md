@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.91.0 — 2026-10-25
+
+
+### ✨ Nouveautés
+
+- harmoniser le tableau de l'historique et optimiser l'affichage des sessions Plex (#922) ([0c3c061](https://github.com/remi-deher/watchdeck/commit/0c3c061659b22607fdb256b490018fb65d1d1a02))
 ## 1.90.16 — 2026-10-25
 
 
 ### ⚡ Performance
 
 - optimize history cold start with index, facets caching and client SWR (#917) ([f12f26b](https://github.com/remi-deher/watchdeck/commit/f12f26b6486c693e98ee6903fb90016656e620f1))
+
+### 🔧 Maintenance
+
+- v1.90.16 (#921) ([cb5420b](https://github.com/remi-deher/watchdeck/commit/cb5420beac9555ae6a974e91536b1a53b2154482))
 ## 1.90.15 — 2026-10-25
 
 
