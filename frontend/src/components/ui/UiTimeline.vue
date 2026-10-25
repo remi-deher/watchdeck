@@ -79,8 +79,11 @@
               </slot>
 
               <slot name="content" :item="item" :index="index">
-                <p v-if="item.subtitle || item.description" class="ui-timeline__description">
-                  {{ item.subtitle || item.description }}
+                <p v-if="item.subtitle" class="ui-timeline__subtitle">
+                  {{ item.subtitle }}
+                </p>
+                <p v-if="item.description" class="ui-timeline__description">
+                  {{ item.description }}
                 </p>
               </slot>
             </div>
@@ -475,11 +478,15 @@ function onItemSelect(item: UiTimelineItem, index: number): void {
   line-height: 1.35;
 }
 
+.ui-timeline__subtitle,
 .ui-timeline__description {
   margin: 0;
   font-size: var(--fs-xs);
   color: var(--muted);
   line-height: 1.4;
+}
+.ui-timeline__subtitle {
+  font-weight: 500;
 }
 
 .ui-timeline__extra {
