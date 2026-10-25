@@ -438,6 +438,33 @@ async def test_discover_by_network_is_limited_to_series(db):
     assert get.await_args.args[2]["with_networks"] == 49
 
 
+@pytest.mark.asyncio
+async def test_discover_maps_genre_equivalents_for_all_and_show(db):
+    payload = {"page": 1, "total_pages": 1, "total_results": 1, "results": [{"id": 1, "title": "Media"}]}
+    get = AsyncMock(return_value=payload)
+    with patch("app.services.tmdb._get", new=get):
+        await tmdb.discover(db, "all", genre=27)
+
+    calls = get.await_args_list
+    assert len(calls) == 2
+    movie_call = [c for c in calls if c.args[1] == "/discover/movie"][0]
+    tv_call = [c for c in calls if c.args[1] == "/discover/tv"][0]
+    assert movie_call.args[2]["with_genres"] == 27
+    assert tv_call.args[2]["with_genres"] == 9648
+
+
+@pytest.mark.asyncio
+async def test_discover_maps_genre_equivalents_for_tv_specifically(db):
+    payload = {"page": 1, "total_pages": 1, "total_results": 1, "results": [{"id": 1, "title": "Series"}]}
+    get = AsyncMock(return_value=payload)
+    with patch("app.services.tmdb._get", new=get):
+        await tmdb.discover(db, "show", genre=27)
+
+    assert get.await_count == 1
+    assert get.await_args.args[1] == "/discover/tv"
+    assert get.await_args.args[2]["with_genres"] == 9648
+
+
 # ---------------------------------------------------------------------------
 # get_tv_seasons_overview / get_tv_season_episodes (enveloppe saisons/episodes,
 # independante de Sonarr/Radarr/Plex -- voir vff_api._episodes_envelope_payload)

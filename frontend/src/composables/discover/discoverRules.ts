@@ -79,10 +79,14 @@ export function catalogEndpoint(request: CatalogRequest, targetPage: number): st
     const [kind, id] = request.sourceKey.split(':');
     return `/api/discover/source/${kind}/${id}?${type}&${pagination}${sortParam}`;
   }
+  // Dès qu'un genre est sélectionné ou qu'un tri spécifique est demandé, on interroge le catalogue /discover
+  if (request.genre || (request.sortBy && request.sortBy !== 'popularity.desc')) {
+    return `/api/discover/discover?${type}&${pagination}${request.genre ? `&genre=${request.genre}` : ''}${sortParam}`;
+  }
   if (request.section === 'trending') return `/api/discover/trending?${type}&${pagination}`;
   if (request.section === 'popular') return `/api/discover/popular?${type}&${pagination}`;
   if (request.section === 'coming-soon') return `/api/discover/coming-soon?${type}&${pagination}`;
-  return `/api/discover/discover?${type}&${pagination}${request.genre ? `&genre=${request.genre}` : ''}`;
+  return `/api/discover/discover?${type}&${pagination}${sortParam}`;
 }
 
 export function detailPath(item: any) {

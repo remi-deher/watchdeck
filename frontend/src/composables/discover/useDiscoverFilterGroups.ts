@@ -54,9 +54,7 @@ const filterGroups = computed<FilterGroupDefinition[]>(() => {
   if (!fixedMediaType.value) {
     groups.push({ key: 'type', label: 'Type de média', options: availableMediaTypes.value, value: mediaType.value, fallback: 'all', set: (value) => { void set.setMediaType(value); } });
   }
-  if (isSourceMode.value) {
-    groups.push({ key: 'sort', label: 'Tri', options: SORT_OPTIONS, value: sortBy.value, fallback: 'popularity.desc', set: set.setSort });
-  }
+  groups.push({ key: 'sort', label: 'Tri', options: SORT_OPTIONS, value: sortBy.value, fallback: 'popularity.desc', set: set.setSort });
   groups.push({ key: 'availability', label: 'Disponibilité', options: AVAILABILITY_OPTIONS, value: availability.value || '', fallback: '', set: set.setAvailability });
   // Vingt-et-un genres et une trentaine de diffuseurs : repliés d'office, ils annoncent ce qu'ils retiennent.
   if (genres.value.length) {
