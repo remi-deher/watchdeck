@@ -13,6 +13,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from datetime import time as datetime_time
+from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlparse
 from xml.etree import ElementTree
 from zoneinfo import ZoneInfo
@@ -623,11 +624,15 @@ def _serialize_segment(segment: PlaybackSessionSegment) -> dict:
     }
 
 
-def _serialize(row: PlaybackSession) -> dict:
+def _serialize(row: PlaybackSession, include_segments: bool = True) -> dict:
     thumb_url = _thumb_url(row)
     stream_details = _json_or_none(row.stream_details)
     artwork = (stream_details or {}).get("artwork") or {}
-    segments = list(row.segments or [])
+    segments = (
+        list(row.segments or [])
+        if include_segments and hasattr(row, "segments") and "segments" in getattr(row, "__dict__", {})
+        else []
+    )
     return {
         "id": row.id,
         "source": row.source,
@@ -699,7 +704,7 @@ def _serialize(row: PlaybackSession) -> dict:
         "initial_progress_ms": row.initial_progress_ms,
         "duration_ms": row.duration_ms,
         "watched_ms": row.watched_ms,
-        "paused_ms": sum(s.duration_ms for s in segments if s.state == "paused"),
+        "paused_ms": sum(s.duration_ms for s in segments if s.state == "paused") if segments else 0,
         "progress": (
             round(row.progress_percent, 1)
             if row.progress_percent is not None
@@ -2428,6 +2433,7 @@ async def _rebuild_daily_aggregates(db, days: set[date]) -> None:
         ]
     )
     await db.commit()
+    await cache.delete_prefix("watchdeck:playback:history_facets:")
 
 
 def _daily_aggregate_query(days: set[date]):
@@ -2882,7 +2888,6 @@ async def activity_history(
         (
             await db.execute(
                 select(PlaybackSession)
-                .options(selectinload(PlaybackSession.segments))
                 .filter(*filters)
                 .order_by(*_history_order(sort, device_expression))
                 .offset(max(offset, 0))
@@ -2893,57 +2898,68 @@ async def activity_history(
         .all()
     )
 
-    # Les listes de choix portent sur la période, pas sur la sélection courante : sinon
-    # choisir un utilisateur faisait disparaître tous les autres du menu.
-    period_filter = (PlaybackSession.started_at >= cutoff, PlaybackSession.ended_at.is_not(None))
-    users = (
-        (
-            await db.execute(
-                select(PlaybackSession.user_name)
-                .filter(*period_filter, PlaybackSession.user_name.is_not(None), PlaybackSession.user_name != "")
-                .distinct()
-                .order_by(PlaybackSession.user_name)
+    facets: dict[str, Any] = {"users": [], "devices": [], "servers": []}
+    facet_cache_key = f"watchdeck:playback:history_facets:{days}"
+    cached_facets = await cache.get_json(facet_cache_key)
+    if isinstance(cached_facets, dict) and "users" in cached_facets:
+        facets = cached_facets
+    elif offset == 0:
+        # Les listes de choix portent sur la période, pas sur la sélection courante : sinon
+        # choisir un utilisateur faisait disparaître tous les autres du menu.
+        period_filter = (PlaybackSession.started_at >= cutoff, PlaybackSession.ended_at.is_not(None))
+        users = (
+            (
+                await db.execute(
+                    select(PlaybackSession.user_name)
+                    .filter(*period_filter, PlaybackSession.user_name.is_not(None), PlaybackSession.user_name != "")
+                    .distinct()
+                    .order_by(PlaybackSession.user_name)
+                )
             )
+            .scalars()
+            .all()
         )
-        .scalars()
-        .all()
-    )
-    devices = (
-        (
-            await db.execute(
-                select(device_expression)
-                .filter(*period_filter, device_expression.is_not(None))
-                .distinct()
-                .order_by(device_expression)
+        devices = (
+            (
+                await db.execute(
+                    select(device_expression)
+                    .filter(*period_filter, device_expression.is_not(None))
+                    .distinct()
+                    .order_by(device_expression)
+                )
             )
+            .scalars()
+            .all()
         )
-        .scalars()
-        .all()
-    )
-    # Serveurs : seulement ceux qui ont des lectures sur la periode, NULL = principal.
-    server_ids = (await db.execute(select(PlaybackSession.server_id).filter(*period_filter).distinct())).scalars().all()
-    names = {srv.id: srv.name for srv in servers}
-    server_facets = [
-        {"id": primary_id if value is None else value, "name": names.get(primary_id if value is None else value)}
-        for value in server_ids
-    ]
-    server_facets = sorted(
-        (facet for facet in server_facets if facet["id"] is not None),
-        key=lambda facet: (facet["id"] != primary_id, (facet["name"] or "").lower()),
-    )
-    for facet in server_facets:
-        facet["name"] = facet["name"] or "Serveur supprimé"
+        # Serveurs : seulement ceux qui ont des lectures sur la periode, NULL = principal.
+        server_ids = (
+            (await db.execute(select(PlaybackSession.server_id).filter(*period_filter).distinct())).scalars().all()
+        )
+        names = {srv.id: srv.name for srv in servers}
+        server_facets = [
+            {"id": primary_id if value is None else value, "name": names.get(primary_id if value is None else value)}
+            for value in server_ids
+        ]
+        server_facets = sorted(
+            (facet for facet in server_facets if facet["id"] is not None),
+            key=lambda facet: (facet["id"] != primary_id, (facet["name"] or "").lower()),
+        )
+        for facet in server_facets:
+            facet["name"] = facet["name"] or "Serveur supprimé"
+        facets = {
+            "users": [value for value in users if value],
+            "devices": [value for value in devices if value],
+            "servers": server_facets,
+        }
+        await cache.set_json(facet_cache_key, facets, ttl_seconds=300)
+
     return {
-        "items": [_serialize(row) for row in rows],
+        "items": [_serialize(row, include_segments=False) for row in rows],
         "total": int(total),
         "offset": max(offset, 0),
         "limit": limit,
         "has_more": max(offset, 0) + len(rows) < int(total),
-        "facets": {
-            "users": [value for value in users if value],
-            "devices": [value for value in devices if value],
-            "servers": server_facets,
-        },
+        "facets": facets,
     }
 
 
