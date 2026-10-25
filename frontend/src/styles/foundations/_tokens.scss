@@ -143,8 +143,13 @@
 
   /* Rail replié à la demande de l'utilisateur : la largeur redevient celle du mode
      medium, sans changer de composant ni de mode. Repli possible uniquement ici :
-     en dessous, le rail est déjà à sa largeur minimale. */
-  :root:has(.app-shell[data-rail="collapsed"]) { --app-rail-w: calc(72px + var(--safe-left)); }
+     en dessous, le rail est déjà à sa largeur minimale.
+     Lorsque la barre est repliée, la largeur minimale d'une affiche dans les grilles
+     passe de 220px à 190px pour permettre d'ajouter une affiche supplémentaire sur la droite. */
+  :root:has(.app-shell[data-rail="collapsed"]) {
+    --app-rail-w: calc(72px + var(--safe-left));
+    --poster-grid-min: 190px;
+  }
 }
 
 @media (horizontal-viewport-segments: 2) {

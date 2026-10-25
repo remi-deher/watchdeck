@@ -101,7 +101,7 @@ test("affiche la navigation dédiée et replie les filtres", async ({ page }) =>
   await expect(filters).toBeHidden();
   await page.getByRole("button", { name: /filtres/i }).click();
   await expect(filters).toBeVisible();
-  await filters.getByRole('button', { name: 'Populaires' }).click();
+  await filters.getByRole('button', { name: 'Populaires', exact: true }).click();
   // Plus de pied « Réinitialiser » : le filtre actif s'affiche en pastille retirable.
   await expect(filters.locator('.filter-chip:not(.is-clear)').first()).toBeVisible();
   const layoutFits = await filters.evaluate(element => element.scrollWidth <= element.clientWidth + 1);

@@ -103,6 +103,8 @@ const { activeCount: activeFilterCount, reset: resetFiltersDrawer } = useFilters
       isSourceMode.value && sortBy.value !== 'popularity.desc',
     ].filter(Boolean).length,
     onReset: async () => {
+      genre.value = '';
+      section.value = 'trending';
       await loadGenres();
       if (mode.value === 'explore') {
         await reload();
@@ -174,7 +176,7 @@ function syncExplorerUrl() {
   const params = new URLSearchParams();
   if (query.value.trim()) params.set('q', query.value.trim());
   if (!fixedMediaType.value && mediaType.value !== 'all') params.set('type', mediaType.value);
-  if (!isSourceMode.value && section.value !== 'trending') params.set('section', section.value);
+  if (!isSourceMode.value && section.value !== 'trending' && !genre.value) params.set('section', section.value);
   if (genre.value) params.set('genre', genre.value);
   if (availability.value) params.set('availability', availability.value);
   if (sortBy.value && sortBy.value !== 'popularity.desc') params.set('sort', sortBy.value);
@@ -220,8 +222,12 @@ function applyExplorerUrl() {
   mode.value = 'explore';
   assignQuery(params.get('q') || '');
   mediaType.value = mediaTypeFromLocation(params, route.path);
-  section.value = VALID_SECTIONS.has(params.get('section') || '') ? (params.get('section') as string) : 'trending';
   genre.value = params.get('genre') || '';
+  if (genre.value) {
+    section.value = 'genres';
+  } else {
+    section.value = VALID_SECTIONS.has(params.get('section') || '') ? (params.get('section') as string) : 'trending';
+  }
   availability.value = AVAILABILITY_VALUES.includes(params.get('availability') || '') ? (params.get('availability') as string) : '';
   sourceKey.value = params.get('source') || '';
   sortBy.value = SORT_VALUES.includes(params.get('sort') || '') ? (params.get('sort') as string) : 'popularity.desc';
@@ -270,6 +276,9 @@ function setSort(value: string) {
 function setGenre(value: string) {
   if (mode.value !== 'explore') mode.value = 'explore';
   genre.value = genre.value === value ? '' : value;
+  if (genre.value) {
+    section.value = 'genres';
+  }
   reload();
 }
 function resetFilters() {
