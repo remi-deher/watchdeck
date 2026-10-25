@@ -12,6 +12,7 @@ describe('systeme commun des affiches', () => {
     const rail = source('components/ui/HorizontalRail.vue');
 
     expect(tokens).toContain('--poster-grid-min: 220px');
+    expect(tokens).toContain('--poster-grid-min: 190px');
     expect(grid).toContain('repeat(auto-fill, var(--poster-grid-min))');
     expect(grid).not.toContain('minmax(var(--poster-grid-min), 1fr)');
     expect(rail).toContain('var(--poster-rail-min)');
