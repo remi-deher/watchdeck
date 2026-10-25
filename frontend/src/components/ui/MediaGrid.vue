@@ -107,7 +107,7 @@ const isEmpty = computed(() => {
 @include bp.from(phablet) {
   .media-grid--poster {
     grid-template-columns: repeat(auto-fill, var(--poster-grid-min));
-    justify-content: start;
+    justify-content: center;
   }
   .media-grid--compact { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
   .media-grid--music { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
