@@ -433,6 +433,20 @@ async def test_media_streams_reads_audio_and_subtitle_tracks_once():
 
 
 @pytest.mark.asyncio
+async def test_media_sheet_uses_distributed_cache():
+    sheet_data = {"container": "mp4", "streams": [], "meta": {"summary": "Film"}}
+    with (
+        patch.dict(playback_activity._STREAMS_CACHE, clear=True),
+        patch.object(playback_activity.cache, "get_json", new=AsyncMock(return_value=sheet_data)),
+        patch.object(playback_activity.httpx, "AsyncClient") as client_mock,
+    ):
+        cached = await playback_activity.media_sheet("http://plex.local/", "t", True, "9999")
+        assert cached == sheet_data
+        assert playback_activity._STREAMS_CACHE["9999"] == sheet_data
+        client_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_collection_resolves_subtitle_source_from_media_sheet(async_db):
     import httpx
 
@@ -539,6 +553,25 @@ async def test_session_detail_adds_banner_summary_and_library_link(async_db):
     }
     with patch.object(playback_activity, "media_sheet", new=AsyncMock(side_effect=RuntimeError("plex"))):
         assert (await playback_activity.playback_session_detail(row.id, async_db))["media"] is None
+
+    # Session terminée : mise en cache du détail complet pour les ouvertures ultérieures
+    row_ended = PlaybackSession(
+        source="plex",
+        source_session_id="ended-s",
+        title="Film terminé",
+        rating_key="5199",
+        ended_at=datetime(2026, 9, 26, 23, 0),
+    )
+    async_db.add(row_ended)
+    async_db.commit()
+
+    detail_ended = await playback_activity.playback_session_detail(row_ended.id, async_db)
+    assert detail_ended is not None
+    assert detail_ended["title"] == "Film terminé"
+
+    # Deuxième lecture : renvoie directement la valeur depuis le cache Redis
+    cached_detail = await playback_activity.playback_session_detail(row_ended.id, async_db)
+    assert cached_detail == detail_ended
 
 
 def test_transcoder_state_is_kept_in_details():
