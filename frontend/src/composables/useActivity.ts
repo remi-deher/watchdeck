@@ -5,6 +5,7 @@
    qualite, chiffres cles ; ce point d'entree les relie. */
 import { formatDateTimeShort } from '@/utils/format';
 import { computed, ref, watch } from 'vue';
+import { useQueryClient } from '@tanstack/vue-query';
 import { useDebounceFn, useIntervalFn } from '@vueuse/core';
 import { useRoute, useRouter } from 'vue-router';
 import { activitySections } from '@/navigation';
@@ -119,10 +120,23 @@ export function useActivity() {
   /* Une ligne repliee de l'historique (lectures consecutives) ouvre sa premiere lecture, et
      la fiche garde la liste des autres, dans l'ordre chronologique, pour passer de l'une a
      l'autre : chacune a son propre mode, ses flux et sa conversion. */
+  const queryClient = useQueryClient();
   function openSession(item: any, run: any[]=[]): void {
     if(item?.id==null)return;
-    const ids=siblingSessions.value.map((row: any)=>row.id).filter((id: any)=>id!=null);
+    const seed = (s: any) => {
+      if (!s || s.id == null) return;
+      queryClient.setQueryData(['playback', 'session', String(s.id)], (old: any) => old ?? {
+        ...s,
+        media: s.media || {
+          poster_url: s.thumb_url,
+          summary: s.summary,
+        },
+      });
+    };
+    seed(item);
     const lectures=run.filter((row: any)=>row?.id!=null);
+    for (const other of lectures) seed(other);
+    const ids=siblingSessions.value.map((row: any)=>row.id).filter((id: any)=>id!=null);
     const serie=lectures.length>1?etatDeSerie([...lectures].sort((a: any,b: any)=>String(a.started_at||'').localeCompare(String(b.started_at||''))).map((row: any)=>({
       id:String(row.id),
       method:row.playback_method||'',

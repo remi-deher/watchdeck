@@ -79,6 +79,13 @@ export function useDashboard(healthZone: Ref<HTMLElement | null>) {
   /* La fiche d'une lecture s'ouvre dans la feuille, avec sa propre adresse. */
   function openSession(item: any): void {
     if (item?.id == null) return;
+    queryClient.setQueryData(['playback', 'session', String(item.id)], (old: any) => old ?? {
+      ...item,
+      media: item.media || {
+        poster_url: item.thumb_url,
+        summary: item.summary,
+      },
+    });
     const ids = (liveActivity.value.active || []).map((row: any) => row.id).filter((id: any) => id != null);
     ouvrirFiche(router, `/activity/session/${item.id}`, route.fullPath, etatDeVoisins(ids));
   }

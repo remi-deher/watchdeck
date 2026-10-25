@@ -1845,6 +1845,11 @@ async def media_sheet(base_url: str, token: str, verify: bool, rating_key: str) 
     """
     if rating_key in _STREAMS_CACHE:
         return _STREAMS_CACHE[rating_key]
+    sheet_cache_key = f"watchdeck:plex:media_sheet:{rating_key}"
+    cached_sheet = await cache.get_json(sheet_cache_key)
+    if isinstance(cached_sheet, dict) and "meta" in cached_sheet:
+        _STREAMS_CACHE[rating_key] = cached_sheet
+        return cached_sheet
     async with httpx.AsyncClient(timeout=10, verify=verify) as client:
         response = await client.get(
             f"{base_url.rstrip('/')}/library/metadata/{rating_key}",
@@ -1877,6 +1882,7 @@ async def media_sheet(base_url: str, token: str, verify: bool, rating_key: str) 
     if len(_STREAMS_CACHE) >= _STREAMS_CACHE_SIZE:
         _STREAMS_CACHE.pop(next(iter(_STREAMS_CACHE)))
     _STREAMS_CACHE[rating_key] = sheet
+    await cache.set_json(sheet_cache_key, sheet, ttl_seconds=86400)
     return sheet
 
 
@@ -2965,6 +2971,11 @@ async def activity_history(
 
 async def playback_session_detail(session_id: int, db) -> dict | None:
     """Une session, en cours ou terminee : ce qu'affiche sa fiche, a partir de son adresse."""
+    cache_key = f"watchdeck:playback:session_detail:{session_id}"
+    cached_detail = await cache.get_json(cache_key)
+    if isinstance(cached_detail, dict) and "id" in cached_detail:
+        return cached_detail
+
     row = (
         (
             await db.execute(
@@ -2978,7 +2989,10 @@ async def playback_session_detail(session_id: int, db) -> dict | None:
     )
     if not row:
         return None
-    return {**_serialize(row), "media": await _session_media(row, db)}
+    detail = {**_serialize(row), "media": await _session_media(row, db)}
+    if row.ended_at is not None:
+        await cache.set_json(cache_key, detail, ttl_seconds=86400)
+    return detail
 
 
 async def _session_media(row: PlaybackSession, db) -> dict | None:
@@ -2989,6 +3003,11 @@ async def _session_media(row: PlaybackSession, db) -> dict | None:
     """
     if not row.rating_key:
         return None
+    media_cache_key = f"watchdeck:playback:session_media:{row.server_id}:{row.rating_key}"
+    cached_media = await cache.get_json(media_cache_key)
+    if isinstance(cached_media, dict) and "poster_url" in cached_media:
+        return cached_media
+
     settings = (await db.execute(select(Settings))).scalars().first()
     conn = await plex_servers.connection_for(db, row.server_id, settings)
     if conn is None or settings is None:
@@ -3006,7 +3025,7 @@ async def _session_media(row: PlaybackSession, db) -> dict | None:
         ).scalar()
     art = meta.get("art")
     poster = meta.get("poster")
-    return {
+    result = {
         "poster_url": f"/api/playback/thumb?path={quote(poster, safe='')}" if poster else None,
         "summary": meta.get("summary"),
         "art_url": f"/api/playback/thumb?path={quote(art, safe='')}" if art else None,
@@ -3014,6 +3033,8 @@ async def _session_media(row: PlaybackSession, db) -> dict | None:
         "episode": meta.get("episode"),
         "library_item_id": library_id,
     }
+    await cache.set_json(media_cache_key, result, ttl_seconds=86400)
+    return result
 
 
 async def _live_avatars(rows, db) -> dict[str, str]:
