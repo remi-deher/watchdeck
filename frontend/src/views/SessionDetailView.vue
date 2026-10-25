@@ -6,9 +6,9 @@
     headless
     :title="session ? playbackTitle(session) : 'Session de lecture'"
     :pager="pager"
-    :loading="query.isPending.value"
+    :loading="query.isPending.value && !session"
     @navigate="navigate"
-    :error="query.error.value ? 'Cette session est introuvable ou n’a pas pu être chargée.' : ''"
+    :error="query.error.value && !session ? 'Cette session est introuvable ou n’a pas pu être chargée.' : ''"
   >
     <SessionDetail
       v-if="session"
@@ -43,6 +43,7 @@ const query = useQuery({
   queryKey: computed(() => ['playback', 'session', id.value]),
   queryFn: ({ signal }) => api<Record<string, any>>(`/api/playback/sessions/${encodeURIComponent(id.value)}`, { signal }),
   enabled: computed(() => Boolean(id.value)),
+  staleTime: 30_000,
   retry: 0,
   /* D'une lecture a l'autre de la serie, la fiche precedente reste affichee le temps du
      chargement : la remplacer par un « Chargement… » la raccourcissait et ramenait la
