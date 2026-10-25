@@ -1,6 +1,7 @@
 """Index de performance pour l'historique des lectures."""
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "0053_playback_history_indexes"

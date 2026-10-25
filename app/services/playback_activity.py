@@ -13,6 +13,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from datetime import time as datetime_time
+from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlparse
 from xml.etree import ElementTree
 from zoneinfo import ZoneInfo
@@ -2897,7 +2898,7 @@ async def activity_history(
         .all()
     )
 
-    facets = {"users": [], "devices": [], "servers": []}
+    facets: dict[str, Any] = {"users": [], "devices": [], "servers": []}
     facet_cache_key = f"watchdeck:playback:history_facets:{days}"
     cached_facets = await cache.get_json(facet_cache_key)
     if isinstance(cached_facets, dict) and "users" in cached_facets:
