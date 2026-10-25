@@ -128,8 +128,11 @@ const labels = computed(() => Object.fromEntries(Object.entries(props.labels).fi
 .monitor__after { grid-area: after; display: grid; gap: var(--space-4); min-width: 0; }
 
 @include bp.until(desktop) {
-  .monitor.has-details {
+  .monitor.has-details,
+  .monitor.is-board.has-details {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .monitor.has-details {
     grid-template-areas: 'verdict' 'live' 'kpis' 'attention' 'details' 'zones' 'after';
   }
   .monitor.is-board.has-details {
@@ -139,10 +142,14 @@ const labels = computed(() => Object.fromEntries(Object.entries(props.labels).fi
 
 @include bp.until(shell-medium) {
   .monitor,
-  .monitor.has-details {
+  .monitor.has-details,
+  .monitor.is-board.has-details {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: 'verdict' 'attention' 'live' 'zones' 'kpis' 'details' 'after';
     gap: var(--space-4);
+  }
+  .monitor,
+  .monitor.has-details {
+    grid-template-areas: 'verdict' 'attention' 'live' 'zones' 'kpis' 'details' 'after';
   }
   .monitor.is-board.has-details {
     grid-template-areas: 'verdict' 'attention' 'live' 'kpis' 'after' 'details' 'zones';
