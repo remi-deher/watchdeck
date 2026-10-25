@@ -1,7 +1,58 @@
 # Changelog
 
+## 1.90.15 — 2026-10-25
+
+
+### test
+
+- cover enriched metadata details ([d9febbb](https://github.com/remi-deher/watchdeck/commit/d9febbb9e8dae482552a3ca1e750ea34f10980d8))
+- aligner les tests dhistorique et de parcours sur la table et le dock ([e252c4b](https://github.com/remi-deher/watchdeck/commit/e252c4bb32a5ca0ac404d931a429c61101edd613))
+
+### ♻️ Refactoring
+
+- frise d'étapes commune et découpage des gros composants (#870) ([f18b381](https://github.com/remi-deher/watchdeck/commit/f18b381c9b9dcf11139b2981bc86681ebd171a49))
+- aligner les pages sur les gabarits et nettoyer le code (#869) ([355082d](https://github.com/remi-deher/watchdeck/commit/355082d5a81651ee5f66ed2bb0ec3595cd8801d2))
+
+### ⚡ Performance
+
+- optimisation globale des temps de rendu (Lots A à E + Points 1 à 5) (#903) ([34cdfa5](https://github.com/remi-deher/watchdeck/commit/34cdfa5b72ea0196f9574a014fefeb215c237bd9))
+
+### 🎨 Style
+
+- format TMDB enrichment ([19269eb](https://github.com/remi-deher/watchdeck/commit/19269eb32c6a1b1ffef0cb5006f34e98f008b44b))
+
+### 🐛 Corrections
+
+- enrich shared media details ([adaeef0](https://github.com/remi-deher/watchdeck/commit/adaeef0bcfbb4f6c4c10e9329bd4b7cdc44e2756))
+- stabilize detail loading and proxy artwork ([bc5c072](https://github.com/remi-deher/watchdeck/commit/bc5c07220a86df8478a69e352ed9a171b14955f1))
+- fiabilisation des verrous de lecture, harmonisation des fiches et composants de suivi (#910) ([1058e97](https://github.com/remi-deher/watchdeck/commit/1058e9763c3034e6d24ce373036b73c4ea09fa9c))
+- retablir la hauteur de banniere de SheetHero et le template colonne de MonitorTemplate ([c471555](https://github.com/remi-deher/watchdeck/commit/c47155532f5c4900969fb65544087b7f75407053))
+
+### 🔧 Maintenance
+
+- sync main into dev ([63e0d6a](https://github.com/remi-deher/watchdeck/commit/63e0d6a4cc2220b9f4da0a5455abbea496909f35))
+- sync main into dev ([9deb67a](https://github.com/remi-deher/watchdeck/commit/9deb67ae1350c64892383bf3e48eb93e66d0f16e))
+- sync main into dev ([34fff69](https://github.com/remi-deher/watchdeck/commit/34fff69c77cc174580c1cd45282f03f43c598010))
+- sync main into dev ([263bb25](https://github.com/remi-deher/watchdeck/commit/263bb257c5dbf7288398e922086dc23efad4e407))
+- sync main into dev ([b64504d](https://github.com/remi-deher/watchdeck/commit/b64504d0150f31c06a7e6f593abbc6d968f71728))
+- sync main into dev ([da77480](https://github.com/remi-deher/watchdeck/commit/da77480752b4150872c12441144b44957ef0e2ed))
+- bump vue-tsc from 3.3.12 to 3.3.13 (#893) ([146ed07](https://github.com/remi-deher/watchdeck/commit/146ed076f60416489e84516bd0c81d5fc5d3b4af))
+- bump @vitejs/plugin-vue from 6.0.9 to 6.0.10 (#894) ([5840ffe](https://github.com/remi-deher/watchdeck/commit/5840ffe06a247f7f475853518ca6e132332b8aa4))
+- bump @tanstack/query-persist-client-core from 5.104.1 to 5.104.2 (#895) ([3c61b6c](https://github.com/remi-deher/watchdeck/commit/3c61b6c41b8b43976933d3b4e46194ac5a9d6fd4))
+- bump vite from 8.3.1 to 8.3.4 (#897) ([e4cc99a](https://github.com/remi-deher/watchdeck/commit/e4cc99ad0fb536d1d7f3429afd26c9f8836cfd84))
+- bump vitest from 5.0.2 to 5.0.4 (#896) ([9d9a766](https://github.com/remi-deher/watchdeck/commit/9d9a76627072da0c24f1045de7dd918b0e36221d))
+- bump the github-actions group across 1 directory with 7 updates (#900) ([4014b4e](https://github.com/remi-deher/watchdeck/commit/4014b4efb9552aedf4a435817392d62995aa6070))
+- bump pillow, undici et zod pour resoudre les vulnerabilites de securite ([44d0a14](https://github.com/remi-deher/watchdeck/commit/44d0a14f169ed9f42f4da4979232c40ee716853c))
+- bump tzdata from 2026.4 to 2026.5 (#837) ([e39da1c](https://github.com/remi-deher/watchdeck/commit/e39da1c4d9728aad8c55b0f26d8ceb6e609fdc88))
+- bump vue-router from 5.3.1 to 5.4.0 (#898) ([a2f013d](https://github.com/remi-deher/watchdeck/commit/a2f013d22b37efce17093c9d45a86e51e97138dd))
+- sync main into dev ([b23c8e1](https://github.com/remi-deher/watchdeck/commit/b23c8e1fc0a2558ba77252f8e7c423df933b4adb))
+- sync main into dev ([02b36c4](https://github.com/remi-deher/watchdeck/commit/02b36c41af44bd6193c0459f1087998eabca7bdd))
 ## 1.90.14 — 2026-10-25
 
+
+### 🔧 Maintenance
+
+- v1.90.14 (#909) ([460d0d5](https://github.com/remi-deher/watchdeck/commit/460d0d5681a25862cc5f7b0e7646ffa6242b05d7))
 ## 1.90.13 — 2026-10-18
 
 
