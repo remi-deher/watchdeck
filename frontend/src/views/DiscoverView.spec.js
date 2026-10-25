@@ -155,12 +155,13 @@ describe('DiscoverView', () => {
 
   it('charge indépendamment le hero, les rangées et les diffuseurs de l’accueil', async () => {
     apiMock.mockImplementation(path => {
-      if (path.includes('sections=hero,trending')) {
-        return Promise.resolve({ sections: { hero: { items: [media(1, 'À la une')] }, trending: { items: [media(1)] } } });
-      }
       if (path.includes('/home?sections=')) {
-        const name = path.split('sections=')[1];
-        return Promise.resolve({ sections: { [name]: { items: name === 'popular_movies' ? [media(2, 'Populaire')] : [] } } });
+        const names = path.split('sections=')[1].split('&')[0].split(',');
+        const sections = {};
+        for (const name of names) {
+          sections[name] = { items: name === 'popular_movies' ? [media(2, 'Populaire')] : name === 'hero' ? [media(1, 'À la une')] : name === 'trending' ? [media(1)] : [] };
+        }
+        return Promise.resolve({ sections });
       }
       if (path.includes('/sources')) {
         return Promise.resolve({ region: 'FR', items: [{ id: 8, kind: 'provider', name: 'Netflix' }] });

@@ -1,12 +1,16 @@
 import { computed, reactive, ref, type ComputedRef, type Ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { api } from '@/api';
+import { readCache, writeCache } from '@/cache';
 import { mediaRequestKey } from '@/composables/useDirectMediaRequest';
 import { usePreference } from '@/composables/usePreference';
 import { GENRE_RAILS, PROVIDER_GENRE_RAILS, REQUESTABLE_ROWS, posterRow } from './discoverRules';
 
 const PERSONALIZED_RAILS = ['recommended', 'preferred_genres', 'unwatched_popular', 'followed_series'];
 const PROVIDER_SECTIONS = ['hero', 'movies', 'shows', 'genre_action', 'genre_scifi', 'genre_animation', 'genre_comedy', 'genre_thriller', 'genre_horror'];
+const DISCOVER_HOME_CACHE_KEY = 'discover:home:sections:v1';
+const DISCOVER_PERSO_CACHE_KEY = 'discover:home:perso:v1';
+const DISCOVER_CACHE_MAX_AGE_MS = 30 * 60_000;
 
 function emptyPersonalizedRail() {
   return { items: [] as any[] };
@@ -65,6 +69,34 @@ const home = reactive({
   genre_horror: sectionState(),
 } as Record<string, any>);
 
+// Hydratation immédiate depuis le cache SWR (retour navigation à 0ms)
+const cachedHome = readCache<Record<string, any>>(DISCOVER_HOME_CACHE_KEY, { maxAgeMs: DISCOVER_CACHE_MAX_AGE_MS });
+if (cachedHome) {
+  for (const [name, section] of Object.entries(cachedHome)) {
+    if (home[name] && section) {
+      home[name].item = section.item ?? null;
+      home[name].items = Array.isArray(section.items) ? section.items : [];
+      home[name].loading = false;
+      home[name].error = '';
+    }
+  }
+}
+
+const cachedPerso = readCache<Record<string, any>>(DISCOVER_PERSO_CACHE_KEY, { maxAgeMs: DISCOVER_CACHE_MAX_AGE_MS });
+if (cachedPerso) {
+  personalized.available = Boolean(cachedPerso.available);
+  personalized.seeds = Array.isArray(cachedPerso.seeds) ? cachedPerso.seeds : [];
+  personalized.loading = false;
+  personalized.error = '';
+  for (const name of PERSONALIZED_RAILS) {
+    if (personalized[name]) {
+      personalized[name].items = Array.isArray(cachedPerso.sections?.[name]?.items)
+        ? cachedPerso.sections[name].items
+        : [];
+    }
+  }
+}
+
 const sourceHome = reactive({
   hero: emptySourceSection(),
   movies: emptySourceSection(),
@@ -108,37 +140,65 @@ function sourceGenrePath(genreId: string): { path: string; query: Record<string,
   return q && { path: '/discover/explore', query: q };
 }
 
-async function loadHomeGroup() {
-  home.hero.loading = true;
-  home.trending.loading = true;
-  home.hero.error = '';
-  home.trending.error = '';
-  try {
-    const payload = await api('/api/discover/home?sections=hero,trending');
-    Object.assign(home.hero, payload.sections.hero, { loading: false, error: payload.sections.hero.error || '' });
-    Object.assign(home.trending, payload.sections.trending, { loading: false, error: payload.sections.trending.error || '' });
-  } catch (loadError: any) {
-    home.hero.error = loadError.message;
-    home.trending.error = loadError.message;
-    home.hero.loading = false;
-    home.trending.loading = false;
+const INITIAL_HOME_SECTIONS = [
+  'hero',
+  'trending',
+  'popular_movies',
+  'popular_tv',
+  'upcoming',
+  'recent_plex',
+  'most_requested',
+];
+
+async function loadHomeBatch(sectionNames: string[] = INITIAL_HOME_SECTIONS): Promise<void> {
+  for (const name of sectionNames) {
+    if (home[name]) {
+      if (!home[name].items?.length && !home[name].item) {
+        home[name].loading = true;
+      }
+      home[name].error = '';
+    }
   }
-}
-function loadGenreRails(): void {
-  for (const rail of GENRE_RAILS) loadHomeSection(rail.key);
+  try {
+    const payload = await api<{ sections: Record<string, any> }>(`/api/discover/home?sections=${sectionNames.join(',')}`);
+    for (const name of sectionNames) {
+      if (home[name] && payload.sections?.[name]) {
+        Object.assign(home[name], payload.sections[name], {
+          loading: false,
+          error: payload.sections[name].error || '',
+        });
+      }
+    }
+    const currentSections: Record<string, any> = {};
+    for (const [key, val] of Object.entries(home)) {
+      if (val?.items?.length || val?.item) {
+        currentSections[key] = { item: val.item, items: val.items };
+      }
+    }
+    writeCache(DISCOVER_HOME_CACHE_KEY, currentSections);
+  } catch (loadError: any) {
+    for (const name of sectionNames) {
+      if (home[name]) {
+        home[name].error = loadError.message;
+        home[name].loading = false;
+      }
+    }
+  }
 }
 
-async function loadHomeSection(name: string) {
-  home[name].loading = true;
-  home[name].error = '';
-  try {
-    const payload = await api(`/api/discover/home?sections=${name}`);
-    Object.assign(home[name], payload.sections[name], { loading: false, error: payload.sections[name].error || '' });
-  } catch (loadError: any) {
-    home[name].error = loadError.message;
-    home[name].loading = false;
-  }
+async function loadHomeGroup(): Promise<void> {
+  await loadHomeBatch(['hero', 'trending']);
 }
+
+async function loadGenreRails(): Promise<void> {
+  const genreKeys = GENRE_RAILS.map((rail) => rail.key);
+  await loadHomeBatch(genreKeys);
+}
+
+async function loadHomeSection(name: string): Promise<void> {
+  await loadHomeBatch([name]);
+}
+
 async function loadSources() {
   sourcesLoading.value = true;
   sourcesError.value = '';
@@ -151,22 +211,18 @@ async function loadSources() {
     sourcesLoading.value = false;
   }
 }
+
 function loadHome() {
   homeLoaded.value = true;
-  loadHomeGroup();
-  for (const name of [
-    'popular_movies',
-    'popular_tv',
-    'upcoming',
-    'recent_plex',
-    'most_requested',
-  ]) loadHomeSection(name);
-  loadSources();
-  loadPersonalized();
+  void loadHomeBatch(INITIAL_HOME_SECTIONS);
+  void loadSources();
+  void loadPersonalized();
 }
 
 async function loadPersonalized() {
-  personalized.loading = true;
+  if (!personalized.seeds?.length) {
+    personalized.loading = true;
+  }
   personalized.error = '';
   try {
     const params = new URLSearchParams({
@@ -180,6 +236,13 @@ async function loadPersonalized() {
     for (const name of PERSONALIZED_RAILS) {
       personalized[name].items = payload.sections?.[name]?.items || [];
     }
+    writeCache(DISCOVER_PERSO_CACHE_KEY, {
+      available: personalized.available,
+      seeds: personalized.seeds,
+      sections: Object.fromEntries(
+        PERSONALIZED_RAILS.map((name) => [name, { items: personalized[name].items }])
+      ),
+    });
   } catch (loadError: any) {
     personalized.available = true;
     personalized.error = loadError.message;

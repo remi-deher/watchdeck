@@ -164,8 +164,10 @@ function handleSearchInput() {
    envoyait une requete par lettre tapee. */
 let selfWrittenUrl = '';
 function replaceExplorerUrl(target: { path: string; query: Record<string, string> }): void {
-  selfWrittenUrl = router.resolve(target).fullPath;
-  router.replace(target);
+  const resolved = router.resolve(target).fullPath;
+  if (route.fullPath === resolved || decodeURIComponent(route.fullPath) === decodeURIComponent(resolved)) return;
+  selfWrittenUrl = resolved;
+  void router.replace(target);
 }
 function syncExplorerUrl() {
   if (mode.value !== 'explore') return;
@@ -290,7 +292,10 @@ watch(() => [route.path, route.query.type, route.query.section, route.query.genr
   // résultats restent montés, sans lancer une seconde requête ni perdre le focus.
   if (prevPath === '/discover' && path === '/discover/explore' && mode.value === 'explore' && query.value) return;
   // Mise a jour ecrite par la page elle-meme : son chargement est deja programme.
-  if (selfWrittenUrl && route.fullPath === selfWrittenUrl) { selfWrittenUrl = ''; return; }
+  if (selfWrittenUrl && (route.fullPath === selfWrittenUrl || decodeURIComponent(route.fullPath) === decodeURIComponent(selfWrittenUrl))) {
+    selfWrittenUrl = '';
+    return;
+  }
   applyExplorerUrl();
 });
 

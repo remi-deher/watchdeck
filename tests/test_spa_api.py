@@ -577,6 +577,36 @@ def test_spa_media_detail_exposes_last_mail_history(async_db):
         _cleanup()
 
 
+def test_spa_media_detail_saga_and_extra_requesters(async_db):
+    request = MediaRequest(
+        plex_user_id="alice",
+        title="Dune Part Two",
+        media_type="movie",
+        year=2024,
+        tmdb_id="693134",
+        status=RequestStatus.available,
+        extra_requesters='["bob", {"plex_user_id": "charlie"}]',
+    )
+    async_db.add(request)
+    async_db.commit()
+
+    detail_payload = {
+        "backdrop_url": "https://image.tmdb.org/t/p/original/backdrop.jpg",
+        "recommendations": [{"tmdb_id": 438631, "media_type": "movie", "title": "Dune"}],
+        "similar": [],
+        "saga": {"items": [{"tmdb_id": 438631, "media_type": "movie", "title": "Dune"}]},
+    }
+    client = _client(async_db)
+    try:
+        with patch("app.services.media_detail.tmdb.detail", new=AsyncMock(return_value=detail_payload)):
+            response = client.get(f"/api/media/detail?request_id={request.id}")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["saga"]["items"][0]["title"] == "Dune"
+    finally:
+        _cleanup()
+
+
 def test_spa_media_detail_exposes_per_requester_notification_status(async_db):
     """Régression : /api/media/detail doit indiquer, PAR PERSONNE (pas juste
     globalement), si le mail demande/disponibilité a été envoyé avec succès — sert à
