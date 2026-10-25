@@ -1,6 +1,7 @@
 """Indexes de performance pour la bibliothèque et les résolutions d'identité."""
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "0052_library_performance_indexes"

@@ -11,8 +11,8 @@ import logging
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from ..cache import cache
@@ -436,35 +436,21 @@ async def get_home(
     payloads: dict[str, dict] = {}
     errors: dict[str, str] = {}
 
-    async def _load_source(source: str):
+    async def _load_section_safe(name: str, coro):
         payload, err = await run_section_safe(
-            _fetch_home_section(db, source, region),
-            section_name=source,
+            coro,
+            section_name=name,
             default=None,
             logger=logger,
             log_message="Section Découvrir indisponible: %s",
         )
-        return source, payload, err
+        return name, payload, err
 
-    async def _load_recent():
-        try:
-            return "recent_plex", await _recent_plex_section(db), None
-        except Exception as exc:
-            logger.warning("Section recent_plex indisponible: %s", exc)
-            return "recent_plex", None, str(exc)
-
-    async def _load_most_requested():
-        try:
-            return "most_requested", await _most_requested_section(db), None
-        except Exception as exc:
-            logger.warning("Section most_requested indisponible: %s", exc)
-            return "most_requested", None, str(exc)
-
-    tasks = [_load_source(source) for source in source_names]
+    tasks = [_load_section_safe(source, _fetch_home_section(db, source, region)) for source in source_names]
     if "recent_plex" in requested:
-        tasks.append(_load_recent())
+        tasks.append(_load_section_safe("recent_plex", _recent_plex_section(db)))
     if "most_requested" in requested:
-        tasks.append(_load_most_requested())
+        tasks.append(_load_section_safe("most_requested", _most_requested_section(db)))
 
     results = await asyncio.gather(*tasks)
     for name, payload, err in results:

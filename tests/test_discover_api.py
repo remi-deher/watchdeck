@@ -559,3 +559,36 @@ def test_source_endpoint_supports_sorting(client):
         assert response.status_code == 200
         mock_call.assert_called_once()
         assert mock_call.call_args.kwargs.get("sort_by") == "vote_average.desc"
+
+
+def test_home_loads_recent_and_most_requested(client, db):
+    payload = {
+        "items": [{"tmdb_id": 42, "media_type": "movie", "title": "Film"}],
+        "page": 1,
+        "total_pages": 1,
+        "total_results": 1,
+    }
+    with patch("app.routers.discover_api.tmdb.trending", new=AsyncMock(return_value=payload)):
+        response = client.get("/api/discover/home?sections=hero,trending,recent_plex,most_requested")
+    assert response.status_code == 200
+    sections = response.json()["sections"]
+    assert "hero" in sections
+    assert "recent_plex" in sections
+    assert "most_requested" in sections
+
+
+def test_provider_home_returns_hero_and_movies(client):
+    payload = {
+        "items": [{"tmdb_id": 42, "media_type": "movie", "title": "Film Netflix"}],
+        "page": 1,
+        "total_pages": 1,
+        "total_results": 1,
+    }
+    with patch("app.routers.discover_api.tmdb.discover_by_source", new=AsyncMock(return_value=payload)):
+        response = client.get("/api/discover/source/provider/8/home?sections=hero,movies")
+    assert response.status_code == 200
+    sections = response.json()["sections"]
+    assert "hero" in sections
+    assert "movies" in sections
+    assert sections["movies"]["items"][0]["title"] == "Film Netflix"
+

@@ -109,3 +109,47 @@ async def test_base_arr_client_delegates_with_matching_signatures():
         m.assert_awaited_once_with(
             "http://localhost:8989", "fake-api-key", 42, blocklist=True, search=True, product="Sonarr"
         )
+
+
+@pytest.mark.asyncio
+async def test_media_identity_filter_empty_conditions():
+    from app.routers.library_api import _media_identity_filter
+
+    class EmptyItem:
+        pass
+
+    assert await _media_identity_filter(None, EmptyItem()) == []
+
+
+@pytest.mark.asyncio
+async def test_media_identity_filter_matches_criteria():
+    from unittest.mock import MagicMock
+
+    from app.models import LibraryItem, MediaRequest
+    from app.routers.library_api import _media_identity_filter
+
+    mock_req = MediaRequest(
+        id=42,
+        plex_user_id="user-1",
+        title="Test Film Identity",
+        year=2024,
+        media_type="movie",
+        tmdb_id="999888",
+    )
+    mock_db = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = [mock_req]
+    mock_db.execute.return_value = mock_result
+
+    item = LibraryItem(
+        id=10,
+        title="Test Film Identity",
+        year=2024,
+        media_type="movie",
+        tmdb_id="999888",
+    )
+    res = await _media_identity_filter(mock_db, item)
+    assert len(res) == 1
+    assert res[0].id == 42
+    mock_db.execute.assert_awaited_once()
+
