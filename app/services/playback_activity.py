@@ -2932,7 +2932,9 @@ async def activity_history(
             .all()
         )
         # Serveurs : seulement ceux qui ont des lectures sur la periode, NULL = principal.
-        server_ids = (await db.execute(select(PlaybackSession.server_id).filter(*period_filter).distinct())).scalars().all()
+        server_ids = (
+            (await db.execute(select(PlaybackSession.server_id).filter(*period_filter).distinct())).scalars().all()
+        )
         names = {srv.id: srv.name for srv in servers}
         server_facets = [
             {"id": primary_id if value is None else value, "name": names.get(primary_id if value is None else value)}
