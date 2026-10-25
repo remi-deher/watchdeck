@@ -3,12 +3,18 @@ import {api} from '@/api';
 
 /** One lightweight request per second while a visible SSH/local transfer is active. */
 export function useStorageLiveTelemetry(jobs:Ref<any[]>,loading:Ref<boolean>){
- let timer:ReturnType<typeof setInterval>|undefined;
+ let timer:ReturnType<typeof setTimeout>|undefined;
  let pending=false,disposed=false;
+
+ function activeIds(): any[] {
+  const before=jobs.value;
+  return before.filter(job=>job.desired_state==='run' && ['queued','running','finalizing'].includes(job.status) && job.params?.transfer_mode!=='arr').map(job=>job.id);
+ }
+
  async function refresh(){
   if(disposed || pending || loading.value || document.hidden)return;
   const before=jobs.value;
-  const ids=before.filter(job=>job.desired_state==='run' && ['queued','running','finalizing'].includes(job.status) && job.params?.transfer_mode!=='arr').map(job=>job.id);
+  const ids=activeIds();
   if(!ids.length)return;
   pending=true;
   try{
@@ -27,7 +33,16 @@ export function useStorageLiveTelemetry(jobs:Ref<any[]>,loading:Ref<boolean>){
    // Keep the last measurement; the existing full refresh reports connection errors.
   }finally{pending=false;}
  }
- onMounted(()=>{timer=setInterval(()=>void refresh(),1000);});
- onUnmounted(()=>{disposed=true;clearInterval(timer);});
+
+ async function tick(){
+  if(disposed)return;
+  await refresh();
+  if(disposed)return;
+  const delay=activeIds().length>0?1000:5000;
+  timer=setTimeout(tick,delay);
+ }
+
+ onMounted(()=>{timer=setTimeout(tick,1000);});
+ onUnmounted(()=>{disposed=true;if(timer)clearTimeout(timer);});
  return {refresh};
 }

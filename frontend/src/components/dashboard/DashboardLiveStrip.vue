@@ -45,7 +45,8 @@ defineEmits<{ (e: 'select', session: LiveSession): void }>();
 const receivedAt = ref(Date.now());
 const now = ref(Date.now());
 watch(() => props.sessions, () => { receivedAt.value = Date.now(); now.value = Date.now(); });
-useIntervalFn(() => { if (!document.hidden) now.value = Date.now(); }, 1000);
+const hasPlayingSessions = computed(() => props.sessions.some((s) => s.state === 'playing'));
+useIntervalFn(() => { if (!document.hidden && hasPlayingSessions.value) now.value = Date.now(); }, 1000);
 const clock = computed<LiveClock>(() => ({ now: now.value, receivedAt: receivedAt.value }));
 
 const headline = computed(() => {

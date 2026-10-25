@@ -8,7 +8,32 @@ import { readCache, writeCache } from '@/cache';
 import { useRealtime } from '@/events';
 
 const CACHE_KEY = 'storage-overview';
-const POLL_MS = 5000;
+function hasListChanged(current: any[], next: any[]): boolean {
+  if (current.length !== next.length) return true;
+  for (let i = 0; i < current.length; i++) {
+    const a = current[i];
+    const b = next[i];
+    if (a === b) continue;
+    if (!a || !b) return true;
+    if (a.id !== b.id || a.updated_at !== b.updated_at || a.status !== b.status || a.version !== b.version) return true;
+    const aKeys = Object.keys(a);
+    const bKeys = Object.keys(b);
+    if (aKeys.length !== bKeys.length) return true;
+    for (const key of aKeys) {
+      if (a[key] !== b[key]) {
+        if (typeof a[key] === 'object' && a[key] !== null && typeof b[key] === 'object' && b[key] !== null) {
+          if (JSON.stringify(a[key]) !== JSON.stringify(b[key])) return true;
+        } else {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+const ACTIVE_POLL_MS = 5000;
+const IDLE_POLL_MS = 30000;
 
 export function useStorageOverview(onTick?: () => void) {
   const locations = ref<any[]>([]);
@@ -28,8 +53,14 @@ export function useStorageOverview(onTick?: () => void) {
     instances.value = cached.instances || [];
   }
 
-  /* On ne remplace une liste que si elle a change : les lignes affichees gardent leur identite. */
-  const assign = (target: { value: any[] }, next: any[]) => { if (JSON.stringify(target.value) !== JSON.stringify(next)) target.value = next; };
+  /* On ne remplace une liste que si elle a changé : les lignes affichées gardent leur identité. */
+  const assign = (target: { value: any[] }, next: any[]) => {
+    if (hasListChanged(target.value, next)) target.value = next;
+  };
+
+  function hasActiveJobs(): boolean {
+    return jobs.value.some((j: any) => ['queued', 'running', 'finalizing'].includes(j.status));
+  }
 
   async function load(silent = false): Promise<void> {
     if (loading.value) return;
@@ -52,15 +83,42 @@ export function useStorageOverview(onTick?: () => void) {
     }
   }
 
-  let timer: ReturnType<typeof setInterval> | undefined;
-  const background = () => {
-    if (document.hidden) return;
-    void load(true);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  function scheduleNext() {
+    if (timer) clearTimeout(timer);
+    const delay = hasActiveJobs() ? ACTIVE_POLL_MS : IDLE_POLL_MS;
+    timer = setTimeout(background, delay);
+  }
+
+  const background = async () => {
+    if (document.hidden) {
+      scheduleNext();
+      return;
+    }
+    await load(true);
     onTick?.();
+    scheduleNext();
   };
-  onMounted(() => { timer = setInterval(background, POLL_MS); document.addEventListener('visibilitychange', background); });
-  onUnmounted(() => { if (timer) clearInterval(timer); document.removeEventListener('visibilitychange', background); });
-  useRealtime(['storage.updated'], () => void load(true), { debounceMs: 600 });
+
+  const onVisibility = () => {
+    if (!document.hidden) {
+      void load(true);
+      scheduleNext();
+    }
+  };
+
+  onMounted(() => {
+    scheduleNext();
+    document.addEventListener('visibilitychange', onVisibility);
+  });
+  onUnmounted(() => {
+    if (timer) clearTimeout(timer);
+    document.removeEventListener('visibilitychange', onVisibility);
+  });
+  useRealtime(['storage.updated'], () => {
+    void load(true);
+    scheduleNext();
+  }, { debounceMs: 600 });
 
   return { locations, jobs, accesses, connections, instances, loading, error, load };
 }

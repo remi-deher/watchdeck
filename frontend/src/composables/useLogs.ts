@@ -53,7 +53,7 @@ export function useLogs() {
     // Garder les lignes du filtre precedent pendant le chargement du suivant, pas d'un journal a l'autre.
     placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[1] === type.value ? keepPreviousData(previous) : undefined),
     staleTime: 10_000,
-    refetchInterval: () => (live.value ? 5_000 : false),
+    refetchInterval: () => (live.value && (typeof document === 'undefined' || !document.hidden) ? 5_000 : false),
   });
   const rows = computed<any[]>(() => logsQuery.data.value || []);
   const loading = computed(() => logsQuery.isFetching.value);

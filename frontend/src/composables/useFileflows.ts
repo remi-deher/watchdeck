@@ -79,8 +79,13 @@ function fileflowsStatusQuery() {
     queryKey: queryKeys.fileflows.status,
     queryFn: ({ signal }: { signal?: AbortSignal }) => api<FileflowsStatus>('/api/fileflows/status', { signal }),
     staleTime: 5_000,
-    // Un traitement avance en continu : on suit la progression tant que la page est ouverte.
-    refetchInterval: 15_000,
+    // Polling adaptatif : 10s si travail en cours, ralenti à 60s au repos, pause onglet masqué.
+    refetchInterval: (query: any) => {
+      if (typeof document !== 'undefined' && document.hidden) return false;
+      const data = query?.state?.data as FileflowsStatus | undefined;
+      const isWorking = (data?.processing ?? 0) > 0 || (data?.queue ?? 0) > 0 || (data?.runners?.length ?? 0) > 0;
+      return isWorking ? 10_000 : 60_000;
+    },
   };
 }
 
