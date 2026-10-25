@@ -9,6 +9,7 @@
       :columns="COLUMNS"
       :row-key="(row: PlaybackRun) => row.key"
       :sort="tableSort"
+      :row-class="() => 'understand-row'"
       manual-sort
       clickable
       sticky-header

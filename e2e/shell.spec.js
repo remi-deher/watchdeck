@@ -517,8 +517,8 @@ test("l'historique charge la suite au defilement", async ({ page }) => {
   await page.locator(".infinite-scroll-trigger").scrollIntoViewIfNeeded();
 
   await expect(rows).toHaveCount(60, { timeout: 10000 });
-  // Et l'historique se lit par date : chaque journee porte son en-tete.
-  await expect(page.locator(".understand__day").first()).toBeVisible();
+  // Et l'historique se lit par date : chaque ligne porte sa cellule de date.
+  await expect(page.locator(".history-date-cell").first()).toBeVisible();
 });
 
 test("une confirmation ouverte depuis un tiroir reste cliquable", async ({ page }) => {
