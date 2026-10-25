@@ -168,10 +168,6 @@ const emit = defineEmits<{
 const receivedAt = ref(Date.now());
 const now = ref(Date.now());
 watch(() => props.sessions, () => { receivedAt.value = Date.now(); now.value = Date.now(); });
-// Simple horloge d'affichage (progression des lectures), pas une requete : suspendue
-// quand l'onglet est masque.
-useIntervalFn(() => { if (!document.hidden) now.value = Date.now(); }, 1000);
-
 function isPaused(session: LiveSession): boolean {
   return ['paused', 'buffering'].includes(String(session.state || '').toLowerCase());
 }
@@ -189,6 +185,10 @@ function percent(session: LiveSession): number {
 }
 
 const playingCount = computed(() => props.sessions.filter(session => !isPaused(session)).length);
+
+// Simple horloge d'affichage (progression des lectures), pas une requête : active
+// uniquement s'il y a des lectures en cours d'avancement et si l'onglet est visible.
+useIntervalFn(() => { if (!document.hidden && playingCount.value > 0) now.value = Date.now(); }, 1000);
 
 const summary = computed(() => {
   const total = props.sessions.length;

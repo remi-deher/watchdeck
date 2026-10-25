@@ -64,7 +64,11 @@ function filesQuery(state: number) {
     },
     enabled: connected,
     placeholderData: keepPreviousData,
-    refetchInterval: 30_000,
+    refetchInterval: (query: any) => {
+      if (typeof document !== 'undefined' && document.hidden) return false;
+      const count = query?.state?.data?.files?.length ?? 0;
+      return count > 0 || (status.value?.processing ?? 0) > 0 ? 20_000 : 60_000;
+    },
   });
 }
 const queuedQuery = filesQuery(FILEFLOWS_STATUS.queued);

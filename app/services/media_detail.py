@@ -1,5 +1,7 @@
 """Agrégation métier de la fiche média unifiée."""
 
+import asyncio
+import json
 import logging
 from typing import Awaitable, Callable, Optional
 
@@ -162,9 +164,32 @@ async def build_media_detail(
     if selected_request and selected_request.id not in {row.id for row in related_requests}:
         related_requests.insert(0, selected_request)
 
-    all_users = (await db.execute(select(PlexUser))).scalars().all()
-    users = {user.plex_user_id: user.custom_name or user.display_name or user.plex_user_id for user in all_users}
-    user_by_id = {user.plex_user_id: user for user in all_users}
+    needed_user_ids: set[str] = set()
+    for row in related_requests:
+        if row.plex_user_id:
+            needed_user_ids.add(row.plex_user_id)
+        if row.extra_requesters:
+            try:
+                extra = json.loads(row.extra_requesters)
+                if isinstance(extra, list):
+                    for entry in extra:
+                        uid = entry.get("plex_user_id") if isinstance(entry, dict) else entry
+                        if uid:
+                            needed_user_ids.add(str(uid))
+            except (ValueError, TypeError):
+                pass
+
+    if needed_user_ids:
+        all_users = (
+            (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id.in_(list(needed_user_ids)))))
+            .scalars()
+            .all()
+        )
+        users = {user.plex_user_id: user.custom_name or user.display_name or user.plex_user_id for user in all_users}
+        user_by_id = {user.plex_user_id: user for user in all_users}
+    else:
+        users = {}
+        user_by_id = {}
     request_ids = [row.id for row in related_requests]
     last_mail: dict[tuple[int, str], dict] = {}
     recipients: dict[tuple[int, str], set[str]] = {}
@@ -364,15 +389,17 @@ async def build_media_detail(
             vote_count = detail.get("vote_count", 0)
             trailer_url = detail.get("trailer_url")
             saga = detail.get("saga")
-            recommendations = await annotate_rail_items(db, detail.get("recommendations", []))
-            similar = await annotate_rail_items(db, detail.get("similar", []))
-            cast = detail.get("cast", [])
-            release_dates = detail.get("release_dates")
-            first_air_date = detail.get("first_air_date")
-            current_season_air_date = detail.get("current_season_air_date")
-            next_episode_to_air = detail.get("next_episode_to_air")
+            rec_items = detail.get("recommendations", [])
+            sim_items = detail.get("similar", [])
+            saga_items = saga.get("items", []) if saga else []
+            combined_rail_items = rec_items + sim_items + saga_items
+            if combined_rail_items:
+                await annotate_rail_items(db, combined_rail_items)
+            recommendations = rec_items
+            similar = sim_items
             if saga:
-                saga["items"] = await annotate_rail_items(db, saga.get("items", []))
+                saga["items"] = saga_items
+            cast = detail.get("cast", [])
         except Exception as exc:
             logger.debug("TMDB backdrop unavailable: %s", exc)
 

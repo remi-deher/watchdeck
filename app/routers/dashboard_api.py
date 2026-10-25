@@ -118,12 +118,14 @@ async def _stream_sections(sections: set[str] | None = None, *, refresh: bool = 
             return {"errors": [name]}
 
     # Démarrer les calculs avant la lecture Redis du compte à rebours.
+    call_items = list(calls.items())
+    cached_entries = await asyncio.gather(*(cache.get_json(_SECTION_PREFIX + name) for name, _ in call_items))
     pending = {}
-    for name, call in calls.items():
-        entry = await cache.get_json(_SECTION_PREFIX + name)
+    now = time.time()
+    for (name, call), entry in zip(call_items, cached_entries):
         if entry and not refresh:
             yield _frame({name: entry["value"]})
-            if time.time() - entry["cached_at"] < _SECTION_FRESH_SECONDS:
+            if now - entry["cached_at"] < _SECTION_FRESH_SECONDS:
                 continue
         pending[name] = call
 
