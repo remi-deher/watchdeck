@@ -299,4 +299,17 @@ describe('DiscoverView', () => {
     expect(wrapper.text()).toContain('Inspiré par Dune');
     expect(wrapper.find('img[alt="Affiche de Arrival"]').exists()).toBe(true);
   });
+
+  it('filtre le catalogue par genre avec /api/discover/discover', async () => {
+    apiMock.mockImplementation(path => {
+      if (path.includes('/genres')) return Promise.resolve([{ id: 27, name: 'Horreur' }]);
+      return Promise.resolve(page([media(100, 'Halloween')]));
+    });
+
+    const wrapper = await mountView({ url: '/discover/explore?genre=27' });
+    await flushPromises();
+
+    expect(apiMock.mock.calls.some(([path]) => path.includes('/api/discover/discover') && path.includes('genre=27'))).toBe(true);
+    expect(wrapper.text()).toContain('Halloween');
+  });
 });
