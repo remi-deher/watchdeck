@@ -228,19 +228,52 @@ function onInput(event: Event): void {
   cursor: pointer;
 }
 .ui-search-field__filter:hover { color: var(--text); }
+.ui-search-field__filter:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ui-search-field__clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ui-search-field__more:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: var(--radius-xs); }
 /* Segment d'action : meme couture et meme coin que « Filtres » ; le bouton fourni par la
    page y perd son cadre pour faire corps avec la capsule. */
 .ui-search-field__action { display: flex; gap: var(--space-2); flex: 0 1 auto; min-width: 0; max-width: 50%; overflow-x: auto; align-items: center; padding: 0 10px; height: 100%; border-left: 1px solid var(--border); border-radius: 0 calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0; white-space: nowrap; scrollbar-width: none; }
 .ui-search-field__action :deep(.ui-button),
-.ui-search-field__action :deep(> button) { height: auto; min-height: 0; padding: 0 12px; border: 0; border-radius: 0; background: transparent; box-shadow: none; font-size: var(--fs-sm); }
-.ui-search-field__action :deep(> button) { height: 100%; }
-.ui-search-field__action :deep(.ui-button:hover),
-.ui-search-field__action :deep(> button:hover) { background: rgb(var(--ink) / .05); }
+.ui-search-field__action :deep(> button),
+.ui-search-field__action :deep(> a) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: 28px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--fs-sm);
+  line-height: 1;
+  color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease-standard),
+              color var(--motion-duration-fast) var(--motion-ease-standard),
+              border-color var(--motion-duration-fast) var(--motion-ease-standard);
+}
+.ui-search-field__action :deep(.ui-button:hover:not(:disabled)),
+.ui-search-field__action :deep(> button:hover:not(:disabled)),
+.ui-search-field__action :deep(> a:hover) {
+  background: rgb(var(--ink) / .06);
+}
 /* Le segment est a plat : un bouton principal y perd son fond, et son texte clair (fait
    pour ce fond) disparaissait sur celui de la capsule. L'action principale prend donc la
    couleur d'accent, en gras, comme « Filtres » quand il est actif. */
 .ui-search-field__action :deep(.ui-button--primary) { color: var(--accent); font-weight: 700; }
 .ui-search-field__action :deep(.ui-button--primary:hover:not(:disabled)) { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.ui-search-field__action :deep(.ui-button:focus-visible),
+.ui-search-field__action :deep(> button:focus-visible),
+.ui-search-field__action :deep(> a:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: var(--radius-sm);
+}
 /* Rien a porter (action conditionnelle absente, outils vides) : ni segment, ni separateur.
    `:empty` ignore les commentaires que Vue laisse a la place d'un `v-if` faux. */
 .ui-search-field__action:empty { display: none; }

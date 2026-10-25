@@ -157,8 +157,9 @@ watch(() => props.dock.join('|'), () => { present.value = [...props.dock]; void 
 @use '@/styles/foundations/breakpoints' as bp;
 
 .sheet-hero {
-  /* Hauteur dont l'affiche remonte sur la banniere. */
+  /* Hauteur dont l'affiche remonte sur la banniere (sans fade). */
   --sheet-hero-overlap: 120px;
+  --sheet-hero-pad-x: 28px;
 }
 /* Image seule : la banniere n'a plus a loger le texte. */
 .sheet-hero__banner {
@@ -175,6 +176,8 @@ watch(() => props.dock.join('|'), () => { present.value = [...props.dock]; void 
   position: relative;
   z-index: 2;
   width: 100%;
+  box-sizing: border-box;
+  padding-inline: var(--sheet-hero-pad-x);
 }
 .sheet-hero__row {
   display: grid;
@@ -222,7 +225,10 @@ watch(() => props.dock.join('|'), () => { present.value = [...props.dock]; void 
 .sheet-hero.is-fade .sheet-hero__poster { margin-top: 0; }
 
 @include bp.until(tablet) {
-  .sheet-hero { --sheet-hero-overlap: 70px; }
+  .sheet-hero {
+    --sheet-hero-overlap: 70px;
+    --sheet-hero-pad-x: 16px;
+  }
   .sheet-hero__banner,
   .sheet-hero.is-sheet .sheet-hero__banner {
     min-height: clamp(150px, 28vh, 230px);
@@ -243,7 +249,10 @@ watch(() => props.dock.join('|'), () => { present.value = [...props.dock]; void 
 }
 
 @include bp.from(tablet) {
-  .sheet-hero.is-sheet .sheet-hero__banner {
+  .sheet-hero {
+    --sheet-hero-pad-x: 28px;
+  }
+  .sheet-hero.is-sheet:not(.is-fade) .sheet-hero__banner {
     min-height: min(36dvh, 340px);
   }
   .sheet-hero.is-stacked { --sheet-hero-overlap: 150px; }

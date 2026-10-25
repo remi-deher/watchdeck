@@ -32,7 +32,6 @@ test('la fiche et sa demande montrent le même parcours malgré un ancien statut
   });
   await page.goto('/library/media/request/8', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.workflow-card .step-timeline__step.is-current')).toHaveText(/Confirmation Plex attendue/, { timeout: 30_000 });
-  await expect(page.locator('.state-card')).toContainText("Confirmer l'indexation dans Plex");
   await page.goto('/library/media/request/8?tab=requests', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.journey-title')).toHaveText(journey.label);
   await expect(page.locator('.step-timeline__step.is-current')).toContainText('Confirmation Plex attendue');

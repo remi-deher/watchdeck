@@ -12,16 +12,30 @@ export interface UserSession {
 }
 
 let pending: Promise<UserSession | null> | null = null;
+let currentSession: UserSession | null = null;
+let isSessionReady = false;
 
 /** Charge la session (mémoïsée). Renvoie `null` si l'utilisateur n'est pas authentifié. */
 export function loadSession(): Promise<UserSession | null> {
-  pending ||= api<UserSession>('/api/session').catch(() => null);
+  pending ||= api<UserSession>('/api/session')
+    .then((data) => {
+      currentSession = data;
+      isSessionReady = true;
+      return data;
+    })
+    .catch(() => {
+      currentSession = null;
+      isSessionReady = true;
+      return null;
+    });
   return pending;
 }
 
 /** Oublie la session mémoïsée — à appeler après une action qui change les droits. */
 export function invalidateSession(): void {
   pending = null;
+  currentSession = null;
+  isSessionReady = false;
 }
 
 export function isAdminSession(session?: UserSession | null): boolean {
@@ -42,15 +56,17 @@ export function useSession(): {
   canModerate: ComputedRef<boolean>;
   ready: Ref<boolean>;
 } {
-  const session = ref<UserSession | null>(null);
-  const ready = ref(false);
+  const session = ref<UserSession | null>(currentSession);
+  const ready = ref(isSessionReady);
   const isAdmin = computed(() => isAdminSession(session.value));
   const canModerate = computed(() => canModerateSession(session.value));
 
-  onMounted(async () => {
-    session.value = await loadSession();
-    ready.value = true;
-  });
+  if (!isSessionReady) {
+    onMounted(async () => {
+      session.value = await loadSession();
+      ready.value = true;
+    });
+  }
 
   return { session, isAdmin, canModerate, ready };
 }

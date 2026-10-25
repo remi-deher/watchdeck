@@ -154,6 +154,7 @@
 
       <UnderstandTemplate
         v-else
+        view="table"
         :events="historyEvents"
         :period="String(days)"
         :periods="periodChoices"
@@ -170,13 +171,25 @@
         @open="openHistoryEvent"
         @export="exportHistory"
         @load-more="loadHistory(true)"
-      />
+      >
+        <template #table>
+          <PlaybackHistoryTable
+            :runs="historyRuns"
+            :loading="historyQuery.isFetching.value && !historyRuns.length"
+            :sort-key="historySortState.key"
+            :sort-direction="historySortState.direction"
+            @update:sort="setHistorySort"
+            @open="openHistoryRun"
+          />
+        </template>
+      </UnderstandTemplate>
     </template>
 
   </PageTemplate>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import { Info, MonitorPlay, Tv, Users as UsersIcon, ArrowRight } from '@lucide/vue';
 import AnalyzeTemplate from '@/components/templates/AnalyzeTemplate.vue';
 import PageTemplate from '@/components/templates/PageTemplate.vue';
@@ -200,9 +213,28 @@ import MediaArtwork from '@/components/activity/MediaArtwork.vue';
 import PlaybackMethodBadge from '@/components/activity/PlaybackMethodBadge.vue';
 import PlexServerTasks from '@/components/activity/PlexServerTasks.vue';
 import PopularMediaPanel from '@/components/activity/PopularMediaPanel.vue';
+import PlaybackHistoryTable from '@/components/activity/PlaybackHistoryTable.vue';
+import type { PlaybackRun } from '@/activity/playbackRuns';
 import UserRankingPanel from '@/components/activity/UserRankingPanel.vue';
 import { useActivity } from '@/composables/useActivity';
 import { formatDuration, signedPercent } from '@/utils/format';
+
+const historySortState = computed(() => {
+  const current = historySort.value || 'date_desc';
+  const lastUnderscore = current.lastIndexOf('_');
+  if (lastUnderscore === -1) return { key: current, direction: 'desc' as const };
+  const key = current.slice(0, lastUnderscore);
+  const direction = current.slice(lastUnderscore + 1) as 'asc' | 'desc';
+  return { key, direction };
+});
+
+function setHistorySort(sort: { key: string; direction: 'asc' | 'desc' }): void {
+  historySort.value = `${sort.key}_${sort.direction}`;
+}
+
+function openHistoryRun(run: PlaybackRun): void {
+  openSession(run.item, run.items);
+}
 
 const {
   METHOD_CHOICES,
@@ -234,6 +266,7 @@ const {
   historyDevices,
   historyError,
   historyEvents,
+  historyRuns,
   historyFilterCount,
   historyLoadingMore,
   historyQuery,
