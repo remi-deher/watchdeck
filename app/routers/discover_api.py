@@ -235,18 +235,15 @@ async def _personalization_seeds(db: AsyncSession, plex_user_id: str, limit: int
     if not candidate_titles:
         return [], set()
 
-    library_stmt = (
-        select(
-            LibraryItem.id,
-            LibraryItem.media_type,
-            LibraryItem.title,
-            LibraryItem.year,
-            LibraryItem.tmdb_id,
-        )
-        .filter(
-            LibraryItem.tmdb_id.isnot(None),
-            func.lower(func.trim(LibraryItem.title)).in_(list(candidate_titles)),
-        )
+    library_stmt = select(
+        LibraryItem.id,
+        LibraryItem.media_type,
+        LibraryItem.title,
+        LibraryItem.year,
+        LibraryItem.tmdb_id,
+    ).filter(
+        LibraryItem.tmdb_id.isnot(None),
+        func.lower(func.trim(LibraryItem.title)).in_(list(candidate_titles)),
     )
     library_rows = (await db.execute(library_stmt)).all()
     library_by_identity = {

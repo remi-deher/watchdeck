@@ -591,4 +591,3 @@ def test_provider_home_returns_hero_and_movies(client):
     assert "hero" in sections
     assert "movies" in sections
     assert sections["movies"]["items"][0]["title"] == "Film Netflix"
-

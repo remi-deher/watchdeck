@@ -181,8 +181,10 @@ async def build_media_detail(
 
     if needed_user_ids:
         all_users = (
-            await db.execute(select(PlexUser).filter(PlexUser.plex_user_id.in_(list(needed_user_ids))))
-        ).scalars().all()
+            (await db.execute(select(PlexUser).filter(PlexUser.plex_user_id.in_(list(needed_user_ids)))))
+            .scalars()
+            .all()
+        )
         users = {user.plex_user_id: user.custom_name or user.display_name or user.plex_user_id for user in all_users}
         user_by_id = {user.plex_user_id: user for user in all_users}
     else:

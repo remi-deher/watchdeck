@@ -152,4 +152,3 @@ async def test_media_identity_filter_matches_criteria():
     assert len(res) == 1
     assert res[0].id == 42
     mock_db.execute.assert_awaited_once()
-
