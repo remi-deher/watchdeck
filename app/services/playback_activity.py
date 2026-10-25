@@ -3003,10 +3003,6 @@ async def _session_media(row: PlaybackSession, db) -> dict | None:
     """
     if not row.rating_key:
         return None
-    media_cache_key = f"watchdeck:playback:session_media:{row.server_id}:{row.rating_key}"
-    cached_media = await cache.get_json(media_cache_key)
-    if isinstance(cached_media, dict) and "poster_url" in cached_media:
-        return cached_media
 
     settings = (await db.execute(select(Settings))).scalars().first()
     conn = await plex_servers.connection_for(db, row.server_id, settings)
@@ -3025,7 +3021,7 @@ async def _session_media(row: PlaybackSession, db) -> dict | None:
         ).scalar()
     art = meta.get("art")
     poster = meta.get("poster")
-    result = {
+    return {
         "poster_url": f"/api/playback/thumb?path={quote(poster, safe='')}" if poster else None,
         "summary": meta.get("summary"),
         "art_url": f"/api/playback/thumb?path={quote(art, safe='')}" if art else None,
@@ -3033,8 +3029,6 @@ async def _session_media(row: PlaybackSession, db) -> dict | None:
         "episode": meta.get("episode"),
         "library_item_id": library_id,
     }
-    await cache.set_json(media_cache_key, result, ttl_seconds=86400)
-    return result
 
 
 async def _live_avatars(rows, db) -> dict[str, str]:
