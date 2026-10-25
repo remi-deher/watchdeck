@@ -2,8 +2,10 @@
    pour le gabarit Comprendre. */
 import { computed, ref, type Ref } from 'vue';
 import { refDebounced } from '@vueuse/core';
-import { keepPreviousData, useInfiniteQuery } from '@tanstack/vue-query';
+import { keepPreviousData, useInfiniteQuery, useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
+import { readCacheEntry, writeCache } from '@/cache';
+import { useRealtime } from '@/events';
 import { exportHistoryCsv, foldPlaybackRuns } from '@/activity/playbackRuns';
 import type { UnderstandEvent } from '@/components/templates/understand/types';
 import { historyEventOf } from './historyEvents';
@@ -15,8 +17,10 @@ interface HistoryPage {items?: any[]; total?: number; has_more?: boolean; facets
    fenetre-la donnait « les lectures d'Untel parmi les cent dernieres » au lieu de ses
    cent dernieres, sans que le compteur affiche ne le trahisse. */
 export const HISTORY_PAGE_SIZE=100;
+const HISTORY_CACHE_MAX_AGE_MS=6*60*60*1000;
 
 export function useActivityHistory(days: Ref<number>, currentView: Ref<string>) {
+  const queryClient = useQueryClient();
   const historySearch=ref(''),methodFilter=ref(''),typeFilter=ref(''),userFilter=ref(''),deviceFilter=ref(''),serverFilter=ref('');
   /* L'ordre de la chronologie : les plus recentes d'abord, ou les plus anciennes. Il part au
      serveur, qui ordonne toute la periode et pas seulement la premiere page. */
@@ -26,6 +30,18 @@ export function useActivityHistory(days: Ref<number>, currentView: Ref<string>) 
   // cours et repart de la premiere page, ce que faisait `useLatestRequest` a la main.
   const historyNeedle=refDebounced(computed(()=>historySearch.value.trim()),250);
   const historyKey=computed(()=>({days:days.value,sort:historySort.value,query:historyNeedle.value,method:methodFilter.value,mediaType:typeFilter.value,user:userFilter.value,device:deviceFilter.value,server:serverFilter.value}));
+
+  const isDefaultView = computed(() =>
+    !historyNeedle.value &&
+    !methodFilter.value &&
+    !typeFilter.value &&
+    !userFilter.value &&
+    !deviceFilter.value &&
+    !serverFilter.value
+  );
+
+  const historyCacheKey = () => `activity:history:${days.value}:${historySort.value}`;
+
   function historyParams(offset: number): URLSearchParams {
     const key=historyKey.value;
     const params=new URLSearchParams({days:String(key.days),limit:String(HISTORY_PAGE_SIZE),offset:String(offset)});
@@ -40,13 +56,34 @@ export function useActivityHistory(days: Ref<number>, currentView: Ref<string>) 
   }
   const historyQuery=useInfiniteQuery({
     queryKey:computed(()=>['activity','history',historyKey.value]),
-    queryFn:({pageParam,signal})=>api<HistoryPage>(`/api/playback/history?${historyParams(pageParam)}`,{signal}),
+    queryFn:async({pageParam,signal})=>{
+      const page = await api<HistoryPage>(`/api/playback/history?${historyParams(pageParam)}`,{signal});
+      if (pageParam === 0 && isDefaultView.value) {
+        writeCache(historyCacheKey(), page);
+      }
+      return page;
+    },
     initialPageParam:0,
     getNextPageParam:(last: HistoryPage,pages: HistoryPage[])=>last.has_more?pages.reduce((sum,page)=>sum+(page.items?.length||0),0):undefined,
+    initialData:() => {
+      if (!isDefaultView.value) return undefined;
+      const cached = readCacheEntry<HistoryPage>(historyCacheKey(), { maxAgeMs: HISTORY_CACHE_MAX_AGE_MS });
+      return cached?.data ? { pages: [cached.data], pageParams: [0] } : undefined;
+    },
+    initialDataUpdatedAt:() => {
+      if (!isDefaultView.value) return undefined;
+      return readCacheEntry<HistoryPage>(historyCacheKey(), { maxAgeMs: HISTORY_CACHE_MAX_AGE_MS })?.savedAt;
+    },
     enabled:computed(()=>currentView.value==='history'||currentView.value==='live'),
     placeholderData:keepPreviousData,
     staleTime:30_000,
   });
+
+  useRealtime(['activity.updated'], () => {
+    if (currentView.value === 'history') {
+      void queryClient.invalidateQueries({ queryKey: ['activity', 'history'] }, { cancelRefetch: false });
+    }
+  }, { refreshOnVisible: false });
   const history=computed(()=>{
     const pages=historyQuery.data.value?.pages||[];
     const first=pages[0];

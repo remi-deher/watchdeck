@@ -24,6 +24,12 @@ class PlaybackSession(Base):
         ),
         Index("ix_playback_sessions_started_at", "started_at"),
         Index("ix_playback_sessions_active", "ended_at", "last_seen_at"),
+        Index(
+            "ix_playback_sessions_history_recent",
+            text("started_at DESC"),
+            text("id DESC"),
+            postgresql_where=text("ended_at IS NOT NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
