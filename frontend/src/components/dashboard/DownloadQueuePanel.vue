@@ -165,31 +165,23 @@ function metaLine(item: any): string {
 </script>
 
 <style scoped lang="scss">
-.queue-row {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
-  gap: var(--space-3);
-  align-items: center;
-  padding: 12px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+:deep(.live-strip) {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
 }
 
-.queue-row svg {
-  color: var(--muted);
+:deep(.live-poster) {
+  box-shadow: 0 8px 22px -12px rgb(var(--scrim) / 70%);
+
+  &::after {
+    display: none;
+  }
 }
 
-.queue-row div {
-  min-width: 0;
-}
-
-.queue-row strong,
-.queue-row span {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+:deep(.live-inset) {
+  box-shadow: 0 6px 18px rgb(var(--scrim) / 55%);
 }
 
 .queue-row {

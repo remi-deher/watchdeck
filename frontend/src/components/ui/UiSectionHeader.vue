@@ -25,7 +25,7 @@ withDefaults(defineProps<{
 
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
-.ui-section-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); min-width: 0; }
+.ui-section-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); min-width: 0; }
 .ui-section-heading { display: grid; gap: var(--space-1); min-width: 0; }
 .ui-section-heading :is(h2,h3,h4),.ui-section-heading p { margin: 0; }
 .ui-section-heading p { max-width: 68ch; color: var(--muted); font-size: var(--fs-sm); line-height: 1.45; }
