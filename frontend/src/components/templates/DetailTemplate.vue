@@ -52,6 +52,8 @@
             :variant="index === 0 ? 'primary' : action.danger ? 'danger' : 'secondary'"
             :to="action.to"
             :href="action.href"
+            :target="action.target || (action.href ? '_blank' : undefined)"
+            :rel="action.rel || (action.href ? 'noopener noreferrer' : undefined)"
             :disabled="action.disabled"
             @click="!action.to && !action.href && emit('action', action.key)"
           >

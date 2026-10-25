@@ -16,6 +16,8 @@ export interface DetailAction {
   /** Lien plutot qu'action (« Lire dans Plex »). */
   to?: string | Record<string, any>;
   href?: string;
+  target?: string;
+  rel?: string;
   danger?: boolean;
   disabled?: boolean;
   /** Compteur affiche a cote du libelle (« 3 »). */

@@ -97,6 +97,11 @@
             @submit-correction="sendCorrection"
             @cancel-correction="showCorrectionForm = false"
           />
+
+          <MediaNotificationsTab
+            v-else-if="key === 'notifications'"
+            :notifications="detail.notification_history || []"
+          />
         </template>
       </template>
       <template v-if="detail" #after>
@@ -198,6 +203,7 @@ import MediaRequestsTab from "@/components/media/MediaRequestsTab.vue";
 import MediaCalendarTab from "@/components/media/MediaCalendarTab.vue";
 import MediaEncodingTab from '@/components/media/MediaEncodingTab.vue';
 import MediaAudioSection from "@/components/media/MediaAudioSection.vue";
+import MediaNotificationsTab from "@/components/media/MediaNotificationsTab.vue";
 import RequestOptionsModal from "@/components/media/RequestOptionsModal.vue";
 import MediaRecommendations from "@/components/media/MediaRecommendations.vue";
 import MediaCast from "@/components/media/MediaCast.vue";

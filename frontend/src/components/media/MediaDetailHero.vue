@@ -55,7 +55,7 @@ import { isInPlex, mediaAvailabilityBadge } from "@/utils/mediaAvailability";
 import { mediaTypeLabel, isMusicType } from '@/utils/labels';
 import MediaLanguageBadge from './MediaLanguageBadge.vue';
 import { computed, onMounted, ref, useSlots } from 'vue';
-import { Download, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, RefreshCw } from '@lucide/vue';
+import { Download, ExternalLink, Film, Flag, Headphones, Music2, PlusCircle, RefreshCw, Video } from '@lucide/vue';
 import { formatPlexWebUrl, openPlexLink } from '@/mediaUrl';
 import { formatDateLong } from '@/utils/format';
 import { useDownloadSources } from '@/composables/useDownloadSources';
@@ -262,14 +262,24 @@ const badges = computed<DetailBadge[]>(() => [
 ]);
 const alert = computed(() => (waitingReason.value && !isMusic.value ? { tone: 'info' as const, message: String(waitingReason.value) } : null));
 
-/* Les actions : la demande ou Plex en avant, le téléchargement ensuite ; le reste (analyse, liens
-   externes, signalement) dans le menu. Rien tant que la fiche complète n'est pas là. */
+/* Les actions : la demande ou Plex en avant, le téléchargement ensuite ; la bande-annonce ;
+   le reste (analyse, liens externes, signalement) dans le menu. Rien tant que la fiche complète n'est pas là. */
 const actions = computed<DetailAction[]>(() => {
   if (props.preview) return [];
   const list: DetailAction[] = [];
   if (canRequest.value && !isMusic.value) list.push({ key: 'request', label: isShow.value ? 'Demander la série' : 'Demander ce film', icon: PlusCircle, disabled: props.busy });
   if (plexWebUrl.value) list.push({ key: 'plex', label: isMusic.value ? 'Écouter sur Plex' : 'Regarder sur Plex', icon: isMusic.value ? Headphones : Film });
   if (canDownload.value) list.push({ key: 'download', label: isShow.value ? 'Télécharger la série' : 'Télécharger le film', icon: Download, count: releaseCount.value || undefined });
+  if (props.detail?.trailer_url && !isMusic.value) {
+    list.push({
+      key: 'trailer',
+      label: 'Bande-annonce',
+      icon: Video,
+      href: props.detail.trailer_url,
+      target: '_blank',
+      rel: 'noopener noreferrer',
+    });
+  }
   if (!isMusic.value) {
     list.push({ key: 'scan', label: 'Analyser', icon: RefreshCw, menu: true, disabled: props.busy || !props.available });
     externalLinks.value.forEach((link, index) => list.push({ key: `link-${link.label}`, label: link.label, icon: ExternalLink, href: link.href, menu: true, separated: index === 0 }));
