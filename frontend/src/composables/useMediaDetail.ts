@@ -80,8 +80,9 @@ export function useMediaDetail() {
       ...(fileflowsConfigured.value && libraryItemId.value ? ['encoding'] : []),
     ];
   });
+  const ALL_SLOT_TABS = ['main', 'summary', 'missing', 'audio', 'requests', 'calendar', 'encoding'] as const;
   /* Les parties dont la page fournit le contenu : celles des onglets, ou la seule du catalogue d'un artiste. */
-  const slotTabs = computed(() => (!detail.value ? [] : isMusic.value ? ['main'] : tabs.value));
+  const slotTabs = computed(() => (isMusic.value ? ['main'] : ALL_SLOT_TABS));
   const mediaTabItems = computed(() => tabs.value.map((key) => ({ key, label: tabLabel(key) })));
   const admin = ref(false);
   const sessionUserId = ref('');

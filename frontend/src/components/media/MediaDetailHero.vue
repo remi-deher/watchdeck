@@ -286,7 +286,11 @@ function onAction(key: string): void {
 }
 
 const slots = useSlots();
-const forwarded = computed(() => Object.keys(slots).filter((name) => name.startsWith('tab-') || name === 'after'));
+const forwarded = computed(() => {
+  const fromTabs = (props.tabs || []).map((t) => `tab-${t.key}`);
+  const fromSlots = Object.keys(slots).filter((name) => name.startsWith('tab-') || name === 'after');
+  return Array.from(new Set(['tab-main', 'tab-summary', ...fromTabs, ...fromSlots]));
+});
 </script>
 <style scoped lang="scss">
 /* Le détail par saison, sous le résumé (une série). */
