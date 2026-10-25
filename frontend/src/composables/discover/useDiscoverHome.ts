@@ -1,12 +1,16 @@
 import { computed, reactive, ref, type ComputedRef, type Ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { api } from '@/api';
+import { readCache, writeCache } from '@/cache';
 import { mediaRequestKey } from '@/composables/useDirectMediaRequest';
 import { usePreference } from '@/composables/usePreference';
 import { GENRE_RAILS, PROVIDER_GENRE_RAILS, REQUESTABLE_ROWS, posterRow } from './discoverRules';
 
 const PERSONALIZED_RAILS = ['recommended', 'preferred_genres', 'unwatched_popular', 'followed_series'];
 const PROVIDER_SECTIONS = ['hero', 'movies', 'shows', 'genre_action', 'genre_scifi', 'genre_animation', 'genre_comedy', 'genre_thriller', 'genre_horror'];
+const DISCOVER_HOME_CACHE_KEY = 'discover:home:sections:v1';
+const DISCOVER_PERSO_CACHE_KEY = 'discover:home:perso:v1';
+const DISCOVER_CACHE_MAX_AGE_MS = 30 * 60_000;
 
 function emptyPersonalizedRail() {
   return { items: [] as any[] };
@@ -65,6 +69,34 @@ const home = reactive({
   genre_horror: sectionState(),
 } as Record<string, any>);
 
+// Hydratation immédiate depuis le cache SWR (retour navigation à 0ms)
+const cachedHome = readCache<Record<string, any>>(DISCOVER_HOME_CACHE_KEY, { maxAgeMs: DISCOVER_CACHE_MAX_AGE_MS });
+if (cachedHome) {
+  for (const [name, section] of Object.entries(cachedHome)) {
+    if (home[name] && section) {
+      home[name].item = section.item ?? null;
+      home[name].items = Array.isArray(section.items) ? section.items : [];
+      home[name].loading = false;
+      home[name].error = '';
+    }
+  }
+}
+
+const cachedPerso = readCache<Record<string, any>>(DISCOVER_PERSO_CACHE_KEY, { maxAgeMs: DISCOVER_CACHE_MAX_AGE_MS });
+if (cachedPerso) {
+  personalized.available = Boolean(cachedPerso.available);
+  personalized.seeds = Array.isArray(cachedPerso.seeds) ? cachedPerso.seeds : [];
+  personalized.loading = false;
+  personalized.error = '';
+  for (const name of PERSONALIZED_RAILS) {
+    if (personalized[name]) {
+      personalized[name].items = Array.isArray(cachedPerso.sections?.[name]?.items)
+        ? cachedPerso.sections[name].items
+        : [];
+    }
+  }
+}
+
 const sourceHome = reactive({
   hero: emptySourceSection(),
   movies: emptySourceSection(),
@@ -121,7 +153,9 @@ const INITIAL_HOME_SECTIONS = [
 async function loadHomeBatch(sectionNames: string[] = INITIAL_HOME_SECTIONS): Promise<void> {
   for (const name of sectionNames) {
     if (home[name]) {
-      home[name].loading = true;
+      if (!home[name].items?.length && !home[name].item) {
+        home[name].loading = true;
+      }
       home[name].error = '';
     }
   }
@@ -135,6 +169,13 @@ async function loadHomeBatch(sectionNames: string[] = INITIAL_HOME_SECTIONS): Pr
         });
       }
     }
+    const currentSections: Record<string, any> = {};
+    for (const [key, val] of Object.entries(home)) {
+      if (val?.items?.length || val?.item) {
+        currentSections[key] = { item: val.item, items: val.items };
+      }
+    }
+    writeCache(DISCOVER_HOME_CACHE_KEY, currentSections);
   } catch (loadError: any) {
     for (const name of sectionNames) {
       if (home[name]) {
@@ -179,7 +220,9 @@ function loadHome() {
 }
 
 async function loadPersonalized() {
-  personalized.loading = true;
+  if (!personalized.seeds?.length) {
+    personalized.loading = true;
+  }
   personalized.error = '';
   try {
     const params = new URLSearchParams({
@@ -193,6 +236,13 @@ async function loadPersonalized() {
     for (const name of PERSONALIZED_RAILS) {
       personalized[name].items = payload.sections?.[name]?.items || [];
     }
+    writeCache(DISCOVER_PERSO_CACHE_KEY, {
+      available: personalized.available,
+      seeds: personalized.seeds,
+      sections: Object.fromEntries(
+        PERSONALIZED_RAILS.map((name) => [name, { items: personalized[name].items }])
+      ),
+    });
   } catch (loadError: any) {
     personalized.available = true;
     personalized.error = loadError.message;
