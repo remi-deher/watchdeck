@@ -264,3 +264,20 @@ it('utilise la prochaine étape du parcours plutôt qu’un motif historique con
     waiting_reason: 'Disponible depuis longtemps', journey: { blocker: null, next_step: { label: 'Confirmer Plex' } } } } });
   expect(wrapper.find('.detail__alert').text()).toContain('Confirmer Plex');
 });
+
+it('affiche le bouton Bande-annonce dans les actions du dock quand une URL est présente', () => {
+  const wrapper = mount(MediaDetailHero, {
+    props: {
+      detail: {
+        title: 'Film avec bande-annonce',
+        media_type: 'movie',
+        trailer_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      },
+    },
+  });
+
+  const btn = bouton(wrapper, 'Bande-annonce');
+  expect(btn).toBeDefined();
+  expect(btn?.attributes('href')).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+  expect(btn?.attributes('target')).toBe('_blank');
+});

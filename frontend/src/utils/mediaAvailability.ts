@@ -36,11 +36,18 @@ export function mediaAvailabilityBadge(item: AvailabilityLike | null | undefined
   if (raw === 'pending_approval') return { label: 'À approuver', variant: 'partial' };
   if (raw === 'failed') return { label: 'Échec', variant: 'error' };
   if (raw === 'sent_to_arr') return { label: 'Transmise', variant: 'sent' };
-  if (item.requested || item.request_id || raw) return { label: 'Demandé', variant: 'requested' };
+  const isRequestStatus = Boolean(raw && [
+    'pending',
+    'approved',
+    'processing',
+    'downloading',
+    'available',
+    'partially_available',
+    'failed',
+    'sent_to_arr',
+    'pending_approval',
+    'requested',
+  ].includes(raw));
+  if (item.requested || item.request_id || isRequestStatus) return { label: 'Demandé', variant: 'requested' };
   return null;
-}
-
-export function plexPresenceLabel(item: AvailabilityLike): string {
-  if (item.availability?.plex === 'unknown') return 'Non confirmé';
-  return isInPlex(item) ? 'Présent dans Plex' : 'Absent de Plex';
 }

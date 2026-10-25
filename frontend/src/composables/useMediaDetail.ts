@@ -78,11 +78,19 @@ export function useMediaDetail() {
       'requests',
       'calendar',
       ...(fileflowsConfigured.value && libraryItemId.value ? ['encoding'] : []),
+      ...((detail.value?.notification_history?.length || 0) > 0 || route.query.tab === 'notifications' ? ['notifications'] : []),
     ];
   });
+  const ALL_SLOT_TABS = ['main', 'summary', 'missing', 'audio', 'requests', 'calendar', 'encoding', 'notifications'] as const;
   /* Les parties dont la page fournit le contenu : celles des onglets, ou la seule du catalogue d'un artiste. */
-  const slotTabs = computed(() => (!detail.value ? [] : isMusic.value ? ['main'] : tabs.value));
-  const mediaTabItems = computed(() => tabs.value.map((key) => ({ key, label: tabLabel(key) })));
+  const slotTabs = computed(() => (isMusic.value ? ['main'] : ALL_SLOT_TABS));
+  const mediaTabItems = computed(() => tabs.value.map((key) => {
+    let count: number | undefined;
+    if (key === 'notifications') {
+      count = detail.value?.notification_history?.length || undefined;
+    }
+    return { key, label: tabLabel(key), count };
+  }));
   const admin = ref(false);
   const sessionUserId = ref('');
   const requestLabel = computed(() => (detail.value?.media_type === 'show' ? 'Demander la série' : 'Demander ce film'));
@@ -178,7 +186,7 @@ export function useMediaDetail() {
 
   function tabLabel(value: string): string {
     const audioLabel = detail.value?.media_type === 'show' ? 'Saisons & épisodes' : 'Pistes & langues';
-    return ({ summary: 'Résumé', missing: 'Éléments manquants', audio: audioLabel, requests: 'Demandes', calendar: 'Calendrier', encoding: 'Encodage' } as Record<string, string>)[value];
+    return ({ summary: 'Résumé', missing: 'Éléments manquants', audio: audioLabel, requests: 'Demandes', calendar: 'Calendrier', encoding: 'Encodage', notifications: 'Notifications' } as Record<string, string>)[value];
   }
 
   function mediaPathFor(key: readonly [string, string, string, string, string], core = false): string {
@@ -441,7 +449,7 @@ export function useMediaDetail() {
   watch(detail, async (payload) => {
     if (!payload) return;
     seasons.reset();
-    tab.value = ['summary','missing','audio','requests','calendar'].includes(String(route.query.tab)) ? String(route.query.tab) : 'summary';
+    tab.value = ['summary','missing','audio','requests','calendar','encoding','notifications'].includes(String(route.query.tab)) ? String(route.query.tab) : 'summary';
     if (kind.value === 'discover') {
       if (payload.library_id) {
         await router.replace(inDiscoverShell.value ? `/discover/media/library/${payload.library_id}` : `/library/media/library/${payload.library_id}`);

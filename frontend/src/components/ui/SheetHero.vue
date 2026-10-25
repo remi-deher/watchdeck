@@ -157,8 +157,9 @@ watch(() => props.dock.join('|'), () => { present.value = [...props.dock]; void 
 @use '@/styles/foundations/breakpoints' as bp;
 
 .sheet-hero {
-  /* Hauteur dont l'affiche remonte sur la banniere. */
+  /* Hauteur dont l'affiche remonte sur la banniere (sans fade). */
   --sheet-hero-overlap: 120px;
+  --sheet-hero-pad-x: 28px;
 }
 /* Image seule : la banniere n'a plus a loger le texte. */
 .sheet-hero__banner {
@@ -175,6 +176,8 @@ watch(() => props.dock.join('|'), () => { present.value = [...props.dock]; void 
   position: relative;
   z-index: 2;
   width: 100%;
+  box-sizing: border-box;
+  padding-inline: var(--sheet-hero-pad-x);
 }
 .sheet-hero__row {
   display: grid;
@@ -213,24 +216,47 @@ watch(() => props.dock.join('|'), () => { present.value = [...props.dock]; void 
 .sheet-hero__dock-item { min-width: 0; }
 .sheet-hero__probe { position: absolute; left: 0; top: 0; display: grid; gap: var(--space-3); visibility: hidden; pointer-events: none; }
 
-/* Fondu : l'image est plus haute et se retire derriere l'affiche et le texte, qui
-   commencent donc sur elle, a la meme hauteur. */
-.sheet-hero { --sheet-hero-fade-depth: 240px; }
+/* Fondu : l'image s'etend derriere le haut de la fiche et s'efface vers le bas.
+   L'affiche et le texte s'installent haut sur le fond pour eliminer le vide
+   superieur sans couper l'arriere-plan. */
+.sheet-hero.is-fade {
+  --sheet-hero-banner-h: clamp(320px, 44dvh, 440px);
+  --sheet-hero-fade-depth: clamp(280px, 39dvh, 395px);
+}
 .sheet-hero.is-fade .sheet-hero__banner,
-.sheet-hero.is-fade.is-sheet .sheet-hero__banner { min-height: clamp(380px, 56dvh, 600px); }
-.sheet-hero.is-fade .sheet-hero__content { margin-top: calc(-1 * var(--sheet-hero-fade-depth)); }
-.sheet-hero.is-fade .sheet-hero__poster { margin-top: 0; }
+.sheet-hero.is-fade.is-sheet .sheet-hero__banner {
+  min-height: var(--sheet-hero-banner-h);
+}
+.sheet-hero.is-fade .sheet-hero__content {
+  margin-top: calc(-1 * var(--sheet-hero-fade-depth));
+  padding-top: var(--space-2);
+}
+.sheet-hero.is-fade .sheet-hero__poster {
+  margin-top: 0;
+}
+.sheet-hero.is-fade .sheet-hero__info {
+  padding-top: var(--space-2);
+}
 
 @include bp.until(tablet) {
-  .sheet-hero { --sheet-hero-overlap: 70px; }
+  .sheet-hero {
+    --sheet-hero-overlap: 70px;
+    --sheet-hero-pad-x: 16px;
+  }
   .sheet-hero__banner,
   .sheet-hero.is-sheet .sheet-hero__banner {
     min-height: clamp(150px, 28vh, 230px);
   }
   .sheet-hero__row { column-gap: 12px; }
-  .sheet-hero.is-stacked { --sheet-hero-overlap: 90px; --sheet-hero-fade-depth: 150px; }
+  .sheet-hero.is-stacked { --sheet-hero-overlap: 90px; }
+  .sheet-hero.is-fade {
+    --sheet-hero-banner-h: clamp(260px, 36dvh, 340px);
+    --sheet-hero-fade-depth: clamp(230px, 32dvh, 305px);
+  }
   .sheet-hero.is-fade .sheet-hero__banner,
-  .sheet-hero.is-fade.is-sheet .sheet-hero__banner { min-height: clamp(320px, 46dvh, 420px); }
+  .sheet-hero.is-fade.is-sheet .sheet-hero__banner {
+    min-height: var(--sheet-hero-banner-h);
+  }
   /* Empile, centre : affiche, texte, puis le dock sur toute la largeur. */
   .sheet-hero.is-stacked .sheet-hero__row {
     display: flex;
@@ -243,7 +269,10 @@ watch(() => props.dock.join('|'), () => { present.value = [...props.dock]; void 
 }
 
 @include bp.from(tablet) {
-  .sheet-hero.is-sheet .sheet-hero__banner {
+  .sheet-hero {
+    --sheet-hero-pad-x: 28px;
+  }
+  .sheet-hero.is-sheet:not(.is-fade) .sheet-hero__banner {
     min-height: min(36dvh, 340px);
   }
   .sheet-hero.is-stacked { --sheet-hero-overlap: 150px; }

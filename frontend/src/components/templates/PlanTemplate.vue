@@ -209,9 +209,15 @@ function jumpTo(date: Date): void {
 let scrollToTodayPending = true;
 function goToday(): void {
   slideDirection.value = '';
-  visibleDays.value = DAYS_PAGE;
-  scrollToTodayPending = true;
-  emit('update:cursor', new Date());
+  const now = new Date();
+  const isSameMonth = props.cursor.getFullYear() === now.getFullYear() && props.cursor.getMonth() === now.getMonth();
+  if (isSameMonth && displayView.value === 'agenda') {
+    revealDate(todayStr, 'smooth');
+  } else {
+    visibleDays.value = DAYS_PAGE;
+    scrollToTodayPending = true;
+    emit('update:cursor', now);
+  }
 }
 
 /* Evenements */
@@ -245,24 +251,45 @@ const weekDays = computed(() => Array.from({ length: 7 }, (_, index) => {
 }));
 watch(() => props.searching, () => { visibleDays.value = DAYS_PAGE; });
 
-function revealDate(date: string): boolean {
+function revealDate(date: string, behavior: ScrollBehavior = 'smooth'): boolean {
   const index = grouped.value.findIndex((group) => group.date >= date);
   if (index < 0) return false;
-  if (index >= visibleDays.value) visibleDays.value = index + DAYS_PAGE;
-  nextTick(() => document.getElementById(`plan-date-${grouped.value[index].date}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  if (index >= visibleDays.value) {
+    visibleDays.value = index + DAYS_PAGE;
+    nextTick(() => {
+      document.getElementById(`plan-date-${grouped.value[index].date}`)?.scrollIntoView({ behavior, block: 'start' });
+    });
+  } else {
+    document.getElementById(`plan-date-${grouped.value[index].date}`)?.scrollIntoView({ behavior, block: 'start' });
+  }
   return true;
 }
 function showDay(date: string): void {
   view.value = 'agenda';
-  revealDate(date);
+  nextTick(() => revealDate(date, 'smooth'));
 }
-/* Defilement vers aujourd'hui une fois les evenements arrives (premier affichage et
-   bouton « Aujourd'hui »). */
-watch(() => props.events, () => {
+function ensureDateVisible(date: string): void {
+  const index = grouped.value.findIndex((group) => group.date >= date);
+  if (index >= 0 && index >= visibleDays.value) {
+    visibleDays.value = index + DAYS_PAGE;
+  }
+}
+function tryScrollToToday(behavior: ScrollBehavior = 'auto'): void {
   if (!scrollToTodayPending || props.loading || displayView.value !== 'agenda') return;
+  if (!grouped.value.length) return;
   scrollToTodayPending = false;
-  nextTick(() => setTimeout(() => revealDate(todayStr), 100));
-});
+  ensureDateVisible(todayStr);
+  nextTick(() => revealDate(todayStr, behavior));
+}
+/* Positionnement vers aujourd'hui dès que les données sont prêtes (premier affichage
+   instantané, sans délai artificiel ni animation traînante). */
+watch(
+  [() => props.events, () => props.loading, displayView],
+  () => {
+    tryScrollToToday('auto');
+  },
+  { immediate: true },
+);
 
 /* Balayage horizontal : periode suivante ou precedente. Ignore quand le doigt part d'une
    zone qui defile deja de cote, et quand le geste est surtout vertical. */

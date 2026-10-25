@@ -50,6 +50,6 @@ function choisir(value: unknown): void {
 .ui-tabs__tab[data-disabled] { opacity: .45; cursor: not-allowed; }
 .ui-tabs__tab svg { width: 15px; height: 15px; }
 .ui-tabs__tab small { padding: 1px 6px; border-radius: var(--radius-pill); background: var(--surface-2); font-size: var(--fs-xs); }
-.ui-tabs__panel { min-width: 0; }
+.ui-tabs__panel { min-width: 0; min-height: var(--ui-tabs-panel-min-height, 0); }
 .ui-tabs__panel:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: var(--radius-sm); }
 </style>
