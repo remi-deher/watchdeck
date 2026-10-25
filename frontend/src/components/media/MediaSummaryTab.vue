@@ -1,7 +1,6 @@
 <template>
   <section class="drawer-section">
     <MediaWorkflowTimeline v-if="!isMusic" :journey="detail.journey" :steps="detail.workflow_timeline" :history="detail.media_history" />
-    <MediaInformationGrid :detail="detail" :vf-detail="vfDetail" />
 
     <div v-if="!isMusic && (detail.in_library || detail.requested || detail.request_id || detail.library_id)" class="action-grid compact-actions">
       <UiButton :disabled="busy" @click="$emit('recheck-plex')"><template #icon><RefreshCw /></template>Vérifier dans Plex</UiButton>
@@ -39,7 +38,6 @@ import { RefreshCw, MessageSquareWarning } from '@lucide/vue';
 import MediaIssueForm from './MediaIssueForm.vue';
 import MediaCorrectionForm from './MediaCorrectionForm.vue';
 import MediaWorkflowTimeline from './MediaWorkflowTimeline.vue';
-import MediaInformationGrid from './MediaInformationGrid.vue';
 import UiButton from '@/components/ui/UiButton.vue';
 
 const props = withDefaults(

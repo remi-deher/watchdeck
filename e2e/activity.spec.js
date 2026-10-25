@@ -82,9 +82,9 @@ test("l'historique est une page Comprendre : chronologie par jour, filtre de mod
   await mockApi(page, calls);
   await page.goto("/activity?view=history");
   await expect(page.locator(".understand")).toBeVisible({ timeout: 15000 });
-  await expect(page.locator(".understand__day")).toHaveCount(2);
+  await expect(page.locator(".understand-row")).toHaveCount(2);
   await page.getByRole("button", { name: "Transcodage", exact: true }).click();
   await expect.poll(() => calls.some((call) => call.includes("/api/playback/history") && call.includes("method=transcode"))).toBe(true);
-  await page.getByRole("button", { name: /Interstellar/ }).first().click();
+  await page.locator(".understand-row").filter({ hasText: /Interstellar/ }).first().click();
   await expect(page).toHaveURL(/\/activity\/session\/1/);
 });

@@ -35,7 +35,8 @@ export function useCalendar() {
 
   const search = ref(''), type = ref(''), state = ref(''), vf = ref(''), source = ref(''), requester = ref(''), tracked = ref('');
   const cursor = ref(new Date());
-  const view = ref<PlanView>('month');
+  const initialView = (typeof localStorage !== 'undefined' && (localStorage.getItem('calendar.view') as PlanView)) || 'month';
+  const view = ref<PlanView>(initialView === 'week' || initialView === 'agenda' ? initialView : 'month');
   const searching = computed(() => search.value.trim().length >= 2);
   const searchBounds = (() => {
     const start = startOfMonth(addMonths(new Date(), -SEARCH_MONTHS_BEFORE));

@@ -8,7 +8,7 @@
             `tab-<cle>`) ;
          4. les faits, en panneau lateral sur grand ecran, sous les onglets sur telephone.
        Les actions vivent dans l'en-tete, jamais dans un onglet. -->
-  <article class="detail">
+  <article class="detail" :class="[`is-${variant}`]">
     <UiButton v-if="back" class="detail__back" size="sm" variant="ghost" @click="emit('back')"><template #icon><ArrowLeft /></template>Retour</UiButton>
     <!-- L'en-tete commun des fiches (SheetHero), celui de la fiche media : banniere qui ne
          porte que l'image, affiche qui en chevauche le bas, texte dessous. -->
@@ -52,6 +52,8 @@
             :variant="index === 0 ? 'primary' : action.danger ? 'danger' : 'secondary'"
             :to="action.to"
             :href="action.href"
+            :target="action.target || (action.href ? '_blank' : undefined)"
+            :rel="action.rel || (action.href ? 'noopener noreferrer' : undefined)"
             :disabled="action.disabled"
             @click="!action.to && !action.href && emit('action', action.key)"
           >
@@ -182,8 +184,16 @@ const activeTab = computed(() => props.tab || props.tabs[0]?.key || 'main');
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
 
-.detail { display: grid; gap: var(--space-4); min-width: 0; }
-.detail__back { justify-self: start; }
+.detail {
+  --detail-pad-x: 28px;
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.detail__back {
+  justify-self: start;
+  margin-inline: var(--detail-pad-x);
+}
 /* Meme affiche que la fiche media (.mdh-poster) : 180px, ombree, chevauchant la banniere. */
 .detail__cover { display: grid; place-items: center; width: 220px; aspect-ratio: 2 / 3; overflow: hidden; border-radius: var(--radius-md); background: var(--surface-2); color: var(--muted); box-shadow: 0 16px 40px rgba(0, 0, 0, .5); }
 .detail__cover img { width: 100%; height: 100%; object-fit: cover; }
@@ -206,22 +216,33 @@ const activeTab = computed(() => props.tab || props.tabs[0]?.key || 'main');
 .detail__badges .is-danger { background: color-mix(in srgb, var(--red) 14%, var(--surface)); color: var(--red-text); }
 .detail__badges .is-info { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); color: var(--accent); }
 .detail__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.detail__alert { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); font-size: var(--fs-sm); }
+.detail__alert { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-inline: var(--detail-pad-x); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); font-size: var(--fs-sm); }
 .detail__alert svg { flex: none; width: 16px; height: 16px; }
 .detail__alert > span { flex: 1 1 14rem; }
 .detail__alert.is-danger { background: color-mix(in srgb, var(--red) 10%, var(--surface)); color: var(--red-text); }
 .detail__alert.is-warning { background: color-mix(in srgb, var(--amber) 12%, var(--surface)); color: var(--amber-text); }
 .detail__alert.is-info { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); color: var(--accent); }
 .detail__alert-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
-.detail__body { display: grid; gap: var(--space-4); min-width: 0; }
+.detail__body {
+  --ui-tabs-panel-min-height: calc(85dvh - 220px);
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  box-sizing: border-box;
+  padding-inline: var(--detail-pad-x);
+  min-height: calc(85dvh - 220px);
+}
 .detail__body.has-facts { grid-template-columns: minmax(0, 1fr) 14rem; align-items: start; }
-.detail__panel { min-width: 0; }
+.detail__panel { min-width: 0; min-height: calc(85dvh - 220px); }
 .detail__facts { display: grid; margin: 0; font-size: var(--fs-sm); }
 .detail__facts > div { display: flex; justify-content: space-between; gap: var(--space-2); padding: 6px 0; border-bottom: 1px solid var(--border); }
 .detail__facts dt { color: var(--muted); }
 .detail__facts dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 
 @include bp.until(tablet) {
+  .detail {
+    --detail-pad-x: 16px;
+  }
   .detail__cover { width: 140px; }
 }
 @include bp.until(desktop) {

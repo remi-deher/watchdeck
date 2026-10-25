@@ -111,9 +111,10 @@ async def _run(
         return {"status": "skipped", "reason": "migration_in_progress"}
     if interval_seconds and not await _due(ctx, name, interval_seconds, force):
         return {"status": "not_due"}
+    lock_ttl = min(LOCK_TTL, max(interval_seconds * 3, 30)) if interval_seconds else LOCK_TTL
     lock_key = f"watchdeck:jobs:lock:{name}"
     token = uuid.uuid4().hex
-    if not await redis.set(lock_key, token, ex=LOCK_TTL, nx=True):
+    if not await redis.set(lock_key, token, ex=lock_ttl, nx=True):
         # A skipped trigger must not overwrite the execution holding this lock.
         return {"status": "skipped"}
     started = time.monotonic()
@@ -695,6 +696,23 @@ async def startup(ctx: dict):
             _job_id=f"notification:{pending_id}",
             _queue_name="watchdeck:jobs",
         )
+    # Nettoyage des verrous de telemetrie rapide laisses par un arret impromptu du conteneur
+    for fast_job in (
+        "playback-activity",
+        "torrent-statuses",
+        "vff-statuses",
+        "sonarr-queue-monitor",
+        "radarr-queue-monitor",
+        "watchlist",
+        "episode-tracking",
+        "episode-availability",
+        "new-vff",
+    ):
+        with contextlib.suppress(Exception):
+            await ctx["redis"].delete(f"watchdeck:jobs:lock:{fast_job}")
+    with contextlib.suppress(Exception):
+        await ctx["redis"].delete("watchdeck:locks:playback-activity")
+
     logger.info("ARQ worker ready; recovered %d pending notification(s)", len(pending_ids))
 
     try:

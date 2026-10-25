@@ -26,76 +26,83 @@
       @request="handleRequestClick"
     >
       <template v-for="key in slotTabs" :key="key" #[`tab-${key}`]>
-        <MediaMusicCatalog
-      v-if="key === 'main'"
-      :detail="detail"
-      :artist-albums="artistAlbums"
-      :album-tracks="albumTracks"
-      @open-album="openDetail"
-      @listen="openPlexLink"
-    />
+        <template v-if="detail">
+          <MediaMusicCatalog
+            v-if="key === 'main'"
+            :detail="detail"
+            :artist-albums="artistAlbums"
+            :album-tracks="albumTracks"
+            @open-album="openDetail"
+            @listen="openPlexLink"
+          />
 
-        <MediaRequestsTab
-          v-else-if="key === 'requests'"
-          :requests="detail.requests"
-          :detail="detail"
-          :admin="admin"
-          :busy="busy"
-          :addable-users="addableUsers"
-          v-model:new-requester-id="newRequesterId"
-          @add-requester="addRequester"
-          @open-release="(id: number) => ouvrirReleases(`/releases/${id}`)"
-          @retry="(id: number) => requestAction(id, 'retry')"
-          @catch-up-all="catchUpAll"
-          @resend-mail="resendMail"
-          @close-request="closeRequest"
-          @delete-request="deleteRequest"
-          @withdraw-request="withdrawRequest"
-          @set-auto-import="setAutoImport"
-          @notify-user="notifyUser"
-          @promote-requester="promoteRequester"
-          @remove-requester="removeRequester"
-          @approve="(id: number) => requestAction(id, 'approve')"
-          @reject="rejectRequest"
-        />
+          <MediaRequestsTab
+            v-else-if="key === 'requests'"
+            :requests="detail.requests"
+            :detail="detail"
+            :admin="admin"
+            :busy="busy"
+            :addable-users="addableUsers"
+            v-model:new-requester-id="newRequesterId"
+            @add-requester="addRequester"
+            @open-release="(id: number) => ouvrirReleases(`/releases/${id}`)"
+            @retry="(id: number) => requestAction(id, 'retry')"
+            @catch-up-all="catchUpAll"
+            @resend-mail="resendMail"
+            @close-request="closeRequest"
+            @delete-request="deleteRequest"
+            @withdraw-request="withdrawRequest"
+            @set-auto-import="setAutoImport"
+            @notify-user="notifyUser"
+            @promote-requester="promoteRequester"
+            @remove-requester="removeRequester"
+            @approve="(id: number) => requestAction(id, 'approve')"
+            @reject="rejectRequest"
+          />
 
-        <MediaCalendarTab v-else-if="key === 'calendar'" :events="detail.calendar" />
+          <MediaCalendarTab v-else-if="key === 'calendar'" :events="detail.calendar" />
 
-        <MediaEncodingTab v-else-if="key === 'encoding' && libraryItemId" :item-id="libraryItemId" />
+          <MediaEncodingTab v-else-if="key === 'encoding' && libraryItemId" :item-id="libraryItemId" />
 
-        <MediaAudioSection
-          v-else-if="key === 'audio' || key === 'missing'"
-          :vf-detail="mergedVfDetail"
-          :envelope-error="envelopeError"
-          :availability-error="availabilityError"
-          :vf-status-error="vfStatusError"
-          :source-type="releaseSourceType"
-          :source-id="releaseSourceId"
-          :admin="admin"
-          :media-title="detail.title"
-          :missing-only="key === 'missing'"
-          @correction="openCorrection"
-          @expand-season="seasons.loadSeason"
-          @aligned="onStreamsAligned"
-        />
+          <MediaAudioSection
+            v-else-if="key === 'audio' || key === 'missing'"
+            :vf-detail="mergedVfDetail"
+            :envelope-error="envelopeError"
+            :availability-error="availabilityError"
+            :vf-status-error="vfStatusError"
+            :source-type="releaseSourceType"
+            :source-id="releaseSourceId"
+            :admin="admin"
+            :media-title="detail.title"
+            :missing-only="key === 'missing'"
+            @correction="openCorrection"
+            @expand-season="seasons.loadSeason"
+            @aligned="onStreamsAligned"
+          />
 
-        <MediaSummaryTab
-          v-else
-          :detail="detail"
-          :busy="busy"
-          :show-issue-form="showIssueForm"
-          :show-correction-form="showCorrectionForm"
-          :users="users"
-          :correction-options="correctionOptions"
-          :correction-form="correctionForm"
-          :vf-detail="mergedVfDetail"
-          @recheck-plex="recheckPlex"
-          @open-correction="openCorrection"
-          @report-issue="reportIssue"
-          @cancel-issue="showIssueForm = false"
-          @submit-correction="sendCorrection"
-          @cancel-correction="showCorrectionForm = false"
-        />
+          <MediaSummaryTab
+            v-else-if="key === 'summary'"
+            :detail="detail"
+            :busy="busy"
+            :show-issue-form="showIssueForm"
+            :show-correction-form="showCorrectionForm"
+            :users="users"
+            :correction-options="correctionOptions"
+            :correction-form="correctionForm"
+            :vf-detail="mergedVfDetail"
+            @recheck-plex="recheckPlex"
+            @open-correction="openCorrection"
+            @report-issue="reportIssue"
+            @cancel-issue="showIssueForm = false"
+            @submit-correction="sendCorrection"
+            @cancel-correction="showCorrectionForm = false"
+          />
+
+          <MediaNotificationsTab
+            v-else-if="key === 'notifications'"
+            :notifications="detail.notification_history || []"
+          />
+        </template>
       </template>
       <template v-if="detail" #after>
         <div class="media-detail-body">
@@ -196,6 +203,7 @@ import MediaRequestsTab from "@/components/media/MediaRequestsTab.vue";
 import MediaCalendarTab from "@/components/media/MediaCalendarTab.vue";
 import MediaEncodingTab from '@/components/media/MediaEncodingTab.vue';
 import MediaAudioSection from "@/components/media/MediaAudioSection.vue";
+import MediaNotificationsTab from "@/components/media/MediaNotificationsTab.vue";
 import RequestOptionsModal from "@/components/media/RequestOptionsModal.vue";
 import MediaRecommendations from "@/components/media/MediaRecommendations.vue";
 import MediaCast from "@/components/media/MediaCast.vue";

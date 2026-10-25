@@ -22,7 +22,10 @@
         <li v-for="entry in summary" :key="entry.key" :class="`is-${entry.tone || 'neutral'}`"><strong>{{ entry.value }}</strong> {{ entry.label }}</li>
       </ul>
 
-      <p v-if="loading && !events.length" class="understand__loading">Chargement…</p>
+      <p v-if="loading && !events.length && view !== 'table'" class="understand__loading">Chargement…</p>
+      <template v-if="view === 'table'">
+        <slot name="table" />
+      </template>
       <template v-else-if="days.length">
         <section v-for="day in days" :key="day.key" class="understand__day" :aria-label="day.label">
           <h2>{{ day.label }}</h2>
@@ -82,6 +85,8 @@ export type { UnderstandDetail, UnderstandEvent, UnderstandFact, UnderstandOptio
 const props = withDefaults(
   defineProps<{
     events: UnderstandEvent[];
+    /** Affichage en liste chronologique (défaut) ou en tableau (`table`). */
+    view?: 'list' | 'table';
     /** Detail de l'evenement ouvert (`open`), charge par la page. */
     detail?: UnderstandDetail | null;
     openKey?: string;
@@ -98,6 +103,7 @@ const props = withDefaults(
     emptyMessage?: string;
   }>(),
   {
+    view: 'list',
     detail: null,
     openKey: '',
     periods: () => [],
