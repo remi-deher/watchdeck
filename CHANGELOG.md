@@ -1,11 +1,21 @@
 # Changelog
 
+## 1.92.0 — 2026-10-25
+
+
+### ✨ Nouveautés
+
+- colonnes affiches rail replié et filtres par genre (#927) ([72c4987](https://github.com/remi-deher/watchdeck/commit/72c4987535c59f005faaec5ce461d1a6ade1acea))
 ## 1.91.0 — 2026-10-25
 
 
 ### ✨ Nouveautés
 
 - harmoniser le tableau de l'historique et optimiser l'affichage des sessions Plex (#922) ([0c3c061](https://github.com/remi-deher/watchdeck/commit/0c3c061659b22607fdb256b490018fb65d1d1a02))
+
+### 🔧 Maintenance
+
+- v1.91.0 (#926) ([8ffc679](https://github.com/remi-deher/watchdeck/commit/8ffc6796101fb4559b48e3a8269027447af96212))
 ## 1.90.16 — 2026-10-25
 
 
