@@ -12,20 +12,28 @@
        ou Suivre. -->
   <div class="understand" :class="{ 'has-detail': detail }">
     <div class="understand__main">
-      <div class="understand__bar">
+      <div v-if="view !== 'table'" class="understand__bar">
         <!-- La periode cadre toute la page (capsule de recherche) ; l'etat filtre la liste. -->
         <PageTools v-if="periods.length"><UiSegmentedControl :model-value="period" :options="periods" ariaLabel="Période" @update:model-value="emit('update:period', String($event))" /></PageTools>
         <UiSegmentedControl v-if="outcomes.length" :model-value="outcome" :options="outcomes" ariaLabel="Résultat" @update:model-value="emit('update:outcome', String($event))" />
         <UiButton v-if="exportable" size="sm" class="understand__export" @click="emit('export')"><template #icon><Download /></template>Exporter</UiButton>
       </div>
-      <ul v-if="summary.length" class="understand__summary" aria-label="Bilan de la période">
+      <ul v-if="view !== 'table' && summary.length" class="understand__summary" aria-label="Bilan de la période">
         <li v-for="entry in summary" :key="entry.key" :class="`is-${entry.tone || 'neutral'}`"><strong>{{ entry.value }}</strong> {{ entry.label }}</li>
       </ul>
 
       <p v-if="loading && !events.length && view !== 'table'" class="understand__loading">Chargement…</p>
-      <template v-if="view === 'table'">
+      <section v-if="view === 'table'" class="panel understand-table-panel">
+        <div v-if="periods.length || outcomes.length || summary.length || exportable" class="understand-toolbar">
+          <PageTools v-if="periods.length"><UiSegmentedControl :model-value="period" :options="periods" ariaLabel="Période" @update:model-value="emit('update:period', String($event))" /></PageTools>
+          <UiSegmentedControl v-if="outcomes.length" :model-value="outcome" :options="outcomes" ariaLabel="Résultat" @update:model-value="emit('update:outcome', String($event))" />
+          <ul v-if="summary.length" class="understand__summary understand__summary--inline" aria-label="Bilan de la période">
+            <li v-for="entry in summary" :key="entry.key" :class="`is-${entry.tone || 'neutral'}`"><strong>{{ entry.value }}</strong> {{ entry.label }}</li>
+          </ul>
+          <UiButton v-if="exportable" size="sm" class="understand__export" @click="emit('export')"><template #icon><Download /></template>Exporter</UiButton>
+        </div>
         <slot name="table" />
-      </template>
+      </section>
       <template v-else-if="days.length">
         <section v-for="day in days" :key="day.key" class="understand__day" :aria-label="day.label">
           <h2>{{ day.label }}</h2>
@@ -160,6 +168,10 @@ const days = computed(() => {
 <style scoped lang="scss">
 @use '@/styles/foundations/breakpoints' as bp;
 
+.understand-table-panel { display: grid; gap: 0; padding: 0; overflow: hidden; }
+.understand-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.understand__summary--inline { display: inline-flex; align-items: center; margin: 0; padding: 0; list-style: none; gap: var(--space-3); }
+.understand-table-panel :deep(.playback-history-table) { border: 0; border-radius: 0; box-shadow: none; }
 .understand { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); min-width: 0; }
 .understand.has-detail { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: start; }
 .understand__main { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: var(--space-3); min-width: 0; }
