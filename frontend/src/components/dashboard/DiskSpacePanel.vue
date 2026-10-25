@@ -8,7 +8,11 @@
     <template v-if="volumes.length" #action><small>{{ volumes.length }} disque(s)</small></template>
 
     <div class="volume-grid">
-      <article v-for="volume in volumes" :key="volume.path" class="volume-chip">
+      <article
+        v-for="volume in volumes"
+        :key="volume.path"
+        :class="['volume-chip', `is-${level(volume)}`]"
+      >
         <div class="volume-chip-top">
           <strong :title="volume.path">{{ volume.path }}</strong>
           <span v-if="volumeLabel(volume)" class="volume-chip-tag">{{ volumeLabel(volume) }}</span>
@@ -104,6 +108,15 @@ function usedRatio(volume: DiskVolume): number {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
+  transition: border-color var(--motion-duration-fast), background var(--motion-duration-fast);
+}
+.volume-chip.is-warning {
+  border-color: color-mix(in srgb, var(--amber) 40%, var(--border));
+  background: color-mix(in srgb, var(--amber) 4%, var(--surface-2));
+}
+.volume-chip.is-critical {
+  border-color: color-mix(in srgb, var(--red) 50%, var(--border));
+  background: color-mix(in srgb, var(--red) 6%, var(--surface-2));
 }
 .volume-chip-top {
   display: flex;

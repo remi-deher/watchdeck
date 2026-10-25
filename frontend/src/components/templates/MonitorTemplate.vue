@@ -105,17 +105,25 @@ const labels = computed(() => Object.fromEntries(Object.entries(props.labels).fi
   min-width: 0;
 }
 .monitor.has-details {
-  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-  grid-template-areas: 'verdict verdict' 'live live' 'kpis kpis' 'attention details' 'zones zones' 'after after';
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'verdict' 'live' 'kpis' 'attention' 'details' 'zones' 'after';
 }
 .monitor.is-board.has-details {
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
   grid-template-areas: 'verdict verdict' 'live live' 'kpis kpis' 'attention attention' 'after details' 'zones zones';
 }
 .monitor__verdict { grid-area: verdict; }
 .monitor__live { grid-area: live; min-width: 0; }
 .monitor__kpis { grid-area: kpis; }
 .monitor__attention { grid-area: attention; }
-.monitor__details { grid-area: details; display: grid; align-content: start; gap: var(--space-4); min-width: 0; }
+.monitor__details {
+  grid-area: details;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+  align-content: start;
+  gap: var(--space-4);
+  min-width: 0;
+}
 .monitor__zones { grid-area: zones; }
 .monitor__after { grid-area: after; display: grid; gap: var(--space-4); min-width: 0; }
 
