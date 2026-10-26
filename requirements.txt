@@ -20,7 +20,7 @@ asyncpg==0.31.0
 redis==5.3.1
 arq==0.28.0
 tzdata==2026.5
-websockets==17.1
+websockets==17.2
 pillow==13.0.0
 
 # Verified remote destination hashes used by storage transfers.
