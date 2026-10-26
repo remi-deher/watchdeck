@@ -127,6 +127,8 @@ export interface CreateResult {
 }
 
 export interface CreateDefinition {
+  /** Largeur commune de ModalShell, pour les fenêtres qui demandent un choix. */
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   /** Modification : « Modifier » + `noun` sans article (« la bibliothèque »), « Enregistrer ». */
   editTitle?: string;
   /** « une instance », « un utilisateur » : titre de la fenetre et du bouton. */
