@@ -224,16 +224,14 @@ const activeTab = computed(() => props.tab || props.tabs[0]?.key || 'main');
 .detail__alert.is-info { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); color: var(--accent); }
 .detail__alert-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
 .detail__body {
-  --ui-tabs-panel-min-height: calc(85dvh - 220px);
   display: grid;
   gap: var(--space-4);
   min-width: 0;
   box-sizing: border-box;
   padding-inline: var(--detail-pad-x);
-  min-height: calc(85dvh - 220px);
 }
 .detail__body.has-facts { grid-template-columns: minmax(0, 1fr) 14rem; align-items: start; }
-.detail__panel { min-width: 0; min-height: calc(85dvh - 220px); }
+.detail__panel { min-width: 0; }
 .detail__facts { display: grid; margin: 0; font-size: var(--fs-sm); }
 .detail__facts > div { display: flex; justify-content: space-between; gap: var(--space-2); padding: 6px 0; border-bottom: 1px solid var(--border); }
 .detail__facts dt { color: var(--muted); }

@@ -89,6 +89,7 @@
       </JourneyCard>
 
       <section class="nobody-card">
+        <div class="nobody-copy">
         <span class="nobody-icon" aria-hidden="true"><UserPlus /></span>
         <h3>Personne n'a demandé {{ mediaNoun(detail) }}</h3>
         <p v-if="admin">
@@ -96,6 +97,7 @@
           Aucun mail ne part sans confirmation.
         </p>
         <p v-else>Ce média a été ajouté sans demande utilisateur.</p>
+        </div>
         <AddRequesterForm
           v-if="admin"
           standalone
@@ -242,15 +244,23 @@ defineEmits<{
 
 /* ----- Aucune demande ----- */
 .nobody-card {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.7fr);
   align-items: center;
   gap: 14px;
   padding: var(--space-6);
   border: 1px dashed var(--border-strong);
   border-radius: var(--panel-radius);
   background: var(--surface);
-  text-align: center;
+  text-align: left;
+}
+.nobody-copy {
+  display: grid;
+  justify-items: start;
+  gap: 14px;
+}
+.nobody-card :deep(.add-requester-form) {
+  width: 100%;
 }
 .nobody-icon {
   display: inline-flex;
@@ -286,7 +296,9 @@ defineEmits<{
     display: none;
   }
   .nobody-card {
+    grid-template-columns: 1fr;
     padding: var(--space-5) 18px;
   }
+  .nobody-copy { justify-items: center; text-align: center; }
 }
 </style>

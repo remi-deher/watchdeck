@@ -4,7 +4,7 @@
        artiste. Les onglets (`tab-<clé>`) et ce qui accompagne la fiche (`after`) viennent de la page. -->
   <DetailTemplate
     :variant="variant"
-    back
+    :back="variant === 'card'"
     :eyebrow="typeLabel"
     :title="detail.title || ''"
     :icon="isMusic ? Music2 : Film"

@@ -20,6 +20,7 @@ export function requestOptionsForm(form: RequestOptionsForm): CreateDefinition {
   const isShow = form.mediaType === 'show';
   const chooseSeasons = isShow && form.seasonNumbers.length > 0;
   return {
+    size: 'sm',
     noun: 'une demande',
     another: 'une autre demande',
     editTitle: 'Options de la demande',
@@ -33,8 +34,8 @@ export function requestOptionsForm(form: RequestOptionsForm): CreateDefinition {
     steps: [{
       key: 'options',
       label: 'Options',
-      title: 'Que demande-t-on ?',
-      description: isShow ? 'Choisissez les saisons à ajouter avant de confirmer la demande.' : 'Confirmez l’ajout du film. La recherche démarrera automatiquement.',
+      title: isShow ? 'Choisir les saisons' : 'Confirmer le film',
+      description: isShow ? 'La demande portera sur les saisons sélectionnées.' : 'La recherche démarrera automatiquement après confirmation.',
       fields: [
         {
           key: 'plexUserId',
