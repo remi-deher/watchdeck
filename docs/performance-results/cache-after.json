@@ -1,0 +1,18 @@
+{
+  "python": "3.12.14",
+  "platform": "Linux-6.18.55-x86_64-with-glibc2.41",
+  "scope": "synthetic, memory cache only, no DB/Redis/browser",
+  "concurrent_requests": 20,
+  "cold_compute_calls": 1,
+  "cold": {
+    "p50_ms": 20.965,
+    "p95_ms": 21.412
+  },
+  "warm": {
+    "p50_ms": 0.051,
+    "p95_ms": 0.064
+  },
+  "entries_after_3000_expired_writes": 1,
+  "traced_current_bytes": 20044,
+  "traced_peak_bytes": 42306
+}

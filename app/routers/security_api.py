@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import time
@@ -80,14 +81,14 @@ def _require_recent_auth(request: Request) -> None:
         )
 
 
-def _verify_identity(request: Request, user: PlexUser, current_password: str, otp_code: str) -> None:
+async def _verify_identity(request: Request, user: PlexUser, current_password: str, otp_code: str) -> None:
     """Re-authentification exigee avant qu'un utilisateur ne change lui-meme ses moyens
     de connexion : une session volee ne doit pas suffire a s'approprier le compte.
 
     Mot de passe actuel s'il en existe un, sinon code TOTP s'il est actif, sinon
     connexion recente (compte Plex sans autre secret)."""
     if user.password_hash:
-        if not verify_password(current_password or "", user.password_hash):
+        if not await asyncio.to_thread(verify_password, current_password or "", user.password_hash):
             raise HTTPException(status_code=403, detail="Mot de passe actuel incorrect.")
         return
     if user.totp_enabled:
@@ -112,8 +113,8 @@ async def change_password(
             status_code=400, detail=f"Le mot de passe doit contenir au moins {MIN_PASSWORD_LENGTH} caractères."
         )
     if _is_self(id, curr):
-        _verify_identity(request, user, payload.current_password, payload.otp_code)
-    user.password_hash = hash_password(payload.password)
+        await _verify_identity(request, user, payload.current_password, payload.otp_code)
+    user.password_hash = await asyncio.to_thread(hash_password, payload.password)
 
     # Si c'est l'admin local, synchroniser aussi la table Settings
     s = (await db.execute(select(Settings))).scalars().first()

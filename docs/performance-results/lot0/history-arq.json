@@ -1,0 +1,25 @@
+{
+  "profile": "history",
+  "scope": "actual ARQ queue and job_library_analytics; real PostgreSQL/Redis; Plex catalogue acquisition replaced by 100ms fixture; max_jobs=1, no cron",
+  "refresh_ms": {
+    "n": 3,
+    "p50": 5582.7,
+    "p95": 5981.5,
+    "max": 5981.5
+  },
+  "loop_lag_ms": {
+    "n": 192,
+    "p50": 1.661,
+    "p95": 55.505,
+    "max": 4307.786
+  },
+  "catalogue_calls": 3,
+  "items": 50000,
+  "rss_peak_kib": 1338080,
+  "queue_wait_ms": {
+    "n": 3,
+    "p50": 6045.838,
+    "p95": 11388.22,
+    "max": 11388.22
+  }
+}

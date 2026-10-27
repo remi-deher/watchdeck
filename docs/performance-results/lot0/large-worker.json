@@ -1,0 +1,19 @@
+{
+  "profile": "large",
+  "scope": "actual analytics refresh core, real PostgreSQL; Plex catalogue acquisition replaced by 100ms fixture; ARQ scheduler not running",
+  "refresh_ms": {
+    "n": 3,
+    "p50": 1010.898,
+    "p95": 1198.559,
+    "max": 1198.559
+  },
+  "loop_lag_ms": {
+    "n": 74,
+    "p50": 0.121,
+    "p95": 166.908,
+    "max": 746.391
+  },
+  "catalogue_calls": 3,
+  "items": 50000,
+  "rss_peak_kib": 466204
+}

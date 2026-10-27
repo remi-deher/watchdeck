@@ -1,0 +1,313 @@
+[
+  {
+    "mobile": false,
+    "observedInteractions": 10,
+    "labInpCandidateMs": 24,
+    "events": [
+      {
+        "id": 2040,
+        "duration": 24,
+        "name": "pointerdown"
+      },
+      {
+        "id": 2040,
+        "duration": 24,
+        "name": "pointerup"
+      },
+      {
+        "id": 2040,
+        "duration": 24,
+        "name": "click"
+      },
+      {
+        "id": 2061,
+        "duration": 16,
+        "name": "keydown"
+      },
+      {
+        "id": 2061,
+        "duration": 16,
+        "name": "keypress"
+      },
+      {
+        "id": 2061,
+        "duration": 16,
+        "name": "keyup"
+      },
+      {
+        "id": 2068,
+        "duration": 16,
+        "name": "keydown"
+      },
+      {
+        "id": 2068,
+        "duration": 16,
+        "name": "keypress"
+      },
+      {
+        "id": 2075,
+        "duration": 16,
+        "name": "keydown"
+      },
+      {
+        "id": 2075,
+        "duration": 16,
+        "name": "keypress"
+      },
+      {
+        "id": 2089,
+        "duration": 16,
+        "name": "keydown"
+      },
+      {
+        "id": 2089,
+        "duration": 16,
+        "name": "keypress"
+      },
+      {
+        "id": 2096,
+        "duration": 16,
+        "name": "keydown"
+      },
+      {
+        "id": 2096,
+        "duration": 16,
+        "name": "keypress"
+      },
+      {
+        "id": 2103,
+        "duration": 16,
+        "name": "keydown"
+      },
+      {
+        "id": 2103,
+        "duration": 16,
+        "name": "keypress"
+      },
+      {
+        "id": 2110,
+        "duration": 16,
+        "name": "keydown"
+      },
+      {
+        "id": 2110,
+        "duration": 16,
+        "name": "keypress"
+      },
+      {
+        "id": 2117,
+        "duration": 16,
+        "name": "keydown"
+      },
+      {
+        "id": 2117,
+        "duration": 16,
+        "name": "keypress"
+      },
+      {
+        "id": 2131,
+        "duration": 16,
+        "name": "keydown"
+      }
+    ],
+    "errors": []
+  },
+  {
+    "mobile": true,
+    "observedInteractions": 18,
+    "labInpCandidateMs": 1176,
+    "events": [
+      {
+        "id": 9530,
+        "duration": 32,
+        "name": "pointerdown"
+      },
+      {
+        "id": 9530,
+        "duration": 32,
+        "name": "pointerup"
+      },
+      {
+        "id": 9530,
+        "duration": 32,
+        "name": "click"
+      },
+      {
+        "id": 9537,
+        "duration": 24,
+        "name": "keydown"
+      },
+      {
+        "id": 9544,
+        "duration": 24,
+        "name": "keydown"
+      },
+      {
+        "id": 9544,
+        "duration": 16,
+        "name": "keyup"
+      },
+      {
+        "id": 9537,
+        "duration": 16,
+        "name": "keyup"
+      },
+      {
+        "id": 9551,
+        "duration": 32,
+        "name": "keydown"
+      },
+      {
+        "id": 9551,
+        "duration": 32,
+        "name": "keypress"
+      },
+      {
+        "id": 9551,
+        "duration": 32,
+        "name": "keyup"
+      },
+      {
+        "id": 9558,
+        "duration": 32,
+        "name": "keydown"
+      },
+      {
+        "id": 9558,
+        "duration": 32,
+        "name": "keypress"
+      },
+      {
+        "id": 9565,
+        "duration": 1176,
+        "name": "keydown"
+      },
+      {
+        "id": 9565,
+        "duration": 1176,
+        "name": "keypress"
+      },
+      {
+        "id": 9572,
+        "duration": 1064,
+        "name": "keydown"
+      },
+      {
+        "id": 9572,
+        "duration": 1064,
+        "name": "keypress"
+      },
+      {
+        "id": 9579,
+        "duration": 936,
+        "name": "keydown"
+      },
+      {
+        "id": 9579,
+        "duration": 936,
+        "name": "keypress"
+      },
+      {
+        "id": 9586,
+        "duration": 824,
+        "name": "keydown"
+      },
+      {
+        "id": 9586,
+        "duration": 824,
+        "name": "keypress"
+      },
+      {
+        "id": 9593,
+        "duration": 704,
+        "name": "keydown"
+      },
+      {
+        "id": 9593,
+        "duration": 704,
+        "name": "keypress"
+      },
+      {
+        "id": 9600,
+        "duration": 592,
+        "name": "keydown"
+      },
+      {
+        "id": 9600,
+        "duration": 592,
+        "name": "keypress"
+      },
+      {
+        "id": 9607,
+        "duration": 472,
+        "name": "keydown"
+      },
+      {
+        "id": 9607,
+        "duration": 472,
+        "name": "keypress"
+      },
+      {
+        "id": 9614,
+        "duration": 760,
+        "name": "pointerdown"
+      },
+      {
+        "id": 9614,
+        "duration": 760,
+        "name": "pointerup"
+      },
+      {
+        "id": 9614,
+        "duration": 760,
+        "name": "click"
+      },
+      {
+        "id": 9628,
+        "duration": 736,
+        "name": "keydown"
+      },
+      {
+        "id": 9635,
+        "duration": 720,
+        "name": "keydown"
+      },
+      {
+        "id": 9635,
+        "duration": 720,
+        "name": "keypress"
+      },
+      {
+        "id": 9642,
+        "duration": 608,
+        "name": "keydown"
+      },
+      {
+        "id": 9642,
+        "duration": 608,
+        "name": "keypress"
+      },
+      {
+        "id": 9649,
+        "duration": 496,
+        "name": "keydown"
+      },
+      {
+        "id": 9649,
+        "duration": 496,
+        "name": "keypress"
+      },
+      {
+        "id": 9656,
+        "duration": 384,
+        "name": "keydown"
+      },
+      {
+        "id": 9656,
+        "duration": 384,
+        "name": "keypress"
+      }
+    ],
+    "errors": []
+  }
+]

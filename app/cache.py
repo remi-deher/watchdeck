@@ -10,7 +10,9 @@ import json
 import logging
 import os
 import time
+from contextlib import asynccontextmanager
 from typing import Any, Awaitable, Callable
+from weakref import WeakValueDictionary
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +35,21 @@ class Cache:
         self._memory: dict[str, tuple[str, float]] = {}
         self._redis = None
         self._attempted_connection = False
+        self._retry_at = 0.0
+        self._connection_lock = asyncio.Lock()
+        self._cold_locks = WeakValueDictionary()
+        self._max_entries = max(1, int(os.getenv("CACHE_MAX_ENTRIES", "2048")))
+        self._max_bytes = max(1, int(os.getenv("CACHE_MAX_BYTES", "16777216")))
 
     async def _client(self):
-        if self._attempted_connection:
+        async with self._connection_lock:
+            return await self._connect()
+
+    async def _connect(self):
+        if self._redis is not None:
             return self._redis
+        if time.monotonic() < self._retry_at:
+            return None
         self._attempted_connection = True
         url = os.getenv("REDIS_URL")
         if not url:
@@ -44,13 +57,27 @@ class Cache:
         try:
             from redis.asyncio import Redis
 
-            client = Redis.from_url(url, encoding="utf-8", decode_responses=True)
+            client = Redis.from_url(
+                url, encoding="utf-8", decode_responses=True, socket_connect_timeout=1, socket_timeout=1
+            )
             await client.ping()
             self._redis = client
             logger.info("Redis cache connected")
         except Exception as exc:
+            self._retry_at = time.monotonic() + 10
+            if "client" in locals():
+                await client.aclose()
             logger.warning("Redis unavailable; using process-local cache: %s", exc)
         return self._redis
+
+    async def _connection_failed(self, client):
+        if client is self._redis:
+            self._redis = None
+            self._retry_at = time.monotonic() + 10
+            try:
+                await client.aclose()
+            except Exception:
+                pass
 
     async def get_json(self, key: str) -> dict[str, Any] | None:
         raw = None
@@ -61,6 +88,7 @@ class Cache:
                 raw = await client.get(key)
                 redis_checked = True
             except Exception as exc:
+                await self._connection_failed(client)
                 logger.warning("Redis read failed: %s", exc)
         # Quand Redis repond, il est la source de verite partagee entre l'API et le
         # worker. Un MISS peut etre une invalidation faite par l'autre processus : ne
@@ -81,12 +109,23 @@ class Cache:
 
     async def set_json(self, key: str, value: dict[str, Any], ttl_seconds: int) -> None:
         raw = json.dumps(value)
-        self._memory[key] = (raw, time.monotonic() + ttl_seconds)
+        now = time.monotonic()
+        for expired in [k for k, (_, deadline) in self._memory.items() if deadline <= now]:
+            self._memory.pop(expired, None)
+        self._memory.pop(key, None)
+        size = len(raw.encode("utf-8"))
+        if ttl_seconds > 0 and size <= self._max_bytes:
+            self._memory[key] = (raw, now + ttl_seconds)
+        total = sum(len(value.encode("utf-8")) for value, _ in self._memory.values())
+        while self._memory and (len(self._memory) > self._max_entries or total > self._max_bytes):
+            oldest = next(iter(self._memory))
+            total -= len(self._memory.pop(oldest)[0].encode("utf-8"))
         client = await self._client()
         if client:
             try:
                 await client.set(key, raw, ex=ttl_seconds)
             except Exception as exc:
+                await self._connection_failed(client)
                 logger.warning("Redis write failed: %s", exc)
 
     async def get_or_refresh(
@@ -119,9 +158,43 @@ class Cache:
                 _spawn_background(self._refresh_and_release(key, hard_ttl_seconds, compute_background or compute_sync))
             return entry["value"]
 
-        value = await compute_sync()
-        await self.set_json(key, {"value": value, "cached_at": now}, ttl_seconds=hard_ttl_seconds)
-        return value
+        lock = self._cold_locks.setdefault(key, asyncio.Lock())
+        async with lock:
+            entry = await self.get_json(key)
+            if entry is not None and "cached_at" in entry:
+                return entry["value"]
+            async with self._shared_cold_lock(key):
+                entry = await self.get_json(key)
+                if entry is not None and "cached_at" in entry:
+                    return entry["value"]
+                async with asyncio.timeout(90):
+                    value = await compute_sync()
+                    await self.set_json(key, {"value": value, "cached_at": time.time()}, ttl_seconds=hard_ttl_seconds)
+                return value
+
+    @asynccontextmanager
+    async def _shared_cold_lock(self, key):
+        # The lease outlives the bounded computation. Redis releases only our token.
+        client = await self._client()
+        lock = None
+        if client is not None and hasattr(client, "lock"):
+            candidate = client.lock("watchdeck:cold-lock:" + key, timeout=120, blocking_timeout=95, thread_local=False)
+            try:
+                acquired = await candidate.acquire()
+            except Exception as exc:
+                logger.warning("Redis lock unavailable; using local coordination: %s", exc)
+            else:
+                if not acquired:
+                    raise TimeoutError("Cache computation still running")
+                lock = candidate
+        try:
+            yield
+        finally:
+            if lock is not None:
+                try:
+                    await lock.release()
+                except Exception:
+                    logger.warning("Redis cache lease release failed", exc_info=True)
 
     async def _refresh_and_release(
         self, key: str, hard_ttl_seconds: int, compute: Callable[[], Awaitable[Any]]
