@@ -3,12 +3,15 @@
 import asyncio
 from contextlib import asynccontextmanager
 from http.cookiejar import CookieJar, DefaultCookiePolicy
+from typing import Any
 from weakref import WeakKeyDictionary
 
 import httpx
 
-_pools = WeakKeyDictionary()
-_locks = WeakKeyDictionary()
+_pools: WeakKeyDictionary[
+    asyncio.AbstractEventLoop, dict[tuple[Any, ...], tuple[httpx.AsyncClient, httpx.AsyncClient]]
+] = WeakKeyDictionary()
+_locks: WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Lock] = WeakKeyDictionary()
 
 
 class _RejectCookies(DefaultCookiePolicy):

@@ -37,7 +37,7 @@ class Cache:
         self._attempted_connection = False
         self._retry_at = 0.0
         self._connection_lock = asyncio.Lock()
-        self._cold_locks = WeakValueDictionary()
+        self._cold_locks: WeakValueDictionary[str, asyncio.Lock] = WeakValueDictionary()
         self._max_entries = max(1, int(os.getenv("CACHE_MAX_ENTRIES", "2048")))
         self._max_bytes = max(1, int(os.getenv("CACHE_MAX_BYTES", "16777216")))
 

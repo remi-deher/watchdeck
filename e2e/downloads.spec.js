@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { torrentsPage } from "./fixtures/torrents";
 
 /**
  * La page Acquisition, section par section, sur des donnees simulees : file d'attente
@@ -40,6 +41,7 @@ async function mockApi(page) {
       "/api/downloads/radarr-manual-import": { candidates: [{ path: "/d/film.mkv", folderName: "film", size: 1073741824, quality: { quality: { name: "WEB 1080p" } } }] },
       "/api/downloads/history": { items: [{ id: 90, title: "Film importé", media_type: "movie", source: "radarr", processing_mode: "automatic", completed_at: "2026-09-20T10:00:00Z" }], errors: [] },
       "/api/downloads/clients": TORRENTS,
+      "/api/downloads/clients/page": torrentsPage(TORRENTS, url),
       "/api/downloads/clients/7/metadata": { categories: [{ name: "Films" }], tags: ["vff"], mutable: true },
       "/api/downloads/global-stats": { download_speed: 2048, upload_speed: 0, connected: 1, total: 1, clients: [] },
       "/api/disk-space": [],

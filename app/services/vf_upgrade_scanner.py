@@ -631,7 +631,7 @@ async def _build_show_tasks(
             rows = [r for r in rows if (source_type, r.id) in only]
         if ignored:
             rows = [r for r in rows if (source_type, r.id) not in ignored]
-        seasons_by_id = {}
+        seasons_by_id: dict[int, dict[int, dict[int, bool]]] = {}
         identifiers = [row.id for row in rows]
         for offset in range(0, len(identifiers), 1000):
             statuses = (

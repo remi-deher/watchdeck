@@ -32,7 +32,7 @@ EVENT_TYPES = {
 _subscribers: set[asyncio.Queue] = set()
 
 
-_publishers = WeakKeyDictionary()
+_publishers: WeakKeyDictionary[asyncio.AbstractEventLoop, dict[tuple[Any, ...], Any]] = WeakKeyDictionary()
 
 
 def _publisher(url):

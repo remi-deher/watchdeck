@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { usersPage } from "./fixtures/users";
 
 /**
  * Comportement du shell commun, aux quatre profils configures.
@@ -542,6 +543,7 @@ test("une confirmation ouverte depuis un tiroir reste cliquable", async ({ page 
     // La fiche d'un utilisateur et la liste passent par la meme racine d'URL.
     const match = url.pathname.match(/\/api\/users\/(\d+)$/);
     if (match) return route.fulfill({ json: user(Number(match[1]), match[1] === "1" ? "Alice" : "Bob") });
+    if (url.pathname === "/api/users/page") return route.fulfill({ json: usersPage([user(1, "Alice"), user(2, "Bob")], url) });
     if (url.pathname !== "/api/users") return route.fulfill({ json: [] });
     route.fulfill({ json: [user(1, "Alice"), user(2, "Bob")] });
   });
@@ -697,7 +699,7 @@ test("les commandes d'une page ne recouvrent jamais la recherche", async ({ page
   await expect(page.getByRole("group", { name: /Période/ }).first()).toBeVisible();
 });
 
-test("le hero d'une fiche est une carte posee dans la colonne", async ({ page }) => {
+test("le hero d'un lien direct conserve le rendu de la fiche en feuille", async ({ page }) => {
   /* Le hero debordait sur les goutieres par marges negatives : une ouverture pleine
      largeur, mais un objet different de tout le reste de l'application. Il reprend le
      cadre de la banniere d'Explorer -- carte bordee dans la colonne -- et son image
@@ -730,7 +732,10 @@ test("le hero d'une fiche est une carte posee dans la colonne", async ({ page })
     return { bordure: cs.borderTopWidth, rayon: cs.borderTopLeftRadius, transform: cs.transform };
   });
   expect(cadre.bordure).toBe("0px");
-  expect(cadre.rayon).not.toBe("0px");
+  // Un lien direct ouvre maintenant la meme feuille que la navigation interne.
+  // Sa banniere est sans arrondi : le cadre appartient au panneau de la feuille.
+  await expect(page.locator(".media-overlay__panel")).toBeVisible();
+  expect(cadre.rayon).toBe("0px");
   // Ni echelle permanente, ni reaction au survol.
   expect(cadre.transform).toBe("none");
   // Survol en haut a droite : sur mobile l'affiche couvre le centre de la banniere.

@@ -49,7 +49,7 @@ _allowed_hosts_cache: tuple[float, set[str]] = (0.0, set())
 # hote:port -> jeton des serveurs Plex supplementaires (voir models.PlexServer), rafraichi avec
 # l'allowlist : leurs affiches sont memorisees en URL complete, sans jeton.
 _secondary_plex_tokens: dict[str, str] = {}
-_plex_connections: dict[int, object] = {}
+_plex_connections: dict[int, SimpleNamespace] = {}
 _primary_plex = SimpleNamespace(url="", token="", verify=True)
 _allowed_hosts_lock = asyncio.Lock()
 

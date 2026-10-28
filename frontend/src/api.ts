@@ -41,10 +41,10 @@ export class ApiError extends Error {
   }
 }
 
-export class ApiTimeoutError extends Error {
+class ApiTimeoutError extends Error {
   constructor() { super('Le délai de réponse est dépassé. Réessayez dans un instant.'); this.name = 'TimeoutError'; }
 }
-export class ApiNetworkError extends Error {
+class ApiNetworkError extends Error {
   constructor(error: unknown) { super(humanizeError(error)); this.name = 'NetworkError'; }
 }
 
@@ -55,7 +55,7 @@ export function requestTimeout(path: string, method = 'GET'): number {
   return 20_000;
 }
 
-export function retryAfter(header: string | null | undefined): number | undefined {
+function retryAfter(header: string | null | undefined): number | undefined {
   if (!header?.trim()) return undefined;
   const seconds = Number(header);
   const value = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(header) - Date.now();
