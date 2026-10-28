@@ -48,6 +48,20 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// The first document was loaded before this worker controlled the page. Prime
+// its shell explicitly so first-visit offline reopening does not need a second navigation.
+self.addEventListener('message', (event) => {
+  if (event.data?.type !== 'WATCHDECK_CACHE_SHELL' || !event.source?.url) return;
+  const url = new URL(event.data.url, self.location.origin);
+  if (new URL(event.source.url).origin !== self.location.origin || url.origin !== self.location.origin ||
+      /^\/(api|login|logout|setup|privacy|webhook)(?:\/|$)/.test(url.pathname)) return;
+  event.waitUntil(fetch(url.href, { credentials: 'same-origin' }).then(async (response) => {
+    if (!response.ok || !(response.headers.get('content-type') || '').includes('text/html') ||
+        (response.redirected && /\/(login|setup)(?:[/?]|$)/.test(response.url))) return;
+    await (await caches.open(CACHE_NAME)).put(COQUILLE, response.clone());
+  }).catch(() => {}));
+});
+
 // Interception des requêtes
 self.addEventListener('fetch', (event) => {
   const { request } = event;

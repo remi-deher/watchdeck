@@ -20,7 +20,7 @@ function worker(cachedResponse) {
     listeners.fetch(event);
     return event;
   };
-  return { request, fetch, errorResponse };
+  return { request, fetch, errorResponse, listeners, cache };
 }
 
 describe('service worker network failures', () => {
@@ -48,5 +48,25 @@ describe('service worker network failures', () => {
     const sw = worker(cached);
     const event = sw.request('https://watchdeck.test/vue/icon.svg');
     await expect(event.respondWith.mock.calls[0][0]).resolves.toBe(cached);
+  });
+});
+
+
+describe('first controlled document shell', () => {
+  it('primes authenticated HTML after the first installation', async () => {
+    const sw = worker();
+    const html = { status: 200 };
+    sw.fetch.mockResolvedValueOnce({ ok: true, headers: new Headers({'content-type':'text/html'}), clone: () => html });
+    const event = { source: {url:'https://watchdeck.test/library'}, data: {type:'WATCHDECK_CACHE_SHELL',url:'https://watchdeck.test/library'}, waitUntil:vi.fn() };
+    sw.listeners.message(event);
+    await event.waitUntil.mock.calls[0][0];
+    expect(sw.cache.put).toHaveBeenCalledWith('/__app-shell', html);
+  });
+  it('rejects third-party URLs and public login documents', () => {
+    const sw = worker();
+    for (const url of ['https://other.test/library','https://watchdeck.test/login']) {
+      sw.listeners.message({ source: {url:'https://watchdeck.test/library'}, data: {type:'WATCHDECK_CACHE_SHELL',url}, waitUntil:vi.fn() });
+    }
+    expect(sw.fetch).not.toHaveBeenCalled();
   });
 });

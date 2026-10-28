@@ -1,8 +1,8 @@
 # Audit de performance et plan de correction — Watchdeck
 
-Date : 28 octobre 2026. Statut : lots 0 à 4 terminés et vérifiés en laboratoire ; lots 5, 6 et 7 restants.
+Date : 28 octobre 2026. Statut : lots 0 à 5 terminés et vérifiés en laboratoire ; lots 6 et 7 restants.
 
-Point d’avancement : [rapport du lot 4 et lots restants](performance-results/LOT4_MEASUREMENTS.md).
+Point d’avancement : [rapport du lot 5 et lots restants](performance-results/LOT5_MEASUREMENTS.md).
 
 Résultats et limites : [campagne mesurée du lot 0](performance-results/LOT0_MEASUREMENTS.md) et [mesures initiales des lots 0 et 1](performance-results/README.md).
 
@@ -264,19 +264,19 @@ qu'au nombre de médias ; plans SQL et temps avant/après enregistrés.
 
 ### Lot 5 — Encadrer les requêtes et le cache du navigateur
 
-- [ ] Ajouter au client API des délais par famille de requête, composés avec le
+- [x] Ajouter au client API des délais par famille de requête, composés avec le
   signal de l'appelant. Distinguer annulation volontaire, délai dépassé et erreur
   réseau pour conserver un retour utilisateur correct.
-- [ ] Transmettre le signal TanStack Query aux chargements de fiches et contrôler
+- [x] Transmettre le signal TanStack Query aux chargements de fiches et contrôler
   les revalidations après erreur, événement, mutation et réouverture.
-- [ ] Exclure des relances les erreurs permanentes et les annulations ; traiter les
+- [x] Exclure des relances les erreurs permanentes et les annulations ; traiter les
   erreurs transitoires avec une attente bornée et `Retry-After` s'il est applicable.
-- [ ] Regrouper les invalidations temps réel par domaine. Ne modifier localement une
+- [x] Regrouper les invalidations temps réel par domaine. Ne modifier localement une
   projection que si toutes ses règles métier peuvent être maintenues ; sinon relire
   le périmètre minimal cohérent.
-- [ ] Définir rétention, nombre de variantes/pages et budget de taille par domaine
+- [x] Définir rétention, nombre de variantes/pages et budget de taille par domaine
   pour les caches en mémoire et persistés.
-- [ ] Réduire les duplications avec `sessionStorage`. Préserver la liste blanche des
+- [x] Réduire les duplications avec `sessionStorage`. Préserver la liste blanche des
   données hors ligne, leur séparation par compte et la purge à la déconnexion.
 
 Acceptation : une fiche quittée n'exécute plus sa requête inutile ; les erreurs

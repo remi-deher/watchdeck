@@ -1,5 +1,6 @@
 import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue';
 import { api } from '@/api';
+import { offlineSession, rememberSession } from '@/sessionCache';
 
 export interface UserSession {
   id?: number | string;
@@ -20,13 +21,15 @@ export function loadSession(): Promise<UserSession | null> {
   pending ||= api<UserSession>('/api/session')
     .then((data) => {
       currentSession = data;
+      rememberSession(data);
       isSessionReady = true;
       return data;
     })
-    .catch(() => {
-      currentSession = null;
+    .catch((error) => {
+      currentSession = [401, 403].includes(error?.status) ? null : (currentSession || offlineSession());
+      if ([401, 403].includes(error?.status)) rememberSession(null);
       isSessionReady = true;
-      return null;
+      return currentSession;
     });
   return pending;
 }

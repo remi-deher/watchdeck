@@ -1,5 +1,6 @@
 import { chromium } from '@playwright/test';
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
+const output=process.env.WATCHDECK_PERF_RESULTS||'docs/performance-results/lot0';
 const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',args:['--no-sandbox']});
 const context=await browser.newContext();const result={profile:'history',scope:'one desktop context, real service worker and IndexedDB'};
 try{
@@ -32,4 +33,4 @@ try{
  catch(error){result.warmOffline.cardsVisible=false;result.warmOffline.error=error.message.split('\n')[0];}
  result.warmOffline.reloadMs=performance.now()-warmStart;result.warmOffline.finalPath=new URL(page.url()).pathname;result.warmOffline.cards=await page.locator('.poster-card').count();
 
-}finally{await context.close();await browser.close();await writeFile('docs/performance-results/lot0/history-offline.json',JSON.stringify(result,null,2)+'\n');}
+}finally{await context.close();await browser.close();await mkdir(output,{recursive:true});await writeFile(`${output}/history-offline.json`,JSON.stringify(result,null,2)+'\n');}

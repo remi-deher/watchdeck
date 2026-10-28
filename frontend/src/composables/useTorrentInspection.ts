@@ -1,5 +1,6 @@
 import { computed, ref, watch, type Ref } from 'vue';
 import { api } from '@/api';
+import { useScopedRequests } from './useScopedRequests';
 import type { DetailTab } from '@/components/templates/detail/types';
 
 /**
@@ -9,6 +10,7 @@ import type { DetailTab } from '@/components/templates/detail/types';
  * alors que rien n'avait ete demande).
  */
 export function useTorrentInspection(torrent: Ref<any | null>, onError: (message: string) => void) {
+  const { read, reset } = useScopedRequests();
   const tab = ref('general');
   const files = ref<any[]>([]);
   const trackers = ref<any[]>([]);
@@ -29,16 +31,17 @@ export function useTorrentInspection(torrent: Ref<any | null>, onError: (message
   async function select(name: string): Promise<void> {
     tab.value = name;
     if (name === 'general' || !torrent.value) return;
+    const target = base();
     loading.value = true;
     try {
-      if (name === 'files') files.value = await api(`${base()}/files`);
-      else if (name === 'trackers') trackers.value = await api(`${base()}/trackers`);
-      else if (name === 'peers') peers.value = await api(`${base()}/peers`);
+      if (name === 'files') files.value = await read(`${base()}/files`);
+      else if (name === 'trackers') trackers.value = await read(`${base()}/trackers`);
+      else if (name === 'peers') peers.value = await read(`${base()}/peers`);
       loaded.value = new Set([...loaded.value, name]);
     } catch (e: any) {
-      onError(e.message);
+      if (e?.name !== 'AbortError') onError(e.message);
     } finally {
-      loading.value = false;
+      if (target === base()) loading.value = false;
     }
   }
 
@@ -53,6 +56,7 @@ export function useTorrentInspection(torrent: Ref<any | null>, onError: (message
 
   // Un autre torrent : on repart de l'onglet general, sans les listes du precedent.
   watch(() => `${torrent.value?.client_id}:${torrent.value?.hash}`, () => {
+    reset();
     tab.value = 'general';
     files.value = [];
     trackers.value = [];

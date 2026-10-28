@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 import { defineComponent, h } from 'vue';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 let realtimeHandler;
 vi.mock('@/events', () => ({ useRealtime: (_types, handler) => { realtimeHandler = handler; } }));
@@ -52,12 +52,15 @@ describe('patchedList', () => {
 describe('useRealtimeQuery', () => {
   let queryClient;
   let api;
+  afterEach(() => vi.useRealTimers());
   beforeEach(() => {
+    vi.useFakeTimers();
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     queryClient.setQueryData(['demandes'], { items: [{ id: 1, status: 'pending' }], facets: { requesters: [] } });
     const Host = defineComponent({
       setup() {
         api = useRealtimeQuery(['demandes'], ['request.updated'], {
+          invalidateOnly: false,
           getList: (data) => data.items,
           setList: (data, items) => ({ ...data, items }),
         });
@@ -78,30 +81,34 @@ describe('useRealtimeQuery', () => {
     expect(invalidate).not.toHaveBeenCalled();
   });
 
-  it('relit la liste pour un element inconnu ou un evenement sans contenu', () => {
+  it('relit la liste une seule fois pour les changements regroupés', async () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue();
     realtimeHandler('request.updated', { payload: { id: 99, status: 'available' } });
     realtimeHandler(undefined, undefined);
-    expect(invalidate).toHaveBeenCalledTimes(2);
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['demandes'] });
+    await vi.advanceTimersByTimeAsync(60);
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(60);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['demandes'] }, { cancelRefetch: false });
   });
 
-  it('relit une projection métier au lieu de la reconstruire depuis un fragment SSE', () => {
+  it('relit une projection métier au lieu de la reconstruire depuis un fragment SSE', async () => {
     const before = { items: [{ id: 1, status: 'pending', availability: { plex: 'unknown' } }] };
     queryClient.setQueryData(['demandes'], before);
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue();
     realtimeHandler('request.updated', { payload: { id: 1, status: 'available' } });
     expect(queryClient.getQueryData(['demandes'])).toEqual(before);
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['demandes'] });
+    await vi.advanceTimersByTimeAsync(60);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['demandes'] }, { cancelRefetch: false });
   });
 
-  it('relit un travail entier au lieu de mélanger état brut et progression connue', () => {
+  it('relit un travail entier au lieu de mélanger état brut et progression connue', async () => {
     const before = {items: [{id: 1, work: {state: 'running', progress: {percent: 45}}, media: {backdrop_url: '/art.jpg'}}]};
     queryClient.setQueryData(['demandes'], before);
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue();
     realtimeHandler('request.updated', {payload: {id: 1, status: 'completed'}});
     expect(queryClient.getQueryData(['demandes'])).toEqual(before);
-    expect(invalidate).toHaveBeenCalledWith({queryKey: ['demandes']});
+    await vi.advanceTimersByTimeAsync(60);
+    expect(invalidate).toHaveBeenCalledWith({queryKey: ['demandes']}, { cancelRefetch: false });
   });
 
   it('expose apply pour les mises a jour locales', () => {
@@ -109,16 +116,17 @@ describe('useRealtimeQuery', () => {
     expect(queryClient.getQueryData(['demandes']).items[0].status).toBe('rejected');
   });
 
-  it('invalide un parcours entier plutôt que de lui appliquer un statut isolé', () => {
+  it('invalide un parcours entier plutôt que de lui appliquer un statut isolé', async () => {
     const before = { items: [{ id: 1, journey: { status: 'awaiting_plex', next_step: { kind: 'plex' } } }] };
     queryClient.setQueryData(['demandes'], before);
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue();
     realtimeHandler('request.updated', { payload: { id: 1, status: 'available' } });
     expect(queryClient.getQueryData(['demandes'])).toEqual(before);
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['demandes'] });
+    await vi.advanceTimersByTimeAsync(60);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['demandes'] }, { cancelRefetch: false });
   });
 
-  it('relit une projection vide au lieu d’insérer un objet créé incomplet', () => {
+  it('relit une projection vide au lieu d’insérer un objet créé incomplet', async () => {
     queryClient.setQueryData(['projection'], { items: [] });
     const Host = defineComponent({
       setup() {
@@ -134,7 +142,8 @@ describe('useRealtimeQuery', () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue();
     realtimeHandler('request.updated', { payload: { id: 1, action: 'created', status: 'pending' } });
     expect(queryClient.getQueryData(['projection'])).toEqual({ items: [] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['projection'] });
+    await vi.advanceTimersByTimeAsync(60);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['projection'] }, { cancelRefetch: false });
   });
 
   it('peut transformer la charge utile et viser toutes les occurrences', () => {
@@ -144,6 +153,7 @@ describe('useRealtimeQuery', () => {
       setup() {
         episodes = useRealtimeQuery(['episodes'], ['download.updated'], {
           keyFields: ['tvdb_id'],
+          invalidateOnly: false,
           patchAll: true,
           mapper: (payload) => ({ ...payload, has_file: payload.status === 'available' }),
         });

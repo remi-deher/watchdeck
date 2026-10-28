@@ -152,3 +152,22 @@ deux versions applicatives de cette comparaison.
 vérifie les identifiants retournés et mesure aussi les 501 comptes historiques
 contre une page de 100 comptes. Les plans SQL séparés du rapport documentent
 l'effet de l'index trigramme et le nombre de lignes parcourues par le curseur.
+
+## Navigateur et caches — lot 5
+
+Après le build de production, sur le profil `history` existant, démarrer le serveur
+habituel du laboratoire et lancer les scénarios successivement, hors tests et builds :
+
+```bash
+export WATCHDECK_PERF_RESULTS=docs/performance-results/lot5
+node scripts/performance/offline.mjs
+node scripts/performance/cache_navigation.mjs
+```
+
+Le premier utilise un nouveau contexte navigateur : première visite, installation
+du service worker, IndexedDB, puis rechargement hors ligne. Le second parcourt
+36 filtres de bibliothèque dans la même application. Il relève uniquement les
+nombres de requêtes, leurs racines et tailles JSON, les copies de session et les
+volumes IndexedDB ; il n'exporte pas les données de compte. Les requêtes observées
+ou en cours sont distinguées des variantes inactives, auxquelles s'applique
+l'éviction. Aucune instrumentation n'est ajoutée à l'application de production.
