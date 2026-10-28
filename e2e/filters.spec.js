@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { torrentsPage } from "./fixtures/torrents";
 
 /**
  * Un seul systeme de filtres dans toute l'application : groupes repliables, pastilles
@@ -27,6 +28,7 @@ async function mockApi(page) {
       "/api/download-clients": [{ id: 7, name: "Maison", enabled: true }],
       "/api/arr-instances": [],
       "/api/downloads/clients": TORRENTS,
+      "/api/downloads/clients/page": torrentsPage(TORRENTS, url),
       "/api/downloads/global-stats": { connected: 1, total: 1 },
       "/api/notifications/log": { items: [], total: 0 },
     }[url.pathname];
@@ -96,7 +98,7 @@ test("les groupes repliables annoncent leur etat et resument le choix", async ({
 test("le panneau de filtres ouvert garde la barre de recherche a l'ecran", async ({ page }) => {
   await mockApi(page);
   const many = Array.from({ length: 60 }, (_, i) => ({ client_id: 7, client_name: "Maison", hash: `h${i}`, title: `Torrent ${i}`, status: "downloading", progress: 10, category: "films" }));
-  await page.route("**/api/downloads/clients", (route) => route.fulfill({ json: many }));
+  await page.route("**/api/downloads/clients/page?**", (route) => route.fulfill({ json: torrentsPage(many, new URL(route.request().url())) }));
   await page.goto("/downloads?view=clients&sub=instances");
   await page.locator(".torrent-table").getByText("Torrent 0", { exact: true }).waitFor();
 

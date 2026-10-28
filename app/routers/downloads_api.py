@@ -76,6 +76,39 @@ async def download_client_queue(db: AsyncSession = Depends(get_db_async)):
     return [{**row, "work": download_work(row)} if row.get("hash") else row for row in rows]
 
 
+@router.get("/downloads/clients/page")
+async def download_client_page(
+    limit: int = 100,
+    offset: int = 0,
+    query: str = "",
+    client_id: Optional[int] = None,
+    category: Optional[list[str]] = Query(None),
+    state: Optional[list[str]] = Query(None),
+    tracker: Optional[list[str]] = Query(None),
+    ownership: Optional[str] = None,
+    sort: str = "title",
+    direction: str = "asc",
+    db: AsyncSession = Depends(get_db_async),
+):
+    from ..services.torrent_projection import project
+
+    rows = await download_client_queue(db)
+    return await asyncio.to_thread(
+        project,
+        rows,
+        limit=limit,
+        offset=offset,
+        query=query,
+        client_id=client_id,
+        category=category,
+        state=state,
+        tracker=tracker,
+        ownership=ownership,
+        sort=sort,
+        direction=direction,
+    )
+
+
 async def _compute_download_client_queue(db: AsyncSession) -> list[dict]:
     """Interroge réellement tous les clients et projette leurs torrents."""
     import time
@@ -102,6 +135,16 @@ async def _compute_download_client_queue(db: AsyncSession) -> list[dict]:
     )
     media_by_id = {item.id: media_ref(item) for item in library}
     requests_by_hash = {str(row.torrent_hash).lower(): row for row in requests if row.torrent_hash}
+
+    # Materialize values before ending the read transaction: rollback expires ORM rows.
+    from types import SimpleNamespace
+
+    def detached(row):
+        return SimpleNamespace(**{column.key: getattr(row, column.key) for column in row.__mapper__.column_attrs})
+
+    clients = [detached(client) for client in clients]
+    requests_by_hash = {key: detached(row) for key, row in requests_by_hash.items()}
+    await db.rollback()
 
     async def load(client):
         try:

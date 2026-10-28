@@ -42,6 +42,7 @@ _ENDPOINTS = {"sonarr": "/api/v3/series", "radarr": "/api/v3/movie"}
 
 # {(arr_type, url): (catalogue, instant_de_mise_en_cache)}
 _cache: dict[tuple[str, str], tuple[list[dict], float]] = {}
+_retry_after: dict[tuple[str, str], float] = {}
 _last_forced: dict[tuple[str, str], float] = {}
 _locks: dict[tuple[str, str], asyncio.Lock] = {}
 
@@ -73,18 +74,24 @@ async def get_catalog(arr_type: str, url: str, api_key: str, *, force_refresh: b
     if not force_refresh and cached and now - cached[1] < _TTL_SECONDS:
         return cached[0]
 
+    if now < _retry_after.get(key, 0):
+        return cached[0] if cached else None
+
     async with _lock_for(key):
         # Un autre appelant a pu rafraichir pendant l'attente du verrou.
         cached = _cache.get(key)
         now = time.monotonic()
         if not force_refresh and cached and now - cached[1] < _TTL_SECONDS:
             return cached[0]
+        if now < _retry_after.get(key, 0):
+            return cached[0] if cached else None
         try:
             client = ArrClient(key[1], api_key, timeout=60)
             resp = await client.get(endpoint)
             resp.raise_for_status()
             data = resp.json()
         except Exception as exc:
+            _retry_after[key] = time.monotonic() + 10
             logger.warning("Catalogue %s indisponible (%s) : %s", arr_type, key[1], exc)
             # Mieux vaut un catalogue perime qu'aucun : l'appelant re-tentera au prochain TTL.
             return cached[0] if cached else None
@@ -98,10 +105,14 @@ def invalidate(arr_type: str | None = None, url: str | None = None) -> None:
     """Oublie un catalogue en cache — à appeler après un ajout/suppression dans *arr pour
     que la nouvelle entrée soit visible sans attendre l'expiration du TTL."""
     if arr_type is None and url is None:
+        _retry_after.clear()
         _cache.clear()
         return
     normalized = url.rstrip("/") if url else None
     for key in [
-        k for k in _cache if (arr_type is None or k[0] == arr_type) and (normalized is None or k[1] == normalized)
+        k
+        for k in set(_cache) | set(_retry_after)
+        if (arr_type is None or k[0] == arr_type) and (normalized is None or k[1] == normalized)
     ]:
+        _retry_after.pop(key, None)
         _cache.pop(key, None)

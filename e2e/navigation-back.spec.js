@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { torrentsPage } from "./fixtures/torrents";
 
 /**
  * Le geste « retour » (bouton Android, bord de l'ecran sur iPhone) et la memoire des filtres.
@@ -32,6 +33,7 @@ async function mockApi(page) {
       "/api/download-clients": [{ id: 7, name: "Maison", enabled: true }],
       "/api/arr-instances": [],
       "/api/downloads/clients": TORRENTS,
+      "/api/downloads/clients/page": torrentsPage(TORRENTS, url),
       "/api/downloads/global-stats": { connected: 1, total: 1 },
       "/api/notifications/log": { items: [], total: 0 },
     }[url.pathname];

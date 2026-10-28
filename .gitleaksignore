@@ -1,0 +1,15 @@
+# Faux positifs verifies : empreintes SHA-256 des fichiers sources dans les
+# rapports de validation des lots 2-5, pas des secrets. Exceptions limitees aux
+# commits, chemins, regle et lignes exacts ; les futurs secrets restent detectes.
+69e2ded999efca2fb7a96fd6a293f64730c3cba4:docs/performance-results/lot23/validation.json:generic-api-key:32
+69e2ded999efca2fb7a96fd6a293f64730c3cba4:docs/performance-results/lot23/validation.json:generic-api-key:33
+69e2ded999efca2fb7a96fd6a293f64730c3cba4:docs/performance-results/lot23/validation.json:generic-api-key:37
+69e2ded999efca2fb7a96fd6a293f64730c3cba4:docs/performance-results/lot4/validation.json:generic-api-key:39
+69e2ded999efca2fb7a96fd6a293f64730c3cba4:docs/performance-results/lot4/validation.json:generic-api-key:40
+69e2ded999efca2fb7a96fd6a293f64730c3cba4:docs/performance-results/lot4/validation.json:generic-api-key:41
+69e2ded999efca2fb7a96fd6a293f64730c3cba4:docs/performance-results/lot4/validation.json:generic-api-key:42
+69e2ded999efca2fb7a96fd6a293f64730c3cba4:docs/performance-results/lot4/validation.json:generic-api-key:43
+69e2ded999efca2fb7a96fd6a293f64730c3cba4:docs/performance-results/lot4/validation.json:generic-api-key:44
+69e2ded999efca2fb7a96fd6a293f64730c3cba4:docs/performance-results/lot4/validation.json:generic-api-key:45
+69e2ded999efca2fb7a96fd6a293f64730c3cba4:docs/performance-results/lot4/validation.json:generic-api-key:51
+8b64b0af6b0d0a6b1480bb0dc399b973912cf853:docs/performance-results/lot5/validation.json:generic-api-key:21

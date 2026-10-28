@@ -59,6 +59,9 @@ class TestSession:
     def execute(self, *args, **kwargs):
         return _AwaitableValue(self.sync_session.execute(*args, **kwargs))
 
+    async def stream(self, statement, *args, **kwargs):
+        return _AsyncStreamingResult(self.sync_session.execute(statement, *args, **kwargs))
+
     def get(self, *args, **kwargs):
         return _AwaitableValue(self.sync_session.get(*args, **kwargs))
 
@@ -282,3 +285,20 @@ async def open_committed_async_test_database():
             await engine.dispose()
 
     return AsyncTestDatabase(factory), close
+
+
+class _AsyncStreamingResult:
+    """Test adapter for the async server-cursor protocol used by production."""
+
+    def __init__(self, result):
+        self.result = result
+
+    def mappings(self):
+        return _AsyncStreamingResult(self.result.mappings())
+
+    async def partitions(self, size):
+        for batch in self.result.partitions(size):
+            yield batch
+
+    async def close(self):
+        self.result.close()

@@ -1,5 +1,12 @@
 # Chargement et fluidité
 
+Le [rapport d'audit et plan de correction](AUDIT_PERFORMANCE_PLAN.md) recense les
+risques restants, les mesures disponibles et les lots de mise en œuvre. La présente
+note décrit les optimisations déjà en place.
+
+La [campagne mesurée du lot 0](performance-results/LOT0_MEASUREMENTS.md) fournit
+la référence HTTP, SQL, worker et navigateur pour les corrections suivantes.
+
 Le worker prépare les sections du dashboard toutes les 30 secondes dans Redis.
 Chaque section possède sa propre entrée : fraîcheur de 15 secondes, conservation
 de la dernière réponse réussie pendant 15 minutes. Le flux sert ces valeurs dès

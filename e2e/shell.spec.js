@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { usersPage } from "./fixtures/users";
 
 /**
  * Comportement du shell commun, aux quatre profils configures.
@@ -542,6 +543,7 @@ test("une confirmation ouverte depuis un tiroir reste cliquable", async ({ page 
     // La fiche d'un utilisateur et la liste passent par la meme racine d'URL.
     const match = url.pathname.match(/\/api\/users\/(\d+)$/);
     if (match) return route.fulfill({ json: user(Number(match[1]), match[1] === "1" ? "Alice" : "Bob") });
+    if (url.pathname === "/api/users/page") return route.fulfill({ json: usersPage([user(1, "Alice"), user(2, "Bob")], url) });
     if (url.pathname !== "/api/users") return route.fulfill({ json: [] });
     route.fulfill({ json: [user(1, "Alice"), user(2, "Bob")] });
   });
@@ -697,14 +699,10 @@ test("les commandes d'une page ne recouvrent jamais la recherche", async ({ page
   await expect(page.getByRole("group", { name: /Période/ }).first()).toBeVisible();
 });
 
-test("le hero d'une fiche est une carte posee dans la colonne", async ({ page }) => {
-  /* Le hero debordait sur les goutieres par marges negatives : une ouverture pleine
-     largeur, mais un objet different de tout le reste de l'application. Il reprend le
-     cadre de la banniere d'Explorer -- carte bordee dans la colonne -- et son image
-     reste fixe : sur une page de consultation, une animation au survol distrait de la
-     lecture. Pas de trait autour de l'image : le voile en dessine le bord, egal sur les
-     quatre cotes. La comparaison ligne a ligne avec la banniere est verifiee
-     separement, sur les sources (MediaDetailHero.spec). */
+test("le hero d'un lien direct conserve le rendu de la fiche en feuille", async ({ page }) => {
+  /* Un lien direct ouvre la meme feuille que la navigation interne. Sa banniere
+     epouse le panneau, sans bord ni arrondi propre, et reste fixe au survol.
+     Elle se mesure par rapport a la feuille, pas a la page derriere le rail. */
   await page.route("**/api/media/detail**", (route) =>
     route.fulfill({
       json: {
@@ -730,7 +728,10 @@ test("le hero d'une fiche est une carte posee dans la colonne", async ({ page })
     return { bordure: cs.borderTopWidth, rayon: cs.borderTopLeftRadius, transform: cs.transform };
   });
   expect(cadre.bordure).toBe("0px");
-  expect(cadre.rayon).not.toBe("0px");
+  // Un lien direct ouvre maintenant la meme feuille que la navigation interne.
+  // Sa banniere est sans arrondi : le cadre appartient au panneau de la feuille.
+  await expect(page.locator(".media-overlay__panel")).toBeVisible();
+  expect(cadre.rayon).toBe("0px");
   // Ni echelle permanente, ni reaction au survol.
   expect(cadre.transform).toBe("none");
   // Survol en haut a droite : sur mobile l'affiche couvre le centre de la banniere.
@@ -739,8 +740,8 @@ test("le hero d'une fiche est une carte posee dans la colonne", async ({ page })
   await page.waitForTimeout(400);
   expect(await hero.evaluate((node) => getComputedStyle(node).transform)).toBe("none");
 
-  // Dans la colonne, plus en travers : c'est ce que les marges negatives cassaient.
-  const [heroBox, mainBox] = await Promise.all([hero.boundingBox(), page.locator("#main-content").boundingBox()]);
+  // La banniere doit rester dans le panneau, y compris quand il recouvre le rail.
+  const [heroBox, mainBox] = await Promise.all([hero.boundingBox(), page.locator(".media-overlay__panel").boundingBox()]);
   expect(heroBox.x, "le hero deborde a gauche").toBeGreaterThanOrEqual(mainBox.x - 1);
   expect(heroBox.x + heroBox.width, "le hero deborde a droite").toBeLessThanOrEqual(mainBox.x + mainBox.width + 1);
 });

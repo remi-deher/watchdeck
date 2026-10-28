@@ -11,7 +11,7 @@
          4. le recapitulatif, chaque ligne modifiable, avant « Creer » ;
          5. le resultat et ses suites, ou « Creer un autre ».
        Pas de brouillon : fermer en cours de saisie demande confirmation. -->
-  <ModalShell :open="open" :title="mode === 'edit' ? (definition.editTitle || `Modifier ${definition.noun}`) : `Ajouter ${definition.noun}`" :subtitle="definition.subtitle" :error="error" :busy="busy" panel-class="create-modal" @close="requestClose">
+  <ModalShell :open="open" :size="definition.size || 'md'" :title="mode === 'edit' ? (definition.editTitle || `Modifier ${definition.noun}`) : `Ajouter ${definition.noun}`" :subtitle="definition.subtitle" :error="error" :busy="busy" @close="requestClose">
     <UiStepper v-if="showStepper" :steps="allSteps" :current="stepIndex" :furthest="furthest" :complete="Boolean(result)" @select="goTo" />
 
     <div v-if="result" class="create__result" role="status">

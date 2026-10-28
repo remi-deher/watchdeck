@@ -109,6 +109,21 @@ function insertLink(): void {
 }
 </script>
 
+<style lang="scss">
+.markdown-toolbar + .code-editor {
+  border-radius: 0 0 6px 6px;
+}
+
+/* Panneaux UiMenu de la barre Markdown, teleportes dans <body>. */
+.ui-menu.markdown-heading-menu { min-width: 140px; }
+
+.ui-menu.variable-menu { width: min(390px, 80vw); max-width: none; }
+
+.variable-menu .ui-menu-item { display: grid; grid-template-columns: minmax(120px, auto) 1fr; gap: var(--space-3); }
+
+.variable-menu .ui-menu-item span { color: var(--muted); }
+</style>
+
 <style scoped lang="scss">
 .markdown-toolbar {
   display: flex;

@@ -12,13 +12,22 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func
+from sqlalchemy import func as sql_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from ..cache import cache
 from ..database import get_db_async
 from ..dependencies import _is_moderator, current_user, require_auth
-from ..models import LibraryItem, MediaRequest, PlaybackSession, PlexUser, RequestSeasonStatus, Settings
+from ..models import (
+    LibraryItem,
+    MediaRequest,
+    PlaybackSession,
+    PlexUser,
+    RequestRequester,
+    RequestSeasonStatus,
+    Settings,
+)
 from ..serializers import request_status_value, serialize_media_request, serialize_media_summary
 from ..services import tmdb
 from ..services.media_annotate import annotate_media_items as _annotate
@@ -154,34 +163,21 @@ async def _recent_plex_section(db: AsyncSession, limit: int = 20) -> dict:
 
 
 async def _most_requested_section(db: AsyncSession, limit: int = 20) -> dict:
-    rows = (
-        (
-            await db.execute(
-                select(MediaRequest).filter(
-                    MediaRequest.extra_requesters.isnot(None),
-                    MediaRequest.extra_requesters != "[]",
-                )
-            )
-        )
-        .scalars()
-        .all()
+    counts = (
+        select(RequestRequester.request_id, sql_func.count().label("n"))
+        .group_by(RequestRequester.request_id)
+        .having(sql_func.count() > 1)
+        .subquery()
     )
-    ranked = []
-    for row in rows:
-        try:
-            requester_count = 1 + len(json.loads(row.extra_requesters or "[]"))
-        except (TypeError, ValueError):
-            requester_count = 1
-        if requester_count < 2:
-            continue
-        ranked.append(
-            serialize_media_summary(
-                row,
-                requester_count=requester_count,
-            )
+    rows = (
+        await db.execute(
+            select(MediaRequest, counts.c.n)
+            .join(counts, counts.c.request_id == MediaRequest.id)
+            .order_by(counts.c.n.desc(), MediaRequest.id.desc())
+            .limit(limit)
         )
-    ranked.sort(key=lambda item: (item["requester_count"], item["request_id"]), reverse=True)
-    items = ranked[:limit]
+    ).all()
+    items = [serialize_media_summary(row, requester_count=count) for row, count in rows]
     return {"items": items, "page": 1, "total_pages": 1, "total_results": len(items)}
 
 

@@ -8,6 +8,7 @@ import os
 import time
 import uuid
 from collections.abc import Awaitable, Callable
+from datetime import timedelta
 from typing import Any
 
 from arq import cron
@@ -738,11 +739,18 @@ async def shutdown(ctx: dict):
     await stop_playback_images()
     await stop_image_warmup()
     await close_image_refreshes()
+    from .realtime import close_publishers
+    from .services.arr_http_client import close_arr_clients
+    from .services.http_pool import close_http_clients
+
     task = ctx.get("ws_listener_task")
     if task:
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
+    await close_arr_clients()
+    await close_http_clients()
+    await close_publishers()
 
 
 # Cron wrappers have distinct names so the underlying jobs remain directly enqueueable.
@@ -886,8 +894,31 @@ async def cron_fileflows_guard(ctx: dict):
     return await job_fileflows_guard(ctx)
 
 
+async def job_calendar(ctx, start=None, end=None):
+    from .routers.calendar_api import refresh_calendar_projection
+
+    return await refresh_calendar_projection(start, end)
+
+
+async def cron_calendar(ctx):
+    from .models import CalendarProjection
+
+    async with AsyncSessionLocal() as db:
+        periods = (
+            await db.execute(
+                select(CalendarProjection.start, CalendarProjection.end)
+                .where(CalendarProjection.refreshed_at >= now_utc_naive() - timedelta(days=14))
+                .order_by(CalendarProjection.refreshed_at.desc())
+                .limit(12)
+            )
+        ).all()
+    for start, end in dict.fromkeys([(None, None), *((a or None, b or None) for a, b in periods)]):
+        await job_calendar(ctx, start or None, end or None)
+
+
 class WorkerSettings:
     functions = [
+        job_calendar,
         job_watchlist,
         job_arr_statuses,
         job_torrent_statuses,
@@ -915,6 +946,7 @@ class WorkerSettings:
         job_maintenance,
     ]
     cron_jobs = [
+        cron(cron_calendar, minute=set(range(0, 60, 5)), second=25, unique=True, run_at_startup=True),
         cron(cron_prepare_dashboard, second={2, 32}, unique=True, run_at_startup=True),
         cron(cron_prepare_dashboard_counts, minute=set(range(0, 60, 2)), second=12, unique=True, run_at_startup=True),
         cron(cron_storage_inventory, minute={3, 18, 33, 48}, unique=True),

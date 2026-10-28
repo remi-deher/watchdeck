@@ -519,7 +519,7 @@ describe('CreateTemplate', () => {
     button('Continuer').click(); await flushPromises();
     button('Continuer').click(); await flushPromises();
     expect(text()).toContain('Ce champ est requis.');
-    const input = document.querySelector('.create-modal input');
+    const input = document.querySelector('.modal-panel input');
     input.value = 'Prowlarr'; input.dispatchEvent(new Event('input')); await flushPromises();
     expect(text()).not.toContain('Ce champ est requis.');
     button('Continuer').click(); await flushPromises();
@@ -551,9 +551,9 @@ describe('CreateTemplate · champs', () => {
     const { default: CreateTemplate } = await import('./CreateTemplate.vue');
     const wrapper = mount(CreateTemplate, { props: { open: true, definition: definition() }, attachTo: document.body, global });
     await flushPromises();
-    expect(document.querySelector('.create-modal textarea')).not.toBeNull();
-    expect(document.querySelector('.create-modal .ui-file-drop')).not.toBeNull();
-    expect([...document.querySelectorAll('.create-modal datalist option')].map((o) => o.value)).toEqual(['Films', 'Séries']);
+    expect(document.querySelector('.modal-panel textarea')).not.toBeNull();
+    expect(document.querySelector('.modal-panel .ui-file-drop')).not.toBeNull();
+    expect([...document.querySelectorAll('.modal-panel datalist option')].map((o) => o.value)).toEqual(['Films', 'Séries']);
     expect(button('Ajouter le torrent')).toBeDefined();
     wrapper.unmount();
   });

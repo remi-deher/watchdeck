@@ -159,7 +159,7 @@ async def setup_account(request: Request, body: SetupBody, db: AsyncSession = De
         db.add(s)
 
     s.auth_username = username
-    s.auth_password_hash = hash_password(body.password)
+    s.auth_password_hash = await asyncio.to_thread(hash_password, body.password)
     await db.commit()
 
     # Connecter l'utilisateur immédiatement après la création du compte
@@ -253,7 +253,7 @@ async def login(request: Request, body: LoginBody, db: AsyncSession = Depends(ge
     if user and user.password_hash:
         # Mot de passe verifie AVANT l'etat du compte : sinon la reponse revelerait
         # qu'un compte desactive existe sous ce nom, sans meme compter la tentative.
-        if not verify_password(password, user.password_hash):
+        if not await asyncio.to_thread(verify_password, password, user.password_hash):
             await _record_login_attempt(db, ip, username, False, "bad_credentials")
             raise HTTPException(401, "Identifiants incorrects.")
 
@@ -270,7 +270,9 @@ async def login(request: Request, body: LoginBody, db: AsyncSession = Depends(ge
         return {"authenticated": True}
 
     # 2. Repli historique (Settings global admin)
-    if not hmac.compare_digest(username, s.auth_username) or not verify_password(password, s.auth_password_hash):
+    if not hmac.compare_digest(username, s.auth_username) or not await asyncio.to_thread(
+        verify_password, password, s.auth_password_hash
+    ):
         await _record_login_attempt(db, ip, username, False, "bad_credentials")
         raise HTTPException(401, "Identifiants incorrects.")
 

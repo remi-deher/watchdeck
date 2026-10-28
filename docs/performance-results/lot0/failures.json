@@ -1,0 +1,41 @@
+{
+  "redis_shared_cold": {
+    "requests": 20,
+    "computations": 1,
+    "total_ms": 306.4197989999684
+  },
+  "redis_multiprocess": {
+    "processes": 4,
+    "computations": 1,
+    "total_ms": 427.18675199989775
+  },
+  "hard_expired": {
+    "computations": 1,
+    "total_ms": 304.2637159999231,
+    "recomputed": true
+  },
+  "stale": {
+    "response_ms": 0.11299699986011547,
+    "served_old": true,
+    "refreshed": true
+  },
+  "silent_redis": {
+    "first_fallback_ms": 1002.3861940001098,
+    "repeated_ms": 0.046109000095384545,
+    "fallback_ok": true
+  },
+  "recovery": {
+    "connection_ms": 1.611623999906442,
+    "redis_value": true
+  },
+  "slow_arr": {
+    "requests": 20,
+    "upstream_calls": 1,
+    "total_ms": 283.6558259998583
+  },
+  "failed_arr": {
+    "upstream_calls": 1,
+    "total_ms": 252.8344830000151,
+    "stale_preserved": true
+  }
+}

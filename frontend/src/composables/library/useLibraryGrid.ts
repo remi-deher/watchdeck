@@ -1,6 +1,6 @@
 import { computed, ref, watch, type ComputedRef, type Ref } from 'vue';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/vue-query';
-import type { AvailabilityRecord, AvailabilityPage } from '@/types/generated/mediaAvailability';
+import type { AvailabilityPage } from '@/types/generated/mediaAvailability';
 import { isInPlex } from '@/utils/mediaAvailability';
 import { isPseudoRequester } from '@/utils/userLabels';
 import { proxyUrl } from '@/utils/mediaImage';
@@ -106,9 +106,11 @@ export function useLibraryGrid({ filters, activeHub, hubLoading, refreshActiveHu
 
   const libraryQuery = useInfiniteQuery({
     queryKey: computed(() => ['library', 'items', gridRequest.value?.library]),
-    queryFn: ({ pageParam, signal }) => api<AvailabilityRecord[]>(`/api/library?${gridRequest.value?.library}&offset=${pageParam}`, { signal }),
-    initialPageParam: 0,
-    getNextPageParam: (last: any[], pages: any[][]) => (last.length === PAGE_SIZE ? pages.reduce((sum, page) => sum + page.length, 0) : undefined),
+    queryFn: ({ pageParam, signal }) => api<any>(`/api/library?${gridRequest.value?.library}&paged=true&${typeof pageParam === 'string' ? `cursor=${encodeURIComponent(pageParam)}` : `offset=${pageParam}`}`, { signal }),
+    initialPageParam: 0 as number | string,
+    getNextPageParam: (last: any, pages: any[]) => Array.isArray(last)
+      ? (last.length === PAGE_SIZE ? pages.reduce((sum, page) => sum + page.length, 0) : undefined)
+      : (last.next_cursor || undefined),
     // Aucun media Plex ne peut correspondre aux filtres : on economise l'appel.
     enabled: computed(() => gridActive.value && Boolean(gridRequest.value?.wantsLibrary)),
     staleTime: 30_000,
@@ -145,13 +147,31 @@ export function useLibraryGrid({ filters, activeHub, hubLoading, refreshActiveHu
   });
 
   // Les donnees arrivees alimentent l'etat de la page, que primeFromCache a pu repeindre.
+  let previousPages: any[] = [];
+  let previousLibrary = '';
+  let known = new Set<any>();
+  const projections = new WeakMap<object, any>();
+  function projectLibrary(item: any): any {
+    let value = projections.get(item);
+    if (!value) { value = { ...item, _kind: 'library' }; projections.set(item, value); }
+    return value;
+  }
   watch(libraryQuery.data, (data) => {
     if (!data) return;
-    const known = new Set<any>();
-    const rows = data.pages.flat().filter((row: any) => (known.has(row.id) ? false : (known.add(row.id), true)));
-    applyLibraryPage(rows);
-    // `applyLibraryPage` deduit la suite de la taille d'UNE page ; ici `rows` les cumule
-    // toutes : c'est la query qui sait s'il en reste.
+    const pages = data.pages;
+    const key = gridRequest.value?.library || '';
+    const append = previousLibrary === key && pages.length >= previousPages.length && previousPages.every((page, index) => page === pages[index]);
+    if (!append) { known = new Set(); libraryItemsRaw.value = []; }
+    const added: any[] = [];
+    for (const page of pages.slice(append ? previousPages.length : 0)) {
+      for (const item of (Array.isArray(page) ? page : page.items || [])) {
+        if (known.has(item.id)) continue;
+        known.add(item.id); added.push(projectLibrary(item));
+      }
+    }
+    libraryItemsRaw.value.push(...added);
+    libraryOffset.value = libraryItemsRaw.value.length;
+    previousPages = pages.slice(); previousLibrary = key;
     hasMoreLibrary.value = Boolean(libraryQuery.hasNextPage.value) && wantsLibraryItems.value;
   }, { immediate: true });
   watch([requestsQuery.data, metricsQuery.data], ([requests, stats]) => { if (requests) applyRequestData(requests, stats || {}); }, { immediate: true });
@@ -169,7 +189,8 @@ export function useLibraryGrid({ filters, activeHub, hubLoading, refreshActiveHu
     () => [libraryQuery.data.value, requestsQuery.data.value, orphansQuery.data.value, metricsQuery.data.value, requestsQuery.isFetching.value] as const,
     ([library, requests, orphanRows, stats, fetching]) => {
       if (!requests || !orphanRows || fetching) return;
-      const firstPage = library?.pages[0];
+      const rawPage = library?.pages[0];
+      const firstPage = Array.isArray(rawPage) ? rawPage : rawPage?.items;
       if (firstPage || !gridRequest.value?.wantsLibrary) {
         writeCache(cacheKey(), { library: firstPage || [], requests, stats: stats || {}, orphans: orphanRows });
       }
@@ -233,7 +254,8 @@ export function useLibraryGrid({ filters, activeHub, hubLoading, refreshActiveHu
   }
 
   function applyLibraryPage(library: any[]): void {
-    libraryItemsRaw.value = library.map(x => ({ ...x, _kind: 'library' }));
+    libraryItemsRaw.value = library.map(projectLibrary);
+    previousPages = []; previousLibrary = ''; known.clear();
     libraryOffset.value = library.length;
     hasMoreLibrary.value = wantsLibraryItems.value && library.length === PAGE_SIZE;
   }

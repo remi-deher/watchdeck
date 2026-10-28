@@ -157,6 +157,13 @@ async def test_a_network_failure_is_not_memorised():
     assert await plex_api._get_account_username(client, {"X-Plex-Token": "tok"}) == "remi"
 
 
+@pytest.fixture
+def analytics_storage_stub(monkeypatch):
+    """These unit tests cover legacy invalidation, not the PostgreSQL projection."""
+    monkeypatch.setattr(library_analytics.projection, "synchronize_playback", AsyncMock(return_value=False))
+    monkeypatch.setattr(library_analytics.projection, "playback_aggregates", AsyncMock(return_value={}))
+
+
 # ---------------------------------------------------------------------------
 # Instantané analytique
 # ---------------------------------------------------------------------------
@@ -172,6 +179,7 @@ async def test_analytics_skips_the_full_catalog_when_nothing_changed():
     db = MagicMock()
     db.get = AsyncMock(return_value=snapshot)
     db.commit = AsyncMock()
+    db.execute = AsyncMock()
     fetch = AsyncMock()
 
     with (
@@ -186,6 +194,7 @@ async def test_analytics_skips_the_full_catalog_when_nothing_changed():
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("analytics_storage_stub")
 async def test_analytics_recomputes_when_the_payload_shape_changed():
     """Un champ ajoute a la charge utile (vignette, session) doit apparaitre des la mise
     a jour, sans attendre que le catalogue ou l'historique bouge."""
@@ -209,6 +218,7 @@ async def test_analytics_recomputes_when_the_payload_shape_changed():
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("analytics_storage_stub")
 async def test_analytics_recomputes_when_playback_changed_even_if_catalog_did_not():
     """L'historique de lecture alimente aussi la charge utile : une bibliothèque
     inchangée ne suffit pas à conclure que l'instantané est encore juste."""
@@ -232,6 +242,7 @@ async def test_analytics_recomputes_when_playback_changed_even_if_catalog_did_no
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("analytics_storage_stub")
 async def test_analytics_recomputes_when_the_probe_is_unavailable():
     """Une sonde en échec ne doit jamais figer l'instantané."""
     snapshot = MagicMock()

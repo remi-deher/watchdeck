@@ -51,11 +51,12 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { queryKeys } from '@/queryKeys';
 import { api } from '@/api';
+import { useScopedRequests } from '@/composables/useScopedRequests';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import SheetPage from '@/components/layout/SheetPage.vue';
 import DetailTemplate from '@/components/templates/DetailTemplate.vue';
@@ -69,6 +70,7 @@ import { useToast } from '@/composables/useToast';
 import { accountName } from '@/utils/userLabels';
 
 const route = useRoute(), router = useRouter();
+const { read: readDetail } = useScopedRequests();
 const queryClient = useQueryClient();
 const { actif: enSurface, fermer } = useMediaOverlay();
 const { addToast } = useToast();
@@ -111,10 +113,14 @@ function notify(message) { addToast({ type: 'success', title: 'Administration', 
 /** Relit la liste de la page de fond apres une action. */
 async function refreshList() { actionError.value = ''; await queryClient.invalidateQueries({ queryKey: queryKeys.users.all }); }
 
+let userController = null;
+onUnmounted(() => userController?.abort());
 async function loadUser() {
+  userController?.abort();
+  const controller = userController = new AbortController();
   editorError.value = ''; loadError.value = '';
-  try { editing.value = await api(`/api/users/${userId.value}`); fillForm(editing.value); }
-  catch (e) { loadError.value = e.message || 'Cet utilisateur est introuvable.'; }
+  try { const data = await api(`/api/users/${userId.value}`, { signal: controller.signal }); if (!controller.signal.aborted) { editing.value = data; fillForm(data); } }
+  catch (e) { if (!controller.signal.aborted) loadError.value = e.message || 'Cet utilisateur est introuvable.'; }
 }
 watch(() => route.path, () => { tab.value = 'profile'; void loadUser(); editorRef.value?.resetTab(); }, { immediate: true });
 
@@ -176,7 +182,7 @@ async function linkSeer(seerUserId) {
    choisir par nom evite de le faire saisir a la main. */
 async function loadSeerCandidates() {
   if (!seerEnabled.value) { seerCandidates.value = []; return; }
-  try { seerCandidates.value = (await api('/api/seer/users')).seer_users || []; }
+  try { seerCandidates.value = (await readDetail('/api/seer/users')).seer_users || []; }
   catch { seerCandidates.value = []; }
 }
 async function testEmail() { const data = await api(`/api/users/${editing.value.id}/test-email`, { method: 'POST' }); notify(`Email envoyé à ${data.recipient}`); }
@@ -245,7 +251,7 @@ function onAction(key) {
 /* L'etat de Seer conditionne l'affichage de ses actions. */
 async function loadSeerState() {
   try {
-    const settings = await api('/api/settings');
+    const settings = await readDetail('/api/settings');
     seerEnabled.value = Boolean(settings.seer_enabled);
     seerMode.value = settings.seer_mode || null;
     await loadSeerCandidates();

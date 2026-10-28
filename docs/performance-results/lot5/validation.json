@@ -1,0 +1,56 @@
+{
+  "date": "2026-10-28",
+  "baseline_commit": "69e2ded999efca2fb7a96fd6a293f64730c3cba4",
+  "frontend_full": {
+    "files": 232,
+    "passed": 1365
+  },
+  "final_network_checks": {
+    "files": 5,
+    "passed": 23
+  },
+  "final_browser_and_isolation_checks": {
+    "files": 6,
+    "passed": 49
+  },
+  "typecheck": "passed",
+  "production_build": "passed",
+  "browser_offline": "first-visit and subsequent controlled navigation passed; see history-offline.json",
+  "browser_navigation": "36 filters; inactive and persistent budgets passed; see cache-navigation.json",
+  "source_sha256": {
+    "frontend/src/api.ts": "c549c8ee64a4fd38e8c2802a39f52084fd92d81bfac7f0b39c0b0d36838cce4d",
+    "frontend/src/cache.ts": "4a7c98334185b9bc3a53574106cf26a7db716eef71b942dfe4d696eeac172b6d",
+    "frontend/src/composables/useCalendar.ts": "4bb144b20301bfc13e1b5c81b35ed2fca392570a1be4fb4ab2cd892e254903fd",
+    "frontend/src/composables/useDashboard.ts": "e5db75ba4b872e016fec95561cd62ee161144c7b404f6cb40b032f80b4daf315",
+    "frontend/src/composables/useMediaDetail.ts": "7dfeea5a96cdbd34e2e3acbd47d8d918be81a18c59f082a358efaf130467dfc0",
+    "frontend/src/composables/useRealtimeQuery.spec.js": "af3f4cdbac91f2bd684f1df7ae5438b4b2104892bd2c9a7f74ab4c66a416c36b",
+    "frontend/src/composables/useRealtimeQuery.ts": "3483cdf6cff99cc37b50fde6d45af4ded9ea69403b89dac9fe64fd8f60385d92",
+    "frontend/src/composables/useScopedRequests.spec.ts": "b3b3607ba02d00bcfcf30f3624000c6a104995b795ce0b1c38d1078dc139c9d0",
+    "frontend/src/composables/useScopedRequests.ts": "c4b03520755da149efdf210a339012efbb9aab3b721cb9159e78fcff031eae06",
+    "frontend/src/composables/useSeasonEpisodes.ts": "dbbdc6e623d2a3ee69461789d1777e4a884f0780e5631bd5e695181864d2aadb",
+    "frontend/src/composables/useSession.spec.js": "a696169297fc323e5019464604eee9c8b93a37c3c9ae3177c3864e66f7fe1039",
+    "frontend/src/composables/useSession.ts": "daea48369ab43bb07b4364ee9923d4af6f16af9e310ce4df07b090fcdd8dce97",
+    "frontend/src/composables/useTorrentInspection.ts": "8d3d6533ac0fbb9675b333f0faf2727d89abcc0add50e88336f9f4cf0b6fb5d9",
+    "frontend/src/composables/useTorrentMetadata.ts": "61d9ab523705d7e33b9c5a46d39a0488300d0044d5fc639af4226c43226819f2",
+    "frontend/src/events.spec.js": "f28c66cfb2c6033c560208288d1db551b192e2ee6b4d8fe31a449141c8ba845f",
+    "frontend/src/events.ts": "66fcdc444ad8beece9a1b52b7ab160f602a267ebd8587580a73d27bee7a5a32e",
+    "frontend/src/offline/isolation.spec.ts": "7d5f05bf225ef769320a4b6e9443115230d29d6c953a55368a5704042209a5e6",
+    "frontend/src/offline/serviceWorker.spec.js": "3e05e2b34903e19c1153d526a69e462db9e10d4c185a16e0ee6077b19ddc7739",
+    "frontend/src/offline/stockage.ts": "faf8c840c0e6a8cd90a781689649285e05c1eb92577faadf9b80ddf7fd552539",
+    "frontend/src/performancePolicies.spec.ts": "4437fbd4d564bfd2405bd568150bd97d75ef9547e3ca4ba5f5fa5b228591fdbc",
+    "frontend/src/pwa.ts": "fd647994cdd2729c7e779484c45f24a68f82db109455df206f6b2a191ae21c04",
+    "frontend/src/queryBudgets.ts": "4609e2c0a374611d2a2f2642e3284cc18d698248b0141346c1d4b3e5e226669d",
+    "frontend/src/queryClient.ts": "e8c9722e126a634c16f98406023d620e269f173139cbe4ade0eb1df4ebf632eb",
+    "frontend/src/realtimeInvalidation.ts": "33ddb54e9fa2fb6d9035b699a36fca0fb391f853dc488fda63c09b0d229dd41c",
+    "frontend/src/sessionCache.ts": "16a121ae91bc037c36252ca44f70279ca271ebde70482a86ec5a24831731ffb8",
+    "frontend/src/views/CalendarView.spec.js": "43aea456d23f87ce3c4c2687b91f50693ab97c41787a1f9154a91b68ff63ef91",
+    "frontend/src/views/UserDetailView.vue": "3cf3b2f58dd47506db3e4ef7d66c3840816ba61ffd400f14b7aacfdf9c4a6aa6",
+    "public/sw.js": "c817fb7512a18cafca0f948dc5f3da8038bc18444a5f16ca562814e325485042",
+    "scripts/performance/cache_navigation.mjs": "640cfe0625ea656559a57fd8a6a3cbc8d2fb39ada483adc4409fe35a943fdd86",
+    "scripts/performance/offline.mjs": "339eca0cca472bdb121d9ecec45f21e354b1801554892c259673da55bfb0da51"
+  },
+  "final_persistence_checks": {
+    "files": 3,
+    "passed": 18
+  }
+}

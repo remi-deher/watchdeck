@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, ForeignKey, Index, Text, UniqueConstraint, desc, text
+from sqlalchemy import DDL, Boolean, ForeignKey, Index, Text, UniqueConstraint, desc, event, text
 from sqlalchemy.orm import Mapped, mapped_column, validates
 
 from ..utils import now_utc_naive
@@ -192,6 +192,10 @@ class LibraryItem(Base):
 
     __tablename__ = "library_items"
     __table_args__ = (
+        Index("ix_library_title_trgm", "title", postgresql_using="gin", postgresql_ops={"title": "gin_trgm_ops"}),
+        Index("ix_library_title_id", "title", "id"),
+        Index("ix_library_added_seek", desc("added_at").nulls_last(), "title", "id"),
+        Index("ix_library_year_seek", desc("year").nulls_last(), "title", "id"),
         Index("ix_library_items_added_id", desc("added_at"), "title", "id"),
         Index("ix_library_items_type_added", "media_type", desc("added_at"), "title", "id"),
         Index("ix_library_items_type_title", "media_type", "title", "id"),
@@ -546,3 +550,8 @@ class MediaIssue(Base):
     tvdb_id: Mapped[Optional[str]] = mapped_column(default=None)
     imdb_id: Mapped[Optional[str]] = mapped_column(default=None)
     admin_note: Mapped[Optional[str]] = mapped_column(Text, default=None)
+
+
+# pg_trgm is a trusted PostgreSQL extension. The migration installs it too;
+# metadata-created test databases must build the same search index.
+event.listen(LibraryItem.__table__, "before_create", DDL("CREATE EXTENSION IF NOT EXISTS pg_trgm"))

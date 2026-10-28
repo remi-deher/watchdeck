@@ -1,0 +1,111 @@
+{
+  "scope": "36 distinct library filters in one authenticated SPA, real QueryClient and IndexedDB",
+  "samples": [
+    {
+      "queries": 31,
+      "protectedQueries": 14,
+      "inactiveRoots": {
+        "search-results": 2,
+        "library": 15
+      },
+      "roots": {
+        "health": 1,
+        "settings": 2,
+        "admin": 1,
+        "search-results": 4,
+        "library": 23
+      },
+      "dataBytes": 1116879,
+      "sessionSnapshots": 0
+    },
+    {
+      "queries": 38,
+      "protectedQueries": 14,
+      "inactiveRoots": {
+        "search-results": 4,
+        "library": 20
+      },
+      "roots": {
+        "health": 1,
+        "settings": 2,
+        "admin": 1,
+        "search-results": 6,
+        "library": 28
+      },
+      "dataBytes": 1622950,
+      "sessionSnapshots": 0
+    },
+    {
+      "queries": 38,
+      "protectedQueries": 14,
+      "inactiveRoots": {
+        "search-results": 4,
+        "library": 20
+      },
+      "roots": {
+        "health": 1,
+        "settings": 2,
+        "admin": 1,
+        "search-results": 6,
+        "library": 28
+      },
+      "dataBytes": 1624282,
+      "sessionSnapshots": 0
+    },
+    {
+      "queries": 38,
+      "protectedQueries": 14,
+      "inactiveRoots": {
+        "search-results": 4,
+        "library": 20
+      },
+      "roots": {
+        "health": 1,
+        "settings": 2,
+        "admin": 1,
+        "search-results": 6,
+        "library": 28
+      },
+      "dataBytes": 1624942,
+      "sessionSnapshots": 0
+    },
+    {
+      "queries": 38,
+      "protectedQueries": 14,
+      "inactiveRoots": {
+        "search-results": 4,
+        "library": 20
+      },
+      "roots": {
+        "health": 1,
+        "settings": 2,
+        "admin": 1,
+        "search-results": 6,
+        "library": 28
+      },
+      "dataBytes": 1624942,
+      "sessionSnapshots": 0
+    },
+    {
+      "queries": 38,
+      "protectedQueries": 14,
+      "inactiveRoots": {
+        "search-results": 4,
+        "library": 20
+      },
+      "roots": {
+        "health": 1,
+        "settings": 2,
+        "admin": 1,
+        "search-results": 6,
+        "library": 28
+      },
+      "dataBytes": 1726589,
+      "sessionSnapshots": 0
+    }
+  ],
+  "persisted": {
+    "bytes": 738454,
+    "queries": 12
+  }
+}

@@ -18,7 +18,6 @@ import { canModerateSession, loadSession } from "@/composables/useSession";
 import { useSeasonEpisodes } from "@/composables/useSeasonEpisodes";
 import { useRequestActions } from "@/composables/useRequestActions";
 import { useDirectMediaRequest } from "@/composables/useDirectMediaRequest";
-import { patchedAll } from '@/composables/useRealtimeQuery';
 
 /* Tout ce que sait la fiche d'un media : ses requetes, ses actions (demande, correction, incident,
    import) et l'etat des fenetres. La page assemble les onglets. */
@@ -49,13 +48,8 @@ export function useMediaDetail() {
     confirmOptions: confirmRecOptions,
     cancelOptions: cancelRecOptions,
   } = useDirectMediaRequest({
-    onUpdated: (changed: any, update: any) => {
-      const change = { ...changed, ...update };
-      queryClient.setQueryData<any>(mediaQueryKey.value, (current: any) => current && ({
-        ...current,
-        recommendations: patchedAll(current.recommendations || [], change, ['tmdb_id', 'id']).list,
-        similar: patchedAll(current.similar || [], change, ['tmdb_id', 'id']).list,
-      }));
+    onUpdated: () => {
+      void queryClient.invalidateQueries({ queryKey: mediaQueryKey.value });
     },
   });
 
@@ -203,11 +197,11 @@ export function useMediaDetail() {
 
   const mediaQuery = useQuery({
     queryKey: mediaQueryKey,
-    queryFn: async ({ queryKey }) => {
+    queryFn: async ({ queryKey, signal }) => {
       const [, routeKind] = queryKey;
       const path = mediaPathFor(queryKey);
-      if (routeKind === 'discover') return api(path);
-      const payload = await api<MediaDetailResponse>(path);
+      if (routeKind === 'discover') return api(path, { signal });
+      const payload = await api<MediaDetailResponse>(path, { signal });
       return { ...payload.media, ...payload };
     },
     staleTime: 60_000,
@@ -241,12 +235,12 @@ export function useMediaDetail() {
 
   const usersQuery = useQuery({
     queryKey: queryKeys.users.list,
-    queryFn: () => api<any[]>('/api/users'),
+    queryFn: ({ signal }) => api<any[]>('/api/users', { signal }),
     enabled: computed(() => showCorrectionForm.value || tab.value === 'requests'),
   });
   const correctionOptionsQuery = useQuery({
     queryKey: ['media', 'corrections', 'options'],
-    queryFn: () => api<any[]>('/api/media/corrections/options'),
+    queryFn: ({ signal }) => api<any[]>('/api/media/corrections/options', { signal }),
     enabled: showCorrectionForm,
     staleTime: 5 * 60_000,
   });
@@ -256,14 +250,14 @@ export function useMediaDetail() {
   const requestOptionsEnabled = computed(() => showRequestOptions.value && admin.value && kind.value === 'discover');
   const requestersQuery = useQuery({
     queryKey: ['discover', 'requesters'],
-    queryFn: () => api<any[]>('/api/discover/requesters'),
+    queryFn: ({ signal }) => api<any[]>('/api/discover/requesters', { signal }),
     enabled: requestOptionsEnabled,
     staleTime: 60_000,
   });
   const requestService = computed(() => detail.value?.media_type === 'show' ? 'sonarr' : 'radarr');
   const foldersQuery = useQuery({
     queryKey: computed(() => ['discover', requestService.value, 'folders']),
-    queryFn: () => api<any[]>(`/api/${requestService.value}/folders`).catch(() => []),
+    queryFn: ({ signal }) => api<any[]>(`/api/${requestService.value}/folders`, { signal }),
     enabled: requestOptionsEnabled,
     staleTime: 60_000,
   });

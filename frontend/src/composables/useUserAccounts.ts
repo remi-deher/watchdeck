@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue';
-import { useQuery, useQueryClient } from '@tanstack/vue-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { api } from '@/api';
 import { queryKeys } from '@/queryKeys';
 import { humanizeError } from '@/utils/apiError';
@@ -22,15 +22,38 @@ export function useUserAccounts() {
   const queryClient = useQueryClient();
   const { addToast } = useToast();
 
-  const usersQuery = useQuery({
-    queryKey: queryKeys.users.list,
-    queryFn: ({ signal }) => api<AppUser[]>('/api/users', { signal }),
-    select: (data) => (Array.isArray(data) ? data : NO_USERS),
+  const query = ref('');
+  const status = ref('');
+  const role = ref('');
+  const attention = ref('');
+  const source = ref('');
+  /* Les filtres du panneau (statut, rôle, origine) comptent sur le bouton ; la recherche et
+     la situation sont visibles à côté, elles ne s'y ajoutent pas. */
+  const { activeCount: filterCount, reset } = useFiltersDrawer(
+    { query, status, role, attention, source },
+    { query: '', status: '', role: '', attention: '', source: '' },
+    { memoriser: 'utilisateurs', activeCountFn: () => [status, role, source].filter((filter) => filter.value).length },
+  );
+
+  const tableSort = ref<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  const params = computed(() => new URLSearchParams({ query: query.value, status: status.value, role: role.value, source: source.value, attention: attention.value, sort: tableSort.value?.key || 'person', direction: tableSort.value?.direction || 'asc' }));
+  const usersQuery = useInfiniteQuery({
+    queryKey: computed(() => [...queryKeys.users.list, params.value.toString()]),
+    queryFn: ({ pageParam, signal }) => api<any>(`/api/users/page?${params.value}&limit=100&offset=${pageParam}`, { signal }),
+    initialPageParam: 0,
+    getNextPageParam: (last: any) => !Array.isArray(last) && last.has_more ? last.offset + last.items.length : undefined,
     staleTime: 30_000,
   });
-  const users = computed(() => usersQuery.data.value || NO_USERS);
+  const metadata = computed(() => { const page = usersQuery.data.value?.pages[0]; return Array.isArray(page) ? null : page; });
+  const users = computed<AppUser[]>(() => usersQuery.data.value?.pages.flatMap((page: any) => Array.isArray(page) ? page : page.items || []) || NO_USERS);
+  const serverSort = computed(() => Boolean(metadata.value));
+  const total = computed(() => metadata.value?.all_total ?? users.value.length);
+  const matchingTotal = computed(() => metadata.value?.total ?? filtered.value.length);
+  const hasMore = computed(() => Boolean(usersQuery.hasNextPage.value));
+  const loadingMore = computed(() => usersQuery.isFetchingNextPage.value);
+  const loadMore = () => usersQuery.fetchNextPage();
   const pending = computed(() => usersQuery.isPending.value);
-  const loading = computed(() => usersQuery.isFetching.value);
+  const loading = computed(() => usersQuery.isFetching.value && !loadingMore.value);
   const error = computed(() => (usersQuery.error.value ? humanizeError(usersQuery.error.value) : ''));
 
   /* L'état de Seer conditionne ses actions. Lu une fois : la page est réservée aux
@@ -49,25 +72,13 @@ export function useUserAccounts() {
     ? 'Seer traite aussi les demandes : la synchronisation est bidirectionnelle.'
     : 'Seer est en mode observateur : ses comptes sont relus, rien ne lui est envoyé.'));
 
-  const query = ref('');
-  const status = ref('');
-  const role = ref('');
-  const attention = ref('');
-  const source = ref('');
-  /* Les filtres du panneau (statut, rôle, origine) comptent sur le bouton ; la recherche et
-     la situation sont visibles à côté, elles ne s'y ajoutent pas. */
-  const { activeCount: filterCount, reset } = useFiltersDrawer(
-    { query, status, role, attention, source },
-    { query: '', status: '', role: '', attention: '', source: '' },
-    { memoriser: 'utilisateurs', activeCountFn: () => [status, role, source].filter((filter) => filter.value).length },
-  );
 
-  const sources = computed(() => [...new Set(users.value.map((user) => user.source).filter(Boolean))] as string[]);
+  const sources = computed(() => (metadata.value?.sources || [...new Set(users.value.map((user) => user.source).filter(Boolean))]) as string[]);
   const sourceOptions = computed(() => sources.value.map((value) => ({ value, label: sourceLabel(value) })));
 
   /* Les compteurs et les lignes viennent de la même règle (`userSituations`) : la puce ne peut
      pas annoncer un nombre que le tableau ne montre pas. */
-  const counts = computed(() => situationCounts(users.value));
+  const counts = computed(() => metadata.value?.situations || situationCounts(users.value));
   const situations = computed(() => [
     { value: 'pending', label: 'Approbations', count: counts.value.pending },
     { value: 'missing_email', label: 'Sans email', count: counts.value.missing_email },
@@ -77,6 +88,7 @@ export function useUserAccounts() {
   /* Le pseudo du service d'origine (`display_name`) était exclu de la recherche dès qu'un nom
      personnalisé existait : chercher « GachaBlock » ne trouvait pas Romain. */
   const filtered = computed(() => {
+    if (metadata.value) return users.value;
     const needle = query.value.toLowerCase();
     return users.value
       .filter((user) =>
@@ -129,7 +141,7 @@ export function useUserAccounts() {
   }
 
   return {
-    users, filtered, pending, loading, error, reload,
+    users, filtered, total, matchingTotal, hasMore, loadingMore, loadMore, tableSort, serverSort, pending, loading, error, reload,
     query, status, role, attention, source, sourceOptions, situations, filterCount, reset,
     busy, run,
     seerEnabled, seerLabel, seerHint,

@@ -10,8 +10,8 @@
     tabs-label="Vues des clients"
     v-model:query="query"
     :search="isTorrents ? { placeholder: 'Filtrer les torrents (ex: cat:radarr is:downloading)…', scope: 'Acquisition', kind: 'filter' } : null"
-    :match-count="isTorrents ? rows.length : null"
-    :total-count="isTorrents ? scoped.length : null"
+    :match-count="isTorrents ? matchingTotal : null"
+    :total-count="isTorrents ? total : null"
     :filter-count="isTorrents ? filterCount : 0"
     :state="state"
     :error="error"
@@ -48,6 +48,9 @@
       class="torrent-table"
       label="Tableau des torrents"
       :rows="rows"
+      :has-more="hasMore"
+      :loading-more="loadingMore"
+      @load-more="loadMore"
       :columns="TORRENT_COLUMNS"
       :row-key="torrentKey"
       :row-label="(row: any) => row.title"
@@ -58,7 +61,9 @@
       :row-actions="rowActions"
       :inline-actions="0"
       :notices="notices"
-      :initial-sort="{ key: 'title', direction: 'asc' }"
+      :initial-sort="tableSort || { key: 'title', direction: 'asc' }"
+      :manual-sort="serverSort"
+      @update:sort="tableSort = $event"
       :columns-key="`watchdeck:torrent-table-columns:${scope}`"
       :default-visible="TORRENT_DEFAULT_COLUMNS"
       :density="compact ? 'compact' : 'comfortable'"
@@ -157,7 +162,7 @@ import { TORRENT_BULK_ACTIONS, TORRENT_COLUMNS, TORRENT_DEFAULT_COLUMNS, torrent
 const route = useRoute();
 const {
   clientId, clientName, selectClient, configured, enabledClients, configurationLoading,
-  torrents, rows, scoped, pending, error, reload,
+  torrents, rows, total, matchingTotal, hasMore, loadingMore, loadMore, tableSort, serverSort, pending, error, reload,
   query, status, category, tracker, ownership, reset, filterCount, facets, asArray,
   stale, clientErrors, compact, incognito, isBusy, metaTargets, saveMeta, run, openDetails,
 } = useTorrentClients();

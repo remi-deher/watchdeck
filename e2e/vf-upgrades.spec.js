@@ -40,6 +40,8 @@ const AUDIT_ITEMS = [
 ];
 
 async function mockApi(page, calls) {
+  // La police externe ne fait pas partie de ce parcours fonctionnel simule.
+  await page.route("https://fonts.googleapis.com/**", route => route.fulfill({ contentType: "text/css", body: "" }));
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());

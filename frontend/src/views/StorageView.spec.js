@@ -93,7 +93,7 @@ describe('Stockage et transferts', () => {
     data.locations = [locationRow];
     await factory();
     await press('Nouveau transfert');
-    expect(document.querySelector('.create-modal')).not.toBeNull();
+    expect(document.querySelector('.modal-panel')).not.toBeNull();
     expect(body().textContent).toContain('Libérer une quantité d’espace');
     expect(request.mock.calls.some(([path]) => path === '/api/storage/preview')).toBe(false);
   });
@@ -101,7 +101,7 @@ describe('Stockage et transferts', () => {
   it('ouvre « Ajouter un stockage » et charge les dossiers découverts à l’étape des dossiers', async () => {
     await factory('settings');
     await press('Ajouter un stockage');
-    expect(document.querySelector('.create-modal')).not.toBeNull();
+    expect(document.querySelector('.modal-panel')).not.toBeNull();
     expect(body().textContent).toContain('Nom');
   });
 
@@ -143,7 +143,7 @@ describe('Stockage et transferts', () => {
     expect(body().textContent).toContain('Tâche enregistrée, aucun transfert lancé');
     expect(has('Reprendre')).toBe(false);
     await press('Modifier');
-    expect(document.querySelector('.create-modal')).not.toBeNull();
+    expect(document.querySelector('.modal-panel')).not.toBeNull();
     expect(request.mock.calls.some(([path]) => path === '/api/storage/preview')).toBe(false);
   });
 
@@ -203,6 +203,6 @@ describe('Stockage et transferts', () => {
     expect(preview).toBeDefined();
     expect(JSON.parse(preview[1].body)).toMatchObject({ task_id: 17, name: 'Nommée' });
     expect(request.mock.calls.some(([path, opts]) => path === '/api/storage/transfers' && opts?.method === 'POST')).toBe(false);
-    expect(document.querySelector('.create-modal')).not.toBeNull();
+    expect(document.querySelector('.modal-panel')).not.toBeNull();
   });
 });

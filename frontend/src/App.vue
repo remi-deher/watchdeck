@@ -4,11 +4,9 @@
   <template v-else>
   <AppShell :is-admin="isAdmin" :can-moderate="canModerate">
     <RouteErrorBoundary>
-      <!-- Quand la fiche d'un media s'ouvre depuis une grille, c'est la page de depart
-           qui reste rendue ici : la grille ne disparait pas, elle passe dessous. La
-           fiche, elle, est posee par-dessus (voir `MediaOverlay`). Sans adresse de
-           depart -- lien colle, favori, actualisation -- `routeDeFond` vaut `null` et
-           la fiche s'affiche en pleine page, comme n'importe quelle autre. -->
+      <!-- La page de depart reste rendue ici sous la fiche. Pour un lien direct, Explorer
+           sert de fond par defaut : une fiche media garde ainsi le meme affichage en
+           feuille, qu'elle vienne d'une grille ou d'une URL partagee. -->
       <RouterView v-slot="{ Component }" :route="routeDeFond ?? undefined">
         <!-- Vue Router reutilise naturellement une vue quand plusieurs chemins pointent
              vers le meme composant. Ne pas la clef-er par chemin permet notamment a
@@ -36,7 +34,7 @@
          l'animation devait commencer.
          La surface rend la vue de la route, quelle qu'elle soit : fiche media, session de
          lecture, torrent, utilisateur... Toute route ouverte avec une page de depart
-         (voir `ouvrirFiche`) s'y pose ; ouverte directement, elle s'affiche en pleine page. -->
+         (voir `ouvrirFiche`) s'y pose ; les fiches media directes utilisent Explorer. -->
     <RouteScope v-if="ficheAffichee" :route="ficheAffichee.route">
       <RouterView v-slot="{ Component }" :route="ficheAffichee.route">
         <component :is="Component" :key="ficheAffichee.cle" />

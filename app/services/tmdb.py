@@ -22,6 +22,7 @@ from sqlalchemy.future import select
 
 from ..models import SearchCache, Settings
 from ..utils import now_utc_naive
+from .http_pool import shared_http_client
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +166,7 @@ async def check_connection(db: AsyncSession, api_key: Optional[str] = None) -> t
         except TmdbNotConfigured:
             return False, "Clé API TMDB non configurée"
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with shared_http_client(timeout=10) as client:
             resp = await client.get(f"{API_BASE}/configuration", params={"api_key": key})
         if resp.status_code == 200:
             return True, "Clé TMDB valide"
@@ -185,7 +186,7 @@ async def _get(db: AsyncSession, path: str, params: Optional[dict] = None, *, ca
         cached = await _cache_get(db, cache_key)
         if cached is not None:
             return cached
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with shared_http_client(timeout=15) as client:
         resp = await client.get(f"{API_BASE}{path}", params=params)
         resp.raise_for_status()
         data = resp.json()

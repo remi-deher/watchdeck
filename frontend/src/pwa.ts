@@ -7,6 +7,11 @@ export function registerServiceWorker(): void {
       navigator.serviceWorker
         .register('/sw.js', { scope: '/' })
         .then((registration) => {
+          void navigator.serviceWorker.ready.then((ready) => {
+            if (!['/login', '/setup', '/privacy'].includes(window.location.pathname)) {
+              ready.active?.postMessage({ type: 'WATCHDECK_CACHE_SHELL', url: window.location.href });
+            }
+          });
           registration.addEventListener('updatefound', () => {
             const installingWorker = registration.installing;
             if (installingWorker) {

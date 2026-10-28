@@ -1,0 +1,62 @@
+[
+  {
+    "mobile": false,
+    "fixtureRows": 2000,
+    "readyMs": 2571.166784,
+    "initialRendered": 17,
+    "renderedDuringScroll": [
+      17,
+      28,
+      28,
+      28,
+      28,
+      19,
+      17
+    ],
+    "first": "10000",
+    "endFocus": "1999",
+    "homeFocus": "0",
+    "pinnedFocus": "1999",
+    "tabFocus": "1",
+    "backTabFocus": "0",
+    "selected": "2000 utilisateurs sélectionnés",
+    "layout": {
+      "width": 1440,
+      "bodyWidth": 1440,
+      "tableWidth": 1312,
+      "cellDisplay": "table-cell",
+      "domNodes": 825
+    },
+    "errors": []
+  },
+  {
+    "mobile": true,
+    "fixtureRows": 2000,
+    "readyMs": 2156.8929849999995,
+    "initialRendered": 9,
+    "renderedDuringScroll": [
+      9,
+      17,
+      17,
+      17,
+      17,
+      9,
+      9
+    ],
+    "first": "10000",
+    "endFocus": "1999",
+    "homeFocus": "0",
+    "pinnedFocus": "1999",
+    "tabFocus": "1",
+    "backTabFocus": "0",
+    "selected": "2000 utilisateurs sélectionnés",
+    "layout": {
+      "width": 390,
+      "bodyWidth": 390,
+      "tableWidth": 362,
+      "cellDisplay": "flex",
+      "domNodes": 491
+    },
+    "errors": []
+  }
+]
