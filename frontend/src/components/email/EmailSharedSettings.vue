@@ -57,3 +57,11 @@ withDefaults(
   }
 );
 </script>
+
+<style lang="scss">
+.template-settings > .collapsible-trigger {
+  padding: 14px 0;
+  font-weight: 700;
+  cursor: pointer;
+}
+</style>

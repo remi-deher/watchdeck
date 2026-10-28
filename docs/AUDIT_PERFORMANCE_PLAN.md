@@ -2,7 +2,7 @@
 
 Date : 28 octobre 2026. Statut : lots 0 à 5 terminés et vérifiés en laboratoire ; lots 6 et 7 restants.
 
-Point d’avancement : [rapport du lot 5 et lots restants](performance-results/LOT5_MEASUREMENTS.md).
+Point d’avancement : [rapport du lot 6 et lot restant](performance-results/LOT6_MEASUREMENTS.md).
 
 Résultats et limites : [campagne mesurée du lot 0](performance-results/LOT0_MEASUREMENTS.md) et [mesures initiales des lots 0 et 1](performance-results/README.md).
 
@@ -286,15 +286,15 @@ la reprise hors ligne et le changement de compte fonctionnent toujours.
 
 ### Lot 6 — Alléger les ressources et les grandes listes
 
-- [ ] Comparer plusieurs découpages des icônes sur les routes de connexion,
+- [x] Comparer plusieurs découpages des icônes sur les routes de connexion,
   dashboard, bibliothèque et découverte. Évaluer poids, nombre de requêtes et
   dépendances initiales, pas seulement le nombre de fichiers.
-- [ ] Déplacer les styles spécifiques progressivement ; conserver l'ordre de
+- [x] Déplacer les styles spécifiques progressivement ; conserver l'ordre de
   cascade, les thèmes et les styles communs nécessaires au premier rendu.
-- [ ] Ajouter la virtualisation aux composants communs de liste/tableau. Préserver
+- [x] Ajouter la virtualisation aux composants communs de liste/tableau. Préserver
   sélection, tri, focus clavier, lignes développées, affichage mobile et chargement
   progressif. Respecter les gabarits décrits dans `AGENTS.md`.
-- [ ] Réduire la fréquence de nettoyage du cache d'affiches du service worker et
+- [x] Réduire la fréquence de nettoyage du cache d'affiches du service worker et
   éviter les copies cumulatives de l'ensemble des cartes déjà vues.
 
 Acceptation : le nombre de nœuds rendus reste borné après un long défilement ; les

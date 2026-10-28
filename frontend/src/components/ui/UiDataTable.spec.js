@@ -102,3 +102,47 @@ describe('UiDataTable', () => {
   });
 });
 
+
+describe('UiDataTable large collections', () => {
+  const many = Array.from({ length: 2000 }, (_, i) => ({ id: `row-${i}`, title: `Film ${String(i).padStart(4, '0')}`, size: i }));
+  it('bounds rendered rows, keeps total and selection across unmounted rows', async () => {
+    const w = monter({ rows: many, selectable: true });
+    await nextTick();
+    expect(w.findAll('tbody[data-row-key]').length).toBeLessThan(50);
+    expect(w.find('table').attributes('aria-rowcount')).toBe('2001');
+    await w.find('thead [role="checkbox"]').trigger('click');
+    expect(w.emitted('update:selection').at(-1)[0]).toHaveLength(2000);
+    await w.find('thead th:nth-child(2) button').trigger('click');
+    await w.find('thead th:nth-child(2) button').trigger('click');
+    expect(w.find('tbody[data-row-key]').attributes('data-row-key')).toBe('row-1999');
+    w.unmount();
+  });
+  it('preserves an explicit opt-out and uncontrolled expanded content', async () => {
+    const w = monter({ rows: many.slice(0, 160), virtualize: false });
+    expect(w.findAll('tbody[data-row-key]')).toHaveLength(160);
+    w.unmount();
+    const expanded = monter({ rows: many.slice(0, 160) }, { 'row-after': () => h('div', 'Detail') });
+    expect(expanded.findAll('tbody[data-row-key]')).toHaveLength(160);
+    expanded.unmount();
+  });
+  it('crosses the progressive loading threshold without changing selection', async () => {
+    const w = monter({ rows: many.slice(0, 100), selectable: true, selection: ['row-0'] });
+    expect(w.findAll('tbody[data-row-key]')).toHaveLength(100);
+    await w.setProps({ rows: many.slice(0, 300) });
+    await nextTick();
+    expect(w.findAll('tbody[data-row-key]').length).toBeLessThan(50);
+    expect(w.find('tbody[data-row-key="row-0"] tr').classes()).toContain('is-selected');
+    w.unmount();
+  });
+});
+
+it('keeps controlled expanded content inside its virtual row group', async () => {
+  const w = monter({ rows: Array.from({ length: 300 }, (_, i) => ({ id: i, title: `Film ${i}` })), rowExpanded: row => row.id === 0 }, {
+    'row-after': ({ row }) => row.id === 0 ? h('section', 'Details ouverts') : null,
+  });
+  await nextTick();
+  expect(w.findAll('tbody[data-row-key]').length).toBeLessThan(50);
+  expect(w.find('tbody[data-row-key="0"] tr').attributes('aria-expanded')).toBe('true');
+  expect(w.find('tbody[data-row-key="0"] .ui-data-table__row-after').text()).toBe('Details ouverts');
+  w.unmount();
+});

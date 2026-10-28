@@ -26,6 +26,7 @@ export default defineConfig(({ command }) => ({
   },
   build: {
     outDir: 'app/static/vue',
+    manifest: true,
     emptyOutDir: true,
     rollupOptions: {
       output: {
@@ -37,7 +38,12 @@ export default defineConfig(({ command }) => ({
             // dans un chunk propre evite de le charger sur les routes sans graphe.
             if (id.includes('/node_modules/chart.js/')) return 'charts';
             if (id.includes('/node_modules/zod/')) return 'settings-validation';
-            if (id.includes('@lucide')) return 'icons';
+            if (id.includes('@lucide')) {
+              const strategy = process.env.WATCHDECK_ICON_SPLIT || 'whole';
+              if (strategy === 'whole') return 'icons';
+              if (strategy === 'common' && /\/(icons\/(?:check|x|search|menu|loader[^/]*|chevron[^/]*|arrow[^/]*)|createLucideIcon|defaultAttributes)\.[cm]?js/.test(id)) return 'icons-common';
+              return undefined;
+            }
             if (/\/node_modules\/(vue|@vue|vue-router|pinia)\//.test(id)) return 'vendor';
             return undefined;
           }

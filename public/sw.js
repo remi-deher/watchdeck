@@ -152,8 +152,7 @@ async function servirAffiche(event, request) {
       const entetes = new Headers(reponse.headers);
       entetes.set('sw-cached-at', String(Date.now()));
       const corps = await reponse.clone().blob();
-      await cache.put(request, new Response(corps, { status: 200, headers: entetes }));
-      await elaguerAffiches(cache);
+      await conserverAffiche(cache, request, new Response(corps, { status: 200, headers: entetes })).catch(() => {});
     }
     return reponse;
   });
@@ -165,10 +164,29 @@ async function servirAffiche(event, request) {
   return rafraichir().catch(() => Response.error());
 }
 
-/* Le cache garde les AFFICHES_MAX dernieres affiches : au-dela, les plus anciennes
-   partent (l'ordre des cles est celui d'insertion). */
-async function elaguerAffiches(cache) {
-  const cles = await cache.keys();
-  const surplus = cles.length - AFFICHES_MAX;
-  for (let i = 0; i < surplus; i += 1) await cache.delete(cles[i]);
+/* Serialiser les seules ecritures (les telechargements restent paralleles). Une
+   lecture complete toutes les 32 ecritures remplace le scan apres chaque image.
+   Les Request conservees respectent Vary ; une revalidation ne compte pas double.
+   Apres une purge externe, cet index peut surestimer la taille, jamais la depasser. */
+let ecritureAffiches = Promise.resolve();
+let clesAffiches = null;
+let ecrituresDepuisScan = 0;
+function conserverAffiche(cache, request, reponse) {
+  const travail = ecritureAffiches.catch(() => {}).then(async () => {
+    if (!clesAffiches || ecrituresDepuisScan >= 32) {
+      clesAffiches = await cache.keys();
+      ecrituresDepuisScan = 0;
+      while (clesAffiches.length > AFFICHES_MAX) await cache.delete(clesAffiches.shift());
+    }
+    const existe = await cache.match(request);
+    if (!existe) {
+      // Evincer AVANT l'insertion conserve le plafond, meme pendant une rafale.
+      while (clesAffiches.length >= AFFICHES_MAX) await cache.delete(clesAffiches.shift());
+    }
+    await cache.put(request, reponse);
+    if (!existe) clesAffiches.push(request);
+    ecrituresDepuisScan += 1;
+  });
+  ecritureAffiches = travail;
+  return travail;
 }

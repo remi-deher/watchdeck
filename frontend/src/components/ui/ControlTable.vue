@@ -32,6 +32,7 @@
         :row-class="rowClass"
         :sort="initialSort"
         :manual-sort="manualSort"
+      :virtualize="virtualize"
         @update:sort="emit('update:sort', $event)"
         :resizable="resizable"
         :reorderable="reorderable"
@@ -164,6 +165,7 @@ const props = withDefaults(defineProps<{
   /** Tri de depart ; l'en-tete trie ensuite. */
   initialSort?: UiSort | null;
   manualSort?: boolean;
+  virtualize?: boolean;
   /** Cle de rangement des colonnes : l'utilisateur les ordonne, les masque et les
    *  redimensionne, et le tableau s'en souvient. Absente, les colonnes sont fixes. */
   columnsKey?: string;
@@ -179,7 +181,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   rowLabel: undefined, rowClass: undefined, loading: false, labels: () => ({}),
   bulkActions: () => [], globalActions: () => [], hasMore: false, loadingMore: false,
-  rowActions: null, inlineActions: 2, openable: false, initialSort: null, manualSort: false, columnsKey: '',
+  rowActions: null, inlineActions: 2, openable: false, initialSort: null, manualSort: false, virtualize: true, columnsKey: '',
   defaultVisible: undefined, resizable: false, reorderable: false, density: 'comfortable', contextMenu: false, batch: 0,
 });
 const emit = defineEmits<{

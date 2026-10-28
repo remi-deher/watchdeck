@@ -38,6 +38,7 @@
       :inline-actions="inlineActions"
       :initial-sort="initialSort"
       :manual-sort="manualSort"
+      :virtualize="virtualize"
       @update:sort="emit('update:sort', $event)"
       :columns-key="columnsKey"
       :default-visible="defaultVisible"
@@ -104,6 +105,7 @@ const props = withDefaults(defineProps<{
   inlineActions?: number;
   initialSort?: UiSort | null;
   manualSort?: boolean;
+  virtualize?: boolean;
   /** Colonnes personnalisables et memorisees sous cette cle (voir ControlTable). */
   columnsKey?: string;
   defaultVisible?: string[];
@@ -117,7 +119,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   rowLabel: undefined, rowClass: undefined, loading: false, labels: () => ({}),
   situations: () => [], total: undefined, bulkActions: () => [], globalActions: () => [],
-  hasMore: false, loadingMore: false, rowActions: null, openable: false, inlineActions: 2, initialSort: null, manualSort: false, columnsKey: '',
+  hasMore: false, loadingMore: false, rowActions: null, openable: false, inlineActions: 2, initialSort: null, manualSort: false, virtualize: true, columnsKey: '',
   defaultVisible: undefined, resizable: false, reorderable: false, density: 'comfortable', contextMenu: false, batch: 0, notices: () => [],
 });
 const emit = defineEmits<{
