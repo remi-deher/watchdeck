@@ -1,0 +1,21 @@
+{
+  "profile": "history",
+  "scope": "one desktop context, real service worker and IndexedDB",
+  "storage": {
+    "readMs": 1.2000000001862645,
+    "parseMs": 0.2999999998137355,
+    "bytes": 240002,
+    "queries": 5
+  },
+  "offlineCardsVisible": false,
+  "error": "page.reload: net::ERR_FAILED",
+  "reloadMs": 8.806846999999834,
+  "finalPath": "/library",
+  "cards": 0,
+  "warmOffline": {
+    "cardsVisible": true,
+    "reloadMs": 1187.9776470000006,
+    "finalPath": "/library",
+    "cards": 200
+  }
+}

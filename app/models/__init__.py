@@ -6,6 +6,7 @@ inchanges -- et pour que `Base.metadata` connaisse bien toutes les tables (Alemb
 s'appuie dessus pour l'autogeneration).
 """
 
+from .analytics import AnalyticsGeneration, AnalyticsItem, AnalyticsPlayback
 from .base import (
     Base,
     FulfillmentStatus,
@@ -17,6 +18,7 @@ from .cache import (
     SearchCache,
     TrackerFavicon,
 )
+from .collections import CalendarProjection, RequestRequester
 from .connections import (
     ArrInstance,
     DownloadClient,
@@ -77,6 +79,11 @@ from .users import (
 )
 
 __all__ = [
+    "CalendarProjection",
+    "RequestRequester",
+    "AnalyticsGeneration",
+    "AnalyticsItem",
+    "AnalyticsPlayback",
     "FileflowsProcessing",
     "AdminActionLog",
     "ArrInstance",

@@ -16,6 +16,8 @@ from ..models import (
     MediaRequest,
     NotificationLog,
     PlexUser,
+    RequestRequester,
+    RequestStatus,
     Settings,
 )
 from ..serializers import format_datetime, request_status_value, serialize_plex_user
@@ -162,20 +164,13 @@ async def _build_user_diagnostic(user: PlexUser, stats: dict, db: AsyncSession) 
     rss_configured = bool(settings and settings.plex_rss_url)
     plex_api_configured = bool(settings and settings.plex_token)
 
-    co_request_count = 0
-    for (extra_requesters,) in (
+    co_request_count = (
         await db.execute(
-            select(MediaRequest.extra_requesters).filter(
-                MediaRequest.extra_requesters.isnot(None), MediaRequest.extra_requesters != "[]"
-            )
+            select(func.count())
+            .select_from(RequestRequester)
+            .where(RequestRequester.plex_user_id == user.plex_user_id, RequestRequester.is_primary.is_(False))
         )
-    ).all():
-        try:
-            extras = json.loads(extra_requesters or "[]")
-        except Exception:
-            extras = []
-        if any(e.get("plex_user_id") == user.plex_user_id for e in extras):
-            co_request_count += 1
+    ).scalar_one()
 
     effects = [
         {
@@ -280,9 +275,9 @@ async def _request_stats(user: PlexUser, db: AsyncSession) -> dict:
     """Compteurs de demandes d'un utilisateur, par statut (fiche admin et page Profil)."""
     rows = (
         await db.execute(
-            select(MediaRequest.status, MediaRequest.requested_at).filter(
-                MediaRequest.plex_user_id == user.plex_user_id
-            )
+            select(MediaRequest.status, func.count(), func.max(MediaRequest.requested_at))
+            .where(MediaRequest.plex_user_id == user.plex_user_id)
+            .group_by(MediaRequest.status)
         )
     ).all()
     stats = {
@@ -296,13 +291,13 @@ async def _request_stats(user: PlexUser, db: AsyncSession) -> dict:
         "pending_approval": 0,
         "last_requested_at": None,
     }
-    for status, req_at in rows:
-        stats["total"] += 1
+    for status, count, req_at in rows:
+        stats["total"] += count
         s = status.value if hasattr(status, "value") else str(status)
         if s == "sent_to_arr":
-            stats["sent"] += 1
+            stats["sent"] += count
         elif s in stats:
-            stats[s] += 1
+            stats[s] += count
         if req_at and (stats["last_requested_at"] is None or req_at > stats["last_requested_at"]):
             stats["last_requested_at"] = req_at
     return stats
@@ -328,34 +323,38 @@ async def _build_user_activity(user: PlexUser, db: AsyncSession, limit: int = 12
     co_candidates = (
         (
             await db.execute(
-                select(MediaRequest).filter(
-                    MediaRequest.extra_requesters.isnot(None), MediaRequest.extra_requesters != "[]"
-                )
+                select(MediaRequest)
+                .join(RequestRequester, RequestRequester.request_id == MediaRequest.id)
+                .where(RequestRequester.plex_user_id == user.plex_user_id, RequestRequester.is_primary.is_(False))
+                .order_by(MediaRequest.requested_at.desc(), MediaRequest.id.desc())
+                .limit(limit)
             )
         )
         .scalars()
         .all()
     )
     for req in co_candidates:
-        try:
-            extras = json.loads(req.extra_requesters or "[]")
-        except Exception:
-            extras = []
-        if any(e.get("plex_user_id") == user.plex_user_id for e in extras):
-            rows.setdefault(req.id, _activity_row(req, "co_requester"))
+        rows.setdefault(req.id, _activity_row(req, "co_requester"))
 
     recent = sorted(rows.values(), key=lambda r: r.get("requested_at") or "", reverse=True)[:limit]
     return {"recent": recent, "limit": limit}
 
 
 @router.get("/users")
-async def list_users(db: AsyncSession = Depends(get_db_async)):
-    users = (await db.execute(select(PlexUser))).scalars().all()
+async def list_users(db: AsyncSession = Depends(get_db_async), limit: Optional[int] = None, offset: int = 0):
+    query = select(PlexUser).order_by(PlexUser.id)
+    if limit is not None:
+        query = query.offset(max(offset, 0)).limit(min(max(limit, 1), 200))
+    return await _users_payload(db, (await db.execute(query)).scalars().all())
+
+
+async def _users_payload(db, users):
+    selected_ids = [user.plex_user_id for user in users]
     request_rows = (
         await db.execute(
-            select(
-                MediaRequest.plex_user_id, MediaRequest.status, func.count(), func.max(MediaRequest.requested_at)
-            ).group_by(MediaRequest.plex_user_id, MediaRequest.status)
+            select(MediaRequest.plex_user_id, MediaRequest.status, func.count(), func.max(MediaRequest.requested_at))
+            .where(MediaRequest.plex_user_id.in_(selected_ids))
+            .group_by(MediaRequest.plex_user_id, MediaRequest.status)
         )
     ).all()
     stats_by_user: dict[str, dict] = {}
@@ -380,11 +379,21 @@ async def list_users(db: AsyncSession = Depends(get_db_async)):
         if last_requested_at and (stats["last_requested_at"] is None or last_requested_at > stats["last_requested_at"]):
             stats["last_requested_at"] = last_requested_at
 
+    page_emails = {
+        address.strip().lower()
+        for user in users
+        for raw in (user.notification_email, user.plex_email)
+        for address in (raw or "").split(",")
+        if address.strip()
+    }
     failed_recipients = {
         (recipient or "").strip().lower()
         for recipient in (
             await db.execute(
-                select(NotificationLog.recipient).filter(
+                select(func.lower(func.trim(NotificationLog.recipient)))
+                .distinct()
+                .filter(
+                    func.lower(func.trim(NotificationLog.recipient)).in_(page_emails),
                     NotificationLog.success.is_(False),
                     NotificationLog.sent_at >= now_utc_naive() - timedelta(days=30),
                 )
@@ -414,11 +423,150 @@ async def list_users(db: AsyncSession = Depends(get_db_async)):
             for value in (raw or "").split(",")
             if value.strip()
         }
-        data["has_notification_error"] = any(
-            (recipient or "").strip().lower() in emails for recipient in failed_recipients
-        )
+        data["has_notification_error"] = bool(emails & failed_recipients)
         payload.append(data)
     return payload
+
+
+def _user_situations_sql():
+    from sqlalchemy import any_, exists
+
+    pending = exists(
+        select(MediaRequest.id).where(
+            MediaRequest.plex_user_id == PlexUser.plex_user_id, MediaRequest.status == RequestStatus.pending_approval
+        )
+    )
+    missing = (
+        (func.coalesce(PlexUser.notification_email, "") == "")
+        & (func.coalesce(PlexUser.plex_email, "") == "")
+        & PlexUser.notify_admin.isnot(True)
+    )
+    addresses = func.regexp_split_to_array(
+        func.lower(func.trim(func.concat_ws(",", PlexUser.notification_email, PlexUser.plex_email))), r"\s*,\s*"
+    )
+    error = exists(
+        select(NotificationLog.id).where(
+            NotificationLog.success.is_(False),
+            NotificationLog.sent_at >= now_utc_naive() - timedelta(days=30),
+            func.lower(func.trim(NotificationLog.recipient)) == any_(addresses),
+        )
+    )
+    return dict(pending=pending, missing_email=missing, notification_error=error)
+
+
+@router.get("/users/page")
+async def users_page(
+    limit: int = 100,
+    offset: int = 0,
+    query: str = "",
+    status: str = "",
+    role: str = "",
+    source: str = "",
+    attention: str = "",
+    sort: str = "person",
+    direction: str = "asc",
+    db: AsyncSession = Depends(get_db_async),
+):
+    from sqlalchemy import case
+
+    from ..pagination import paginated_response
+
+    limit, offset = min(max(limit, 1), 200), max(offset, 0)
+    situations = _user_situations_sql()
+    global_counts = (
+        await db.execute(
+            select(
+                func.count(),
+                *(func.coalesce(func.sum(case((predicate, 1), else_=0)), 0) for predicate in situations.values()),
+            ).select_from(PlexUser)
+        )
+    ).one()
+    statement = select(PlexUser)
+    if query:
+        statement = statement.where(
+            func.lower(
+                func.concat_ws(
+                    " ",
+                    PlexUser.custom_name,
+                    PlexUser.display_name,
+                    PlexUser.plex_user_id,
+                    PlexUser.plex_email,
+                    PlexUser.notification_email,
+                )
+            ).contains(query.lower(), autoescape=True)
+        )
+    if status:
+        statement = statement.where(PlexUser.enabled.is_(status == "enabled"))
+    if role:
+        statement = statement.where(PlexUser.role == role)
+    if source:
+        statement = statement.where(PlexUser.source == source)
+    if attention in situations:
+        statement = statement.where(situations[attention])
+    total = (await db.execute(select(func.count()).select_from(statement.subquery()))).scalar_one()
+    name = func.lower(
+        func.coalesce(
+            *(
+                func.nullif(func.trim(field), "")
+                for field in (
+                    PlexUser.custom_name,
+                    PlexUser.display_name,
+                    PlexUser.notification_email,
+                    PlexUser.plex_email,
+                )
+            ),
+            PlexUser.plex_user_id,
+        )
+    )
+    request_count = (
+        select(func.count())
+        .where(MediaRequest.plex_user_id == PlexUser.plex_user_id)
+        .correlate(PlexUser)
+        .scalar_subquery()
+    )
+    last_request = (
+        select(func.max(MediaRequest.requested_at))
+        .where(MediaRequest.plex_user_id == PlexUser.plex_user_id)
+        .correlate(PlexUser)
+        .scalar_subquery()
+    )
+    inferred = case(
+        (PlexUser.plex_account_uuid.isnot(None) | PlexUser.plex_user_id.op("~*")(r"^[0-9a-f]{16,32}$"), "plex"),
+        else_="",
+    )
+    resolved_source = func.coalesce(func.nullif(PlexUser.source, ""), inferred)
+    source_label = case(
+        {
+            "plex": "Compte Plex",
+            "seer": "Compte Seer",
+            "rss": "Flux RSS",
+            "local": "Compte local",
+            "api": "Plex Home / Admin",
+            "": "Origine inconnue",
+        },
+        value=resolved_source,
+        else_=resolved_source,
+    )
+    expression = {
+        "person": name,
+        "role": case({"admin": 0, "moderator": 1, "user": 2}, value=PlexUser.role, else_=3),
+        "source": source_label,
+        "requests": request_count,
+        "last": last_request,
+    }.get(sort, name)
+    order = expression.desc().nulls_last() if direction == "desc" else expression.asc().nulls_first()
+    users = (await db.execute(statement.order_by(order, PlexUser.id).offset(offset).limit(limit))).scalars().all()
+    items = await _users_payload(db, users)
+    sources = (await db.execute(select(PlexUser.source).distinct().where(PlexUser.source.isnot(None)))).scalars().all()
+    return paginated_response(
+        items,
+        total,
+        offset,
+        limit,
+        all_total=int(global_counts[0]),
+        situations={key: int(value) for key, value in zip(situations, global_counts[1:])},
+        sources=sources,
+    )
 
 
 @router.get("/users/{user_id}")
@@ -447,7 +595,7 @@ async def get_user(user_id: int, db: AsyncSession = Depends(get_db_async)):
             (
                 await db.execute(
                     select(NotificationLog)
-                    .filter(func.lower(NotificationLog.recipient).in_(emails))
+                    .filter(func.lower(func.trim(NotificationLog.recipient)).in_(emails))
                     .order_by(NotificationLog.sent_at.desc())
                     .limit(30)
                 )
@@ -469,6 +617,28 @@ async def get_user(user_id: int, db: AsyncSession = Depends(get_db_async)):
             }
             for log in logs
         ]
+    latest = []
+    if emails:
+        latest_rows = (
+            await db.execute(
+                select(
+                    NotificationLog.channel, NotificationLog.recipient, NotificationLog.sent_at, NotificationLog.success
+                )
+                .where(func.lower(func.trim(NotificationLog.recipient)).in_(emails))
+                .distinct(NotificationLog.channel, NotificationLog.recipient)
+                .order_by(
+                    NotificationLog.channel,
+                    NotificationLog.recipient,
+                    NotificationLog.sent_at.desc(),
+                    NotificationLog.id.desc(),
+                )
+            )
+        ).all()
+        latest = [
+            dict(channel=channel, recipient=recipient, sent_at=format_datetime(sent_at), success=success)
+            for channel, recipient, sent_at, success in latest_rows
+        ]
+    data["notification_last_by_channel"] = latest
     data["notification_history"] = notification_logs
     return data
 
@@ -536,7 +706,6 @@ async def export_single_user_data(user_id: int, db: AsyncSession = Depends(get_d
 
     Contrairement à /api/export (toute l'instance), ne renvoie que le sous-ensemble
     rattaché à cette personne, sans secret — pour répondre à une demande d'accès."""
-    import json
 
     from fastapi.responses import StreamingResponse
 

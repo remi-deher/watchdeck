@@ -1,5 +1,6 @@
 import { useQueryClient, type QueryKey } from '@tanstack/vue-query';
 import { toValue, type MaybeRefOrGetter } from 'vue';
+import { invalidateRealtime } from '@/realtimeInvalidation';
 import { useRealtime, type RealtimeEventType } from '@/events';
 
 /* Mises a jour temps reel d'une liste, sans jamais la muter.
@@ -90,7 +91,7 @@ export function useRealtimeQuery<TData, TItem extends Record<string, unknown> = 
   queryKey: MaybeRefOrGetter<QueryKey>,
   eventTypes: RealtimeEventType[] | string[],
   {
-    invalidateOnly = false,
+    invalidateOnly = true,
     keyFields = DEFAULT_KEYS,
     debounceMs = 120,
     refreshOnVisible = true,
@@ -116,7 +117,7 @@ export function useRealtimeQuery<TData, TItem extends Record<string, unknown> = 
   }
 
   function invalidate(): Promise<void> {
-    return queryClient.invalidateQueries({ queryKey: toValue(queryKey) });
+    return invalidateRealtime(queryClient, toValue(queryKey));
   }
 
   useRealtime(eventTypes, (_type, detail) => {

@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue';
+import { computed, ref, getCurrentScope, onScopeDispose } from 'vue';
 import { api } from '@/api';
 
 export interface SeasonEpisodesTarget {
@@ -8,6 +8,14 @@ export interface SeasonEpisodesTarget {
 }
 
 export function useSeasonEpisodes(resolveTarget: () => SeasonEpisodesTarget | null) {
+  let controller = new AbortController();
+  if (getCurrentScope()) onScopeDispose(() => controller.abort());
+  async function read<T = any>(path: string): Promise<T> {
+    const signal = controller.signal;
+    const result = await api<T>(path, { signal });
+    if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+    return result;
+  }
   const envelope = ref<any>(null);
   const availability = ref<any>(null);
   const vfStatus = ref<any>(null);
@@ -28,6 +36,7 @@ export function useSeasonEpisodes(resolveTarget: () => SeasonEpisodesTarget | nu
   };
 
   function reset(): void {
+    controller.abort(); controller = new AbortController();
     envelope.value = null;
     availability.value = null;
     vfStatus.value = null;
@@ -42,15 +51,17 @@ export function useSeasonEpisodes(resolveTarget: () => SeasonEpisodesTarget | nu
 
   /** Films uniquement : scan Plex des pistes audio. */
   async function loadMovieVf(): Promise<void> {
-    movieVfDetail.value = await api(`${basePath()}/vf-detail`);
+    try { movieVfDetail.value = await read(`${basePath()}/vf-detail`); }
+    catch (error: any) { if (error?.name !== 'AbortError') throw error; }
   }
 
   async function loadEnvelope(): Promise<void> {
     if (!isShow()) return;
     envelopeError.value = false;
     try {
-      envelope.value = await api(`${basePath()}/episodes`);
-    } catch {
+      envelope.value = await read(`${basePath()}/episodes`);
+    } catch (error: any) {
+      if (error?.name === 'AbortError') return;
       envelopeError.value = true;
     }
   }
@@ -59,8 +70,9 @@ export function useSeasonEpisodes(resolveTarget: () => SeasonEpisodesTarget | nu
     if (!isShow()) return;
     availabilityError.value = false;
     try {
-      availability.value = await api(`${basePath()}/episodes-availability${force ? '?force=true' : ''}`);
-    } catch {
+      availability.value = await read(`${basePath()}/episodes-availability${force ? '?force=true' : ''}`);
+    } catch (error: any) {
+      if (error?.name === 'AbortError') return;
       availabilityError.value = true;
     }
   }
@@ -69,8 +81,9 @@ export function useSeasonEpisodes(resolveTarget: () => SeasonEpisodesTarget | nu
     if (!isShow()) return;
     vfStatusError.value = false;
     try {
-      vfStatus.value = await api(`${basePath()}/episodes-vf-status`);
-    } catch {
+      vfStatus.value = await read(`${basePath()}/episodes-vf-status`);
+    } catch (error: any) {
+      if (error?.name === 'AbortError') return;
       vfStatusError.value = true;
     }
   }
@@ -78,15 +91,17 @@ export function useSeasonEpisodes(resolveTarget: () => SeasonEpisodesTarget | nu
   /** Déplie une saison : ses épisodes ne sont demandés à TMDB qu'à ce moment-là. */
   async function loadSeason(seasonNumber: number): Promise<void> {
     if (seasonEpisodes.value[seasonNumber] || seasonLoading.value[seasonNumber]) return;
+    const signal = controller.signal;
     seasonLoading.value = { ...seasonLoading.value, [seasonNumber]: true };
     seasonErrors.value = { ...seasonErrors.value, [seasonNumber]: false };
     try {
-      const data = await api<{ episodes: any[] }>(`${basePath()}/episodes/${seasonNumber}`);
+      const data = await read<{ episodes: any[] }>(`${basePath()}/episodes/${seasonNumber}`);
       seasonEpisodes.value = { ...seasonEpisodes.value, [seasonNumber]: data.episodes };
-    } catch {
+    } catch (error: any) {
+      if (error?.name === 'AbortError') return;
       seasonErrors.value = { ...seasonErrors.value, [seasonNumber]: true };
     } finally {
-      seasonLoading.value = { ...seasonLoading.value, [seasonNumber]: false };
+      if (!signal.aborted) seasonLoading.value = { ...seasonLoading.value, [seasonNumber]: false };
     }
   }
 

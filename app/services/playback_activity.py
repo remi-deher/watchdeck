@@ -2683,78 +2683,10 @@ async def activity_snapshot(days: int = 30, db=None, user: str | None = None) ->
         .scalars()
         .all()
     )
-    analytics_rows = (
-        (
-            await db.execute(
-                select(PlaybackSession)
-                .options(
-                    load_only(
-                        PlaybackSession.id,
-                        PlaybackSession.source,
-                        PlaybackSession.user_name,
-                        PlaybackSession.media_type,
-                        PlaybackSession.title,
-                        PlaybackSession.grandparent_title,
-                        PlaybackSession.rating_key,
-                        PlaybackSession.thumb_url,
-                        # Lu par _thumb_url : sans lui, chargement paresseux interdit en async.
-                        PlaybackSession.server_id,
-                        PlaybackSession.player_title,
-                        PlaybackSession.platform,
-                        PlaybackSession.product,
-                        PlaybackSession.playback_method,
-                        PlaybackSession.video_decision,
-                        PlaybackSession.audio_decision,
-                        PlaybackSession.quality,
-                        PlaybackSession.video_codec,
-                        PlaybackSession.container,
-                        PlaybackSession.subtitle_decision,
-                        PlaybackSession.plex_decision_text,
-                        # Conteneur source -> sortie, pour le suivi des conversions légères.
-                        PlaybackSession.transcode_details,
-                        PlaybackSession.bandwidth_kbps,
-                        PlaybackSession.media_size_bytes,
-                        PlaybackSession.progress_ms,
-                        PlaybackSession.duration_ms,
-                        PlaybackSession.progress_percent,
-                        PlaybackSession.watched_status,
-                        PlaybackSession.group_count,
-                        PlaybackSession.watched_ms,
-                        PlaybackSession.started_at,
-                        PlaybackSession.last_seen_at,
-                        PlaybackSession.ended_at,
-                    )
-                )
-                .filter(PlaybackSession.started_at >= cutoff, *session_scope)
-                .order_by(PlaybackSession.started_at)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    previous_rows = (
-        (
-            await db.execute(
-                select(PlaybackSession)
-                .options(
-                    load_only(
-                        PlaybackSession.id,
-                        PlaybackSession.user_name,
-                        PlaybackSession.watched_ms,
-                    )
-                )
-                .filter(
-                    PlaybackSession.started_at >= previous_cutoff,
-                    PlaybackSession.started_at < cutoff,
-                    *session_scope,
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
+    from .activity_aggregation import aggregate
+
+    analytics = await aggregate(db, cutoff, previous_cutoff, user)
     overview = await _aggregate_overview(db, cutoff, previous_cutoff, user)
-    analytics = _analytics(list(analytics_rows), list(previous_rows))
     previous = overview.pop("comparison")
     current = overview["summary"]
     analytics["comparison"] = {

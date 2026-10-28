@@ -15,7 +15,6 @@ import { queueCounts } from '@/downloads/queueRules';
 import { usePreference } from '@/composables/usePreference';
 import { queryKeys } from '@/queryKeys';
 import { arrQueueQuery, diskSpaceQuery, playbackLiveQuery, vffCountsQuery, vffScanStatusQuery, vffSyncStatusQuery } from '@/sharedQueries';
-import { patchedList } from '@/composables/useRealtimeQuery';
 import type { MonitorKpi, MonitorLabels, MonitorZoneGroup } from '@/components/templates/MonitorTemplate.vue';
 
 const SNAPSHOT_CACHE_KEY = 'dashboard:snapshot';
@@ -362,18 +361,7 @@ export function useDashboard(healthZone: Ref<HTMLElement | null>) {
 
 
   /** Reporte un evenement sur une liste locale en la REMPLACANT, sans muter ses elements. */
-  function patchItem(list: { value: any[] }, detail: any, options: { keyFields: string[] }): boolean {
-    const { list: next, patched } = patchedList(list.value, detail, options);
-    if (patched) list.value = next;
-    return patched;
-  }
-
-  useRealtime(['request.updated'], (type, detail) => {
-    if (detail && (detail.request_id || detail.id)) {
-      patchItem(pending, detail, { keyFields: ['request_id', 'id'] });
-      patchItem(recentlyAvailable, detail, { keyFields: ['request_id', 'id'] });
-      patchItem(recentRequests, detail, { keyFields: ['request_id', 'id'] });
-    }
+  useRealtime(['request.updated'], (type) => {
     if (!type) return load();
     return loadDashboardSections([
       // `counts` est desormais une section primaire : le bandeau du haut en depend, il se

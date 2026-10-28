@@ -6,6 +6,7 @@ import logging
 import os
 from collections.abc import AsyncIterator
 from typing import Any
+from weakref import WeakKeyDictionary
 
 from .utils import now_utc
 
@@ -29,6 +30,26 @@ EVENT_TYPES = {
     # prochain montage). Voir le consommateur dans App.vue.
 }
 _subscribers: set[asyncio.Queue] = set()
+
+
+_publishers: WeakKeyDictionary[asyncio.AbstractEventLoop, dict[tuple[Any, ...], Any]] = WeakKeyDictionary()
+
+
+def _publisher(url):
+    from redis.asyncio import Redis
+
+    pools = _publishers.setdefault(asyncio.get_running_loop(), {})
+    key = (url, Redis.from_url)
+    if key not in pools:
+        pools[key] = Redis.from_url(
+            url, encoding="utf-8", decode_responses=True, socket_connect_timeout=2, socket_timeout=2, max_connections=20
+        )
+    return pools[key]
+
+
+async def close_publishers():
+    for client in _publishers.pop(asyncio.get_running_loop(), {}).values():
+        await client.aclose()
 
 
 def _allowed(event: dict[str, Any], user: dict[str, Any]) -> bool:
@@ -62,16 +83,11 @@ async def publish(
     redis_url = os.getenv("REDIS_URL")
     if redis_url:
         try:
-            from redis.asyncio import Redis
-
-            redis = Redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
-            try:
-                event_id = await redis.xadd(STREAM_KEY, {"event": raw}, maxlen=1000, approximate=True)
-                event["id"] = event_id
-                await redis.publish(CHANNEL, json.dumps(event, ensure_ascii=True))
-                return str(event_id)
-            finally:
-                await redis.aclose()
+            redis = _publisher(redis_url)
+            event_id = await redis.xadd(STREAM_KEY, {"event": raw}, maxlen=1000, approximate=True)
+            event["id"] = event_id
+            await redis.publish(CHANNEL, json.dumps(event, ensure_ascii=True))
+            return str(event_id)
         except Exception as exc:
             logger.warning("Redis event publish failed; using local subscribers: %s", exc)
     event_id = f"local-{int(now_utc().timestamp() * 1000)}"

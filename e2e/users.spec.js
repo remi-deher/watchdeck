@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { usersPage } from "./fixtures/users";
 
 /**
  * Utilisateurs (gabarit Gerer) : situations qui filtrent, tableau de controle avec ses
@@ -19,6 +20,7 @@ async function mockApi(page) {
     const json = {
       "/api/session": { role: "admin", is_owner: true },
       "/api/users": USERS,
+      "/api/users/page": usersPage(USERS, url),
       "/api/users/2": { ...USERS[1], stats: { total: 0 }, notification_history: [] },
       "/api/settings": { seer_enabled: false },
     }[url.pathname];

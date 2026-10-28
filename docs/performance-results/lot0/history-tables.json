@@ -1,0 +1,74 @@
+[
+  {
+    "mobile": false,
+    "usefulMs": 2791.873493,
+    "initial": {
+      "domNodes": 13332,
+      "rows": 501,
+      "longTasks": [
+        73,
+        724,
+        116
+      ],
+      "heap": {
+        "usedSize": 104976840,
+        "totalSize": 150781952,
+        "embedderHeapUsedSize": 56659464,
+        "backingStorageSize": 1054213
+      }
+    },
+    "afterScroll": {
+      "domNodes": 13332,
+      "rows": 501,
+      "longTasks": [
+        73,
+        724,
+        116
+      ],
+      "heap": {
+        "usedSize": 105125084,
+        "totalSize": 150781952,
+        "embedderHeapUsedSize": 58528688,
+        "backingStorageSize": 1054215
+      }
+    },
+    "errors": []
+  },
+  {
+    "mobile": true,
+    "usefulMs": 8100.635985999999,
+    "initial": {
+      "domNodes": 13238,
+      "rows": 501,
+      "longTasks": [
+        218,
+        97,
+        2555,
+        659
+      ],
+      "heap": {
+        "usedSize": 96337056,
+        "totalSize": 153927680,
+        "embedderHeapUsedSize": 62010256,
+        "backingStorageSize": 1051018
+      }
+    },
+    "afterScroll": {
+      "domNodes": 13238,
+      "rows": 501,
+      "longTasks": [
+        218,
+        97,
+        2555,
+        659
+      ],
+      "heap": {
+        "usedSize": 96423712,
+        "totalSize": 153927680,
+        "embedderHeapUsedSize": 62628736,
+        "backingStorageSize": 1051020
+      }
+    },
+    "errors": []
+  }
+]

@@ -209,6 +209,7 @@ class LibraryAnalyticsSnapshot(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, default=1)
     payload_json: Mapped[str] = mapped_column(Text)
+    generation_id: Mapped[Optional[str]] = mapped_column(default=None)
     # Empreinte des sources ayant produit cette charge utile (catalogue Plex + historique
     # de lecture) : tant qu'elle ne bouge pas, recalculer redonnerait le meme resultat.
     # Voir library_analytics.refresh_library_analytics_snapshot.

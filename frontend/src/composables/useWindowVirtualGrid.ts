@@ -1,4 +1,4 @@
-import { computed, nextTick, ref, shallowRef, watch, type Ref } from 'vue';
+import { computed, nextTick, ref, watch, onScopeDispose, type Ref } from 'vue';
 import { useEventListener, useResizeObserver } from '@vueuse/core';
 
 /**
@@ -76,7 +76,7 @@ export function useWindowVirtualGrid<T>(
     if (!active.value) return { start: 0, end: total };
     const rows = Math.ceil(total / columns.value);
     const relative = scrolledIntoGrid.value;
-    const firstRow = Math.max(0, Math.floor(relative / pitch.value) - overscanRows);
+    const firstRow = Math.min(rows - 1, Math.max(0, Math.floor(relative / pitch.value) - overscanRows));
     const lastRow = Math.min(rows, Math.ceil((relative + viewport.value) / pitch.value) + overscanRows);
     return { start: firstRow * columns.value, end: Math.min(total, Math.max(firstRow + 1, lastRow) * columns.value) };
   });
@@ -95,19 +95,11 @@ export function useWindowVirtualGrid<T>(
     return spacerHeight(remaining);
   });
 
-  /* Une carte recyclee ne doit pas rejouer son apparition : on retient les cles deja
-     rendues. `shallowRef` + remplacement du Set suffit, la valeur n'est lue qu'au
-     montage de la carte (voir `onRevealEnd` de MediaCardShell). */
-  const shown = shallowRef(new Set<string>());
-  function hasBeenShown(item: T): boolean {
-    return shown.value.has(keyOf(item));
-  }
+  /* Only read when a card mounts: no reactive Set clone on each scroll. */
+  const shown = new Set<string>();
+  function hasBeenShown(item: T): boolean { return shown.has(keyOf(item)); }
   watch(visibleItems, (list) => {
-    void nextTick(() => {
-      const next = new Set(shown.value);
-      for (const item of list) next.add(keyOf(item));
-      shown.value = next;
-    });
+    void nextTick(() => { for (const item of list) shown.add(keyOf(item)); });
   }, { immediate: true });
 
   let frame = 0;
@@ -128,5 +120,6 @@ export function useWindowVirtualGrid<T>(
   // fois les cartes posees, la grille a pu se deplacer (bandeau, compteur).
   watch([grid, () => items.value.length], () => { void nextTick(measure); }, { immediate: true, flush: 'post' });
 
+  onScopeDispose(() => { if (frame) cancelAnimationFrame(frame); });
   return { active, visibleItems, padTop, padBottom, hasBeenShown, measure };
 }

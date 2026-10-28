@@ -121,3 +121,19 @@ describe('useSession', () => {
     expect(state.isAdmin.value).toBe(false);
   });
 });
+
+
+describe('offline owner session', () => {
+  it('keeps the verified owner during a network failure but clears it after a 401', async () => {
+    localStorage.setItem('watchdeck:stockage-proprietaire', 'alice');
+    localStorage.setItem('watchdeck:last-session', JSON.stringify({id:'alice',role:'user'}));
+    let session = await freshModule();
+    api.mockRejectedValue(new TypeError('Failed to fetch'));
+    expect(await session.loadSession()).toEqual({id:'alice',role:'user'});
+    session.invalidateSession();
+    api.mockRejectedValue(Object.assign(new Error('expired'), {status:401}));
+    expect(await session.loadSession()).toBeNull();
+    expect(localStorage.getItem('watchdeck:last-session')).toBeNull();
+    localStorage.clear();
+  });
+});

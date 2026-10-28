@@ -1,16 +1,17 @@
 <template>
   <!-- Tableau commun a toute l'application. TanStack Table porte l'etat -- tri, selection,
        largeurs -- et ne dessine rien ; le rendu est un vrai <table>, qui devient une pile
-       de cartes sur telephone par le systeme `.table-cards` (voir `_views.scss`) : chaque
+       de cartes sur telephone par le systeme `.table-cards` (styles du composant) : chaque
        cellule y reprend son libelle depuis `data-label`. -->
   <div
+    ref="containerElement"
     class="table-wrap rich ui-data-table"
     :class="{ 'is-compact': density === 'compact', 'table-cards': cards, 'is-sticky-header': stickyHeader }"
     role="region"
     tabindex="0"
     :aria-label="label"
   >
-    <table :style="tableStyle">
+    <table ref="tableElement" :style="tableStyle" :aria-rowcount="virtualEnabled ? ($slots['row-after'] ? -1 : table.getRowModel().rows.length + 1) : undefined">
       <thead>
         <tr>
           <th v-if="selectable" class="ui-data-table__select" scope="col">
@@ -55,17 +56,20 @@
           </th>
         </tr>
       </thead>
-      <tbody>
-        <tr v-if="loading && !visibleRows.length" v-for="n in loadingRows" :key="`skeleton-${n}`" class="ui-data-table__skeleton-row" aria-hidden="true">
+      <tbody v-if="loading || !orderedRows.length">
+        <tr v-if="loading && !orderedRows.length" v-for="n in loadingRows" :key="`skeleton-${n}`" class="ui-data-table__skeleton-row" aria-hidden="true">
           <td v-if="selectable" class="ui-data-table__select"><span class="skeleton-shimmer" style="width: 16px; height: 16px;" /></td>
           <td v-for="col in table.getVisibleLeafColumns()" :key="col.id">
             <span class="skeleton-shimmer" style="display: block; height: 14px; width: 65%;" />
           </td>
         </tr>
-        <tr v-else-if="!visibleRows.length" class="ui-data-table__empty">
+        <tr v-else-if="!orderedRows.length" class="ui-data-table__empty">
           <td :colspan="table.getVisibleLeafColumns().length + (selectable ? 1 : 0)"><slot name="empty">Aucun élément.</slot></td>
         </tr>
-        <template v-for="(row, index) in visibleRows" :key="row.id">
+      </tbody>
+      <template v-for="{ row, index, gap } in virtualRows.blocks.value" :key="row.id">
+        <tbody v-if="gap" class="ui-data-table__spacer" aria-hidden="true"><tr><td :colspan="table.getVisibleLeafColumns().length + (selectable ? 1 : 0)" :style="{ height: `${gap}px` }" /></tr></tbody>
+        <tbody :ref="virtualRows.measure" :data-index="index" :data-row-key="row.id" :class="{ 'ui-data-table__virtual-group': virtualEnabled }">
           <!-- Une ligne cliquable reste une ligne : `role="button"` effacait la structure du
                tableau pour les lecteurs d'ecran, et faisait d'une ligne qui contient deja
                des boutons (titre, case) un bouton dans un bouton. Le focus et Entree
@@ -74,6 +78,7 @@
             :class="[rowClass?.(row.original), { 'is-selected': row.getIsSelected(), 'is-clickable': clickable }]"
             :tabindex="clickable ? 0 : undefined"
             :aria-expanded="rowExpanded?.(row.original)"
+            :aria-rowindex="virtualEnabled ? index + 2 : undefined"
             @click="onRowClick(row.original, Number(index), $event)"
             @keydown.enter="onRowClick(row.original, Number(index), $event)"
             @contextmenu="$emit('row-contextmenu', row.original, Number(index), $event)"
@@ -103,15 +108,16 @@
               <slot name="row-after" :row="row.original" :index="index" />
             </td>
           </tr>
-        </template>
-      </tbody>
+        </tbody>
+      </template>
+      <tbody v-if="virtualRows.bottom.value" class="ui-data-table__spacer" aria-hidden="true"><tr><td :colspan="table.getVisibleLeafColumns().length + (selectable ? 1 : 0)" :style="{ height: `${virtualRows.bottom.value}px` }" /></tr></tbody>
     </table>
     <slot name="after" />
   </div>
 </template>
 
 <script setup lang="ts" generic="T">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, useSlots, nextTick } from 'vue';
 import { CheckboxIndicator, CheckboxRoot } from 'reka-ui';
 import { Check, ChevronDown, ChevronUp, Minus } from '@lucide/vue';
 import {
@@ -120,6 +126,7 @@ import {
   tableFeatures, useTable,
   type ColumnSizingState, type RowSelectionState, type SortingState, type Updater,
 } from '@tanstack/vue-table';
+import { useVirtualTable } from '@/composables/useVirtualTable';
 import { useTableColumns } from '@/composables/useTableColumns';
 
 export interface UiColumn<R = any> {
@@ -168,6 +175,9 @@ const props = withDefaults(defineProps<{
   rowExpanded?: (row: T) => boolean | undefined;
   /** Rendu progressif : seules les N premieres lignes (triees) sont montees. */
   limit?: number;
+  /** Windowed row groups above this size; opt out for uncontrolled expanded widgets. */
+  virtualize?: boolean;
+  virtualThreshold?: number;
   /** Libelle d'une ligne pour sa case de selection. */
   rowLabel?: (row: T) => string;
   /** Pile de cartes sur telephone (defaut). Un tableau de deux ou trois colonnes courtes
@@ -182,7 +192,7 @@ const props = withDefaults(defineProps<{
   cards: true, stickyHeader: false, loading: false, loadingRows: 5,
   sort: null, manualSort: false, selectable: false, selection: () => [], storageKey: '', columnPrefs: null,
   resizable: false, reorderable: false, density: 'comfortable', clickable: false,
-  rowClass: undefined, rowExpanded: undefined, limit: 0, rowLabel: undefined,
+  rowClass: undefined, rowExpanded: undefined, limit: 0, virtualize: true, virtualThreshold: 150, rowLabel: undefined,
 });
 
 const emit = defineEmits<{
@@ -275,22 +285,30 @@ const table: any = useTable({
   onSortingChange,
   onRowSelectionChange,
   onColumnSizingChange,
-  manualSorting: props.manualSort,
+  manualSorting: computed(() => props.manualSort),
   enableSortingRemoval: false,
   columnResizeMode: 'onChange',
 } as any);
 
-const visibleRows = computed(() => {
+const orderedRows = computed<any[]>(() => {
   const all = table.getRowModel().rows;
   return props.limit > 0 ? all.slice(0, props.limit) : all;
 });
+
+const containerElement = ref<HTMLElement | null>(null);
+const tableElement = ref<HTMLTableElement | null>(null);
+const slots = useSlots();
+const estimate = ref(64);
+const virtualEnabled = computed(() => props.virtualize && orderedRows.value.length > props.virtualThreshold && (!slots['row-after'] || Boolean(props.rowExpanded)));
+const virtualRows = useVirtualTable(containerElement, tableElement, orderedRows, virtualEnabled, estimate);
+watch(() => props.rowExpanded && orderedRows.value.map(row => props.rowExpanded?.(row.original)), () => { void nextTick(virtualRows.refresh); });
 
 /* Maj-clic etend la selection depuis la derniere case cochee, comme dans un gestionnaire
    de fichiers ; un clic simple bascule la ligne. */
 const dernierIndex = ref<number | null>(null);
 function choisir(index: number, event: MouseEvent): void {
   event.preventDefault();
-  const lignes = visibleRows.value;
+  const lignes = orderedRows.value;
   const ligne = lignes[index];
   if (event.shiftKey && dernierIndex.value !== null && dernierIndex.value !== index) {
     const [debut, fin] = [dernierIndex.value, index].sort((a, b) => a - b);
@@ -343,7 +361,135 @@ function libelleLigne(row: T): string {
 }
 </script>
 
+<style lang="scss">
+@use "@/styles/foundations/breakpoints" as bp;
+/* ===== Tables -> cartes empilees sur mobile ===== */
+@include bp.until(phablet) {
+  .table-cards table,
+  .table-cards thead,
+  .table-cards tbody,
+  .table-cards tr,
+  .table-cards td {
+    display: block;
+    width: 100%;
+  }
+
+  .table-cards thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .table-cards tr {
+    margin-bottom: 10px;
+    padding: 12px 14px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  .table-cards td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    /* Les largeurs de colonne (fixees ou redimensionnees sur ordinateur) n'ont pas de sens
+       dans une carte : elles coupaient les valeurs et ecrasaient les barres. */
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none;
+    padding: 6px 0;
+    border: 0;
+    text-align: right;
+    min-height: 0;
+  }
+
+  /* Libellé de colonne repris depuis data-label */
+  .table-cards td::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    color: var(--muted);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    text-align: left;
+  }
+
+  /* Colonnes que la carte n'affiche pas (`card: 'hidden'` dans UiDataTable) : utiles en
+     tableau, elles alourdiraient une carte de telephone. */
+  .table-cards td.card-hidden {
+    display: none;
+  }
+
+  /* Cellules vides (colonnes de checkbox / actions sans contenu) masquées */
+  .table-cards td:empty {
+    display: none;
+  }
+
+  /* Variante « riche » (Utilisateurs / Notifications) : 1re cellule = entête de carte */
+  .table-cards.rich td.card-title {
+    /* Le titre et sa ligne secondaire s'empilent, et le titre passe a la ligne. */
+    display: grid;
+    gap: 2px;
+    white-space: normal;
+    justify-content: flex-start;
+    text-align: left;
+    padding-top: 0;
+    padding-bottom: 10px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .table-cards.rich td.card-title::before {
+    display: none;
+  }
+
+  .table-cards.rich td.card-title strong {
+    font-size: var(--fs-md);
+  }
+
+  /* Cellule d'actions : boutons alignés à droite, sans label */
+  .table-cards td.actions,
+  .table-cards td.card-actions {
+    justify-content: flex-end;
+    padding-top: 10px;
+    margin-top: 6px;
+    border-top: 1px solid var(--border);
+  }
+
+  .table-cards td.actions::before,
+  .table-cards td.card-actions::before {
+    display: none;
+  }
+
+  /* La case à cocher de sélection reste en haut à gauche */
+  .table-cards td.card-select {
+    justify-content: flex-start;
+  }
+
+  .table-cards td.card-select::before {
+    display: none;
+  }
+}
+
+</style>
+
 <style scoped lang="scss">
+@use '@/styles/foundations/breakpoints' as bp;
+.ui-data-table { --virtual-row-estimate: 64; position: relative; }
+.ui-data-table.is-compact { --virtual-row-estimate: 52; }
+.ui-data-table__spacer tr, .ui-data-table__spacer td { padding: 0 !important; margin: 0 !important; border: 0 !important; background: none !important; border-radius: 0 !important; }
+.ui-data-table__spacer td::before { content: none !important; }
+@include bp.until(phablet) {
+  .ui-data-table.table-cards { --virtual-row-estimate: 220; }
+  .ui-data-table.table-cards .ui-data-table__virtual-group { display: flow-root; }
+  .ui-data-table.table-cards .ui-data-table__spacer td { display: block; }
+}
+
 .ui-data-table table { width: 100%; border-collapse: collapse; }
 .ui-data-table th { position: relative; text-align: left; white-space: nowrap; }
 .ui-data-table th[draggable="true"] { cursor: grab; }

@@ -35,7 +35,7 @@ describe('UsersView', () => {
     sessionStorage.clear();
     document.body.innerHTML = '';
     api.mockReset().mockImplementation(async (path) => {
-      if (path === '/api/users') return USERS;
+      if (path.startsWith('/api/users/page')) return USERS;
       if (path === '/api/settings') return { seer_enabled: false };
       return { ok: true };
     });
@@ -52,7 +52,24 @@ describe('UsersView', () => {
     const wrapper = await factory();
     await wrapper.findAll('.ui-segmented-item')[1].trigger('click');
     await nextTick();
-    expect(names(wrapper)).toEqual(['Chloé']);
+    await vi.waitFor(() => expect(names(wrapper)).toEqual(['Chloé']));
+  });
+
+  it('charge la page suivante et conserve les compteurs globaux', async () => {
+    api.mockImplementation(async (path) => {
+      if (path.startsWith('/api/users/page')) {
+        const offset = Number(new URL(path, 'http://fixture').searchParams.get('offset'));
+        return { items: offset ? USERS.slice(1) : USERS.slice(0, 1), total: 3, all_total: 3, offset,
+          has_more: offset === 0, sources: ['api'], situations: { pending: 1, missing_email: 1, notification_error: 0 } };
+      }
+      return {};
+    });
+    const wrapper = await factory();
+    expect(names(wrapper)).toEqual(['Alice']);
+    expect(wrapper.findAll('.ui-segmented-item')[0].text()).toBe('Tous3');
+    wrapper.findComponent({ name: 'ManageTemplate' }).vm.$emit('load-more');
+    await vi.waitFor(() => expect(names(wrapper)).toEqual(['Alice', 'Bruno', 'Chloé']));
+    expect(api.mock.calls.some(([path]) => path.includes('offset=1'))).toBe(true);
   });
 
   it('active ou désactive un compte depuis sa ligne', async () => {

@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-28",
+  "platform": "Linux-6.18.55-x86_64-with-glibc2.41",
+  "python": "3.12.14",
+  "cpu_visible": 3,
+  "cpu_model": "AMD EPYC 9V45 96-Core Processor",
+  "cpu_quota": "200000 100000",
+  "memory_limit": "8589934592",
+  "versions": {
+    "fastapi": "0.141.1",
+    "uvicorn": "0.54.0",
+    "sqlalchemy": "2.1.0",
+    "asyncpg": "0.31.0",
+    "redis": "5.3.1",
+    "arq": "0.28.0"
+  },
+  "node": "v24.19.0",
+  "chromium": "Chromium 154.0.8037.57 built on Debian GNU/Linux 13 (trixie)",
+  "git_base": "6fffae88b822bd9a94815058d8bdf0988d44a582",
+  "source_sha256": "6cd480ac2de912625cfe311d6ef8e3fb34edc8095abdd5bca08e4f4bd4c6b9a7",
+  "postgres": "15.19",
+  "initial_assets": {
+    "js": {
+      "files": 25,
+      "raw_bytes": 587555,
+      "gzip_bytes": 195205
+    },
+    "css": {
+      "files": 4,
+      "raw_bytes": 120684,
+      "gzip_bytes": 21508
+    }
+  }
+}

@@ -1,0 +1,550 @@
+[
+  {
+    "mobile": false,
+    "run": 0,
+    "profile": "1440x900 unthrottled",
+    "usefulMs": 1303.054232,
+    "warmUsefulMs": 292.66004500000054,
+    "cold": {
+      "label": "cold",
+      "lcp": 704,
+      "events": [],
+      "longTasks": [
+        57,
+        61,
+        74
+      ],
+      "domNodes": 5402,
+      "renderedCards": 200,
+      "storageBytes": 431854,
+      "heapUsedBytes": 20727992,
+      "networkBytes": 809331,
+      "requests": 177,
+      "offsets": [
+        0
+      ]
+    },
+    "scroll": {
+      "label": "scroll",
+      "lcp": 704,
+      "events": [],
+      "longTasks": [
+        57,
+        61,
+        74
+      ],
+      "domNodes": 1402,
+      "renderedCards": 40,
+      "storageBytes": 431854,
+      "heapUsedBytes": 34605688,
+      "networkBytes": 833166,
+      "requests": 183,
+      "offsets": [
+        0,
+        200,
+        400,
+        600,
+        800,
+        1000
+      ]
+    },
+    "warm": {
+      "label": "warm",
+      "lcp": 292,
+      "events": [],
+      "longTasks": [
+        115
+      ],
+      "domNodes": 1452,
+      "renderedCards": 42,
+      "storageBytes": 431854,
+      "heapUsedBytes": 29717836,
+      "networkBytes": 857322,
+      "requests": 480,
+      "offsets": [
+        0,
+        200,
+        400,
+        600,
+        800,
+        1000
+      ]
+    },
+    "failures": [],
+    "errors": []
+  },
+  {
+    "mobile": false,
+    "run": 1,
+    "profile": "1440x900 unthrottled",
+    "usefulMs": 1207.897481,
+    "warmUsefulMs": 380.89458000000013,
+    "cold": {
+      "label": "cold",
+      "lcp": 604,
+      "events": [],
+      "longTasks": [
+        93,
+        58,
+        80
+      ],
+      "domNodes": 5402,
+      "renderedCards": 200,
+      "storageBytes": 431854,
+      "heapUsedBytes": 20598496,
+      "networkBytes": 808588,
+      "requests": 177,
+      "offsets": [
+        0
+      ]
+    },
+    "scroll": {
+      "label": "scroll",
+      "lcp": 604,
+      "events": [],
+      "longTasks": [
+        93,
+        58,
+        80
+      ],
+      "domNodes": 1402,
+      "renderedCards": 40,
+      "storageBytes": 431854,
+      "heapUsedBytes": 25730064,
+      "networkBytes": 831303,
+      "requests": 182,
+      "offsets": [
+        0,
+        200,
+        400,
+        600,
+        800,
+        1000
+      ]
+    },
+    "warm": {
+      "label": "warm",
+      "lcp": 380,
+      "events": [],
+      "longTasks": [
+        161
+      ],
+      "domNodes": 1452,
+      "renderedCards": 42,
+      "storageBytes": 431854,
+      "heapUsedBytes": 37511596,
+      "networkBytes": 852709,
+      "requests": 478,
+      "offsets": [
+        0,
+        200,
+        400,
+        600,
+        800,
+        1000
+      ]
+    },
+    "failures": [],
+    "errors": []
+  },
+  {
+    "mobile": false,
+    "run": 2,
+    "profile": "1440x900 unthrottled",
+    "usefulMs": 1274.735348000002,
+    "warmUsefulMs": 332.5465320000003,
+    "cold": {
+      "label": "cold",
+      "lcp": 668,
+      "events": [],
+      "longTasks": [
+        115,
+        101,
+        98
+      ],
+      "domNodes": 5402,
+      "renderedCards": 200,
+      "storageBytes": 431854,
+      "heapUsedBytes": 21994796,
+      "networkBytes": 809293,
+      "requests": 177,
+      "offsets": [
+        0
+      ]
+    },
+    "scroll": {
+      "label": "scroll",
+      "lcp": 668,
+      "events": [],
+      "longTasks": [
+        115,
+        101,
+        98
+      ],
+      "domNodes": 1402,
+      "renderedCards": 40,
+      "storageBytes": 431854,
+      "heapUsedBytes": 31052536,
+      "networkBytes": 832008,
+      "requests": 182,
+      "offsets": [
+        0,
+        200,
+        400,
+        600,
+        800,
+        1000
+      ]
+    },
+    "warm": {
+      "label": "warm",
+      "lcp": 340,
+      "events": [],
+      "longTasks": [
+        149
+      ],
+      "domNodes": 1452,
+      "renderedCards": 42,
+      "storageBytes": 431854,
+      "heapUsedBytes": 29979896,
+      "networkBytes": 856161,
+      "requests": 479,
+      "offsets": [
+        0,
+        200,
+        400,
+        600,
+        800,
+        1000
+      ]
+    },
+    "failures": [],
+    "errors": []
+  },
+  {
+    "mobile": true,
+    "run": 0,
+    "profile": "390x844 CPUx4 1.6Mbps RTT150ms",
+    "usefulMs": 4967.294847000001,
+    "warmUsefulMs": 1312.5149810000003,
+    "cold": {
+      "label": "cold",
+      "lcp": 2088,
+      "events": [],
+      "longTasks": [
+        254,
+        140,
+        187
+      ],
+      "domNodes": 1731,
+      "renderedCards": 60,
+      "storageBytes": 130730,
+      "heapUsedBytes": 8902812,
+      "networkBytes": 444839,
+      "requests": 104,
+      "offsets": [
+        0
+      ]
+    },
+    "scroll": {
+      "label": "scroll",
+      "lcp": 2088,
+      "events": [],
+      "longTasks": [
+        254,
+        140,
+        187,
+        51,
+        150,
+        179,
+        52,
+        195,
+        54,
+        234,
+        68,
+        113,
+        50,
+        70,
+        54,
+        66,
+        67,
+        90,
+        87,
+        91,
+        50,
+        88
+      ],
+      "domNodes": 833,
+      "renderedCards": 24,
+      "storageBytes": 130730,
+      "heapUsedBytes": 15081676,
+      "networkBytes": 475859,
+      "requests": 116,
+      "offsets": [
+        0,
+        60,
+        120,
+        180,
+        240,
+        300,
+        360,
+        420,
+        480,
+        540,
+        600,
+        660,
+        720
+      ]
+    },
+    "warm": {
+      "label": "warm",
+      "lcp": 1292,
+      "events": [],
+      "longTasks": [
+        68,
+        495
+      ],
+      "domNodes": 582,
+      "renderedCards": 14,
+      "storageBytes": 130730,
+      "heapUsedBytes": 9371264,
+      "networkBytes": 628134,
+      "requests": 337,
+      "offsets": [
+        0,
+        60,
+        120,
+        180,
+        240,
+        300,
+        360,
+        420,
+        480,
+        540,
+        600,
+        660,
+        720
+      ]
+    },
+    "failures": [],
+    "errors": []
+  },
+  {
+    "mobile": true,
+    "run": 1,
+    "profile": "390x844 CPUx4 1.6Mbps RTT150ms",
+    "usefulMs": 4574.747375999999,
+    "warmUsefulMs": 1221.4635759999946,
+    "cold": {
+      "label": "cold",
+      "lcp": 2052,
+      "events": [],
+      "longTasks": [
+        198,
+        111,
+        141
+      ],
+      "domNodes": 1731,
+      "renderedCards": 60,
+      "storageBytes": 130730,
+      "heapUsedBytes": 8861232,
+      "networkBytes": 445675,
+      "requests": 104,
+      "offsets": [
+        0
+      ]
+    },
+    "scroll": {
+      "label": "scroll",
+      "lcp": 2052,
+      "events": [],
+      "longTasks": [
+        198,
+        111,
+        141,
+        141,
+        187,
+        181,
+        65,
+        226,
+        72,
+        108,
+        50,
+        81,
+        55,
+        77,
+        57,
+        80,
+        53,
+        85,
+        80,
+        95,
+        50,
+        94
+      ],
+      "domNodes": 833,
+      "renderedCards": 24,
+      "storageBytes": 130730,
+      "heapUsedBytes": 15099712,
+      "networkBytes": 476703,
+      "requests": 116,
+      "offsets": [
+        0,
+        60,
+        120,
+        180,
+        240,
+        300,
+        360,
+        420,
+        480,
+        540,
+        600,
+        660,
+        720
+      ]
+    },
+    "warm": {
+      "label": "warm",
+      "lcp": 1220,
+      "events": [],
+      "longTasks": [
+        65,
+        452,
+        94
+      ],
+      "domNodes": 652,
+      "renderedCards": 14,
+      "storageBytes": 130730,
+      "heapUsedBytes": 32057772,
+      "networkBytes": 664747,
+      "requests": 407,
+      "offsets": [
+        0,
+        60,
+        120,
+        180,
+        240,
+        300,
+        360,
+        420,
+        480,
+        540,
+        600,
+        660,
+        720
+      ]
+    },
+    "failures": [],
+    "errors": []
+  },
+  {
+    "mobile": true,
+    "run": 2,
+    "profile": "390x844 CPUx4 1.6Mbps RTT150ms",
+    "usefulMs": 4933.366026000003,
+    "warmUsefulMs": 1004.6589549999917,
+    "cold": {
+      "label": "cold",
+      "lcp": 2056,
+      "events": [],
+      "longTasks": [
+        196,
+        110,
+        193
+      ],
+      "domNodes": 1731,
+      "renderedCards": 60,
+      "storageBytes": 130730,
+      "heapUsedBytes": 10074880,
+      "networkBytes": 445677,
+      "requests": 104,
+      "offsets": [
+        0
+      ]
+    },
+    "scroll": {
+      "label": "scroll",
+      "lcp": 2056,
+      "events": [],
+      "longTasks": [
+        196,
+        110,
+        193,
+        59,
+        161,
+        156,
+        52,
+        190,
+        60,
+        277,
+        84,
+        129,
+        70,
+        75,
+        64,
+        82,
+        63,
+        79,
+        92,
+        81,
+        86,
+        50,
+        99
+      ],
+      "domNodes": 833,
+      "renderedCards": 24,
+      "storageBytes": 130730,
+      "heapUsedBytes": 15082704,
+      "networkBytes": 476701,
+      "requests": 116,
+      "offsets": [
+        0,
+        60,
+        120,
+        180,
+        240,
+        300,
+        360,
+        420,
+        480,
+        540,
+        600,
+        660,
+        720
+      ]
+    },
+    "warm": {
+      "label": "warm",
+      "lcp": 1008,
+      "events": [],
+      "longTasks": [
+        63,
+        432
+      ],
+      "domNodes": 582,
+      "renderedCards": 14,
+      "storageBytes": 130730,
+      "heapUsedBytes": 9450164,
+      "networkBytes": 626236,
+      "requests": 337,
+      "offsets": [
+        0,
+        60,
+        120,
+        180,
+        240,
+        300,
+        360,
+        420,
+        480,
+        540,
+        600,
+        660,
+        720
+      ]
+    },
+    "failures": [],
+    "errors": []
+  }
+]

@@ -1,0 +1,74 @@
+[
+  {
+    "mobile": false,
+    "route": "/login",
+    "layout": {
+      "width": 1440,
+      "bodyWidth": 1440,
+      "cards": 0
+    }
+  },
+  {
+    "mobile": false,
+    "route": "/dashboard",
+    "layout": {
+      "width": 1440,
+      "bodyWidth": 1440,
+      "cards": 5
+    }
+  },
+  {
+    "mobile": false,
+    "route": "/library?type=movie&query=Film",
+    "layout": {
+      "width": 1440,
+      "bodyWidth": 1440,
+      "cards": 200
+    }
+  },
+  {
+    "mobile": false,
+    "route": "/discover",
+    "layout": {
+      "width": 1440,
+      "bodyWidth": 1440,
+      "cards": 20
+    }
+  },
+  {
+    "mobile": true,
+    "route": "/login",
+    "layout": {
+      "width": 390,
+      "bodyWidth": 390,
+      "cards": 0
+    }
+  },
+  {
+    "mobile": true,
+    "route": "/dashboard",
+    "layout": {
+      "width": 390,
+      "bodyWidth": 390,
+      "cards": 5
+    }
+  },
+  {
+    "mobile": true,
+    "route": "/library?type=movie&query=Film",
+    "layout": {
+      "width": 390,
+      "bodyWidth": 390,
+      "cards": 60
+    }
+  },
+  {
+    "mobile": true,
+    "route": "/discover",
+    "layout": {
+      "width": 390,
+      "bodyWidth": 390,
+      "cards": 20
+    }
+  }
+]

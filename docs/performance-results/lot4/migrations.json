@@ -1,0 +1,6 @@
+{
+  "empty_upgrade": "passed",
+  "populated_upgrade": "passed",
+  "backfilled_distinct_requesters": 5,
+  "downgrade_preserves_json": true
+}

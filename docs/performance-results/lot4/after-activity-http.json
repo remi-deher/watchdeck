@@ -1,0 +1,101 @@
+{
+  "scope": "50000 media, 200000 plays, 501 users; new server process and empty daily aggregates; 20 calls per route",
+  "results": {
+    "search": {
+      "first_ms": 266.464,
+      "warm_ms": {
+        "n": 19,
+        "p50": 16.748,
+        "p95": 24.984,
+        "max": 24.984
+      },
+      "decoded_bytes": 123955,
+      "sql_ms": {
+        "n": 20,
+        "p50": 3.914,
+        "p95": 12.233,
+        "max": 13.881
+      },
+      "loop_lag_ms": {
+        "n": 7,
+        "p50": 2.18,
+        "p95": 4.296,
+        "max": 4.296
+      },
+      "rss_peak_kib": 127244,
+      "rss_current_kib": 127444
+    },
+    "deep": {
+      "first_ms": 40.064,
+      "warm_ms": {
+        "n": 19,
+        "p50": 21.426,
+        "p95": 25.575,
+        "max": 25.575
+      },
+      "decoded_bytes": 108001,
+      "sql_ms": {
+        "n": 20,
+        "p50": 9.297,
+        "p95": 13.209,
+        "max": 25.847
+      },
+      "loop_lag_ms": {
+        "n": 8,
+        "p50": 0.663,
+        "p95": 3.303,
+        "max": 3.303
+      },
+      "rss_peak_kib": 127244,
+      "rss_current_kib": 127464
+    },
+    "users": {
+      "first_ms": 62.773,
+      "warm_ms": {
+        "n": 19,
+        "p50": 63.41,
+        "p95": 271.636,
+        "max": 271.636
+      },
+      "decoded_bytes": 522169,
+      "sql_ms": {
+        "n": 20,
+        "p50": 8.855,
+        "p95": 11.162,
+        "max": 15.808
+      },
+      "loop_lag_ms": {
+        "n": 17,
+        "p50": 4.527,
+        "p95": 29.875,
+        "max": 29.875
+      },
+      "rss_peak_kib": 130700,
+      "rss_current_kib": 131024
+    },
+    "activity": {
+      "first_ms": 20313.724,
+      "warm_ms": {
+        "n": 19,
+        "p50": 18.33,
+        "p95": 37.455,
+        "max": 37.455
+      },
+      "decoded_bytes": 179149,
+      "sql_ms": {
+        "n": 20,
+        "p50": 0.0,
+        "p95": 0,
+        "max": 4855.295
+      },
+      "loop_lag_ms": {
+        "n": 154,
+        "p50": 3.986,
+        "p95": 12.867,
+        "max": 171.377
+      },
+      "rss_peak_kib": 802804,
+      "rss_current_kib": 267376
+    }
+  }
+}

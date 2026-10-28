@@ -1,0 +1,30 @@
+{
+  "scope": "60 synthetic 1280x1920 JPEGs, upstream fixture 20ms, real Pillow WebP 300px; no real CDN",
+  "cold_ms": {
+    "n": 60,
+    "p50": 1107.422,
+    "p95": 1987.009,
+    "max": 2057.272
+  },
+  "warm_ms": {
+    "n": 60,
+    "p50": 8.582,
+    "p95": 9.615,
+    "max": 9.771
+  },
+  "download_wait_ms": {
+    "n": 60,
+    "p50": 99.978,
+    "p95": 201.238,
+    "max": 201.541
+  },
+  "encode_wait_ms": {
+    "n": 60,
+    "p50": 906.224,
+    "p95": 1690.072,
+    "max": 1756.359
+  },
+  "download_peak": 6,
+  "encoder_peak": 2,
+  "upstream_calls": 60
+}

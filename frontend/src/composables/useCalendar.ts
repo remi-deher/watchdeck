@@ -64,16 +64,9 @@ export function useCalendar() {
   const loading = computed(() => calendarQuery.isFetching.value);
   const error = computed(() => (calendarQuery.error.value as Error | null)?.message || '');
   const reload = () => { void calendarQuery.refetch(); };
-  // Un evenement met a jour chaque occurrence du media dans le cache ; faute de correspondance, la periode est relue.
-  useRealtimeQuery<any[]>(calendarKey, ['request.updated', 'download.updated'], {
-    keyFields: ['request_id', 'id', 'tvdb_id', 'tmdb_id'],
-    patchAll: true,
-    mapper: (payload: any) => {
-      const data = { ...payload };
-      if (payload.status === 'available' || payload.has_file !== undefined) data.has_file = payload.has_file ?? (payload.status === 'available');
-      return data;
-    },
-  });
+  // A calendar event combines release, download, library and requester state.
+  // Revalidate the period instead of deriving it from a partial request event.
+  useRealtimeQuery<any[]>(calendarKey, ['request.updated', 'download.updated'], { invalidateOnly: true });
 
   // Repere des etats « en retard » : fige au chargement de la page.
   const now = Date.now();

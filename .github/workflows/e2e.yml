@@ -30,12 +30,16 @@ permissions:
   contents: read
 
 jobs:
-  responsive-navigation:
+  browser-tests:
+    name: E2E (${{ matrix.browser }})
     runs-on: ubuntu-latest
-    # 10 min ne laissaient aucune marge : la suite Chromium puis iOS tourne en ~9 min
-    # un jour normal, et un runner plus lent ou une relance interne suffisait a couper
-    # le job en plein test (trois livraisons bloquees de suite).
+    # Chromium a atteint 14,3 min : l'enchainer avec iOS coupait la suite a 20 min.
+    # Deux runners independants conservent la couverture et la limite par navigateur.
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -91,20 +95,38 @@ jobs:
           if [ -f /etc/apt/apt-mirrors.txt ]; then
             echo "http://archive.ubuntu.com/ubuntu" | sudo tee /etc/apt/apt-mirrors.txt
           fi
-      - run: npx playwright install --with-deps chromium webkit
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
         if: steps.changes.outputs.relevant == 'true'
       - name: Run Chromium responsive tests
-        if: steps.changes.outputs.relevant == 'true'
-        run: npm run test:e2e -- --project=desktop --project=tablet --project=mobile
+        if: steps.changes.outputs.relevant == 'true' && matrix.browser == 'chromium'
+        run: npm run test:e2e -- --project=desktop --project=tablet --project=mobile --workers=2
       - name: Run iOS WebKit tests
-        if: steps.changes.outputs.relevant == 'true'
+        if: steps.changes.outputs.relevant == 'true' && matrix.browser == 'webkit'
         run: npm run test:e2e -- --project=ios --workers=1
       - name: Upload Playwright traces
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.browser }}
           path: |
             playwright-report/
             test-results/
           retention-days: 7
+
+  # Garder le nom du check obligatoire des rulesets test/main. Il ne reussit
+  # que si les deux navigateurs ont termine : echec/annulation ne sont pas ignores.
+  responsive-navigation:
+    name: responsive-navigation
+    if: always()
+    needs: browser-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify all browser results
+        env:
+          BROWSER_RESULT: ${{ needs.browser-tests.result }}
+        run: |
+          if [ "$BROWSER_RESULT" != "success" ]; then
+            echo "::error::Les tests navigateur n'ont pas tous reussi ($BROWSER_RESULT)."
+            exit 1
+          fi

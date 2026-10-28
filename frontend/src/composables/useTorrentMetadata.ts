@@ -1,5 +1,6 @@
 import { computed, reactive } from 'vue';
 import { api } from '@/api';
+import { useScopedRequests } from './useScopedRequests';
 
 export interface ClientMetadata { categories: string[]; tags: string[]; mutable: boolean }
 const EMPTY: ClientMetadata = { categories: [], tags: [], mutable: false };
@@ -26,11 +27,12 @@ export function normalizeTags(value: string, known: string[]): string {
  * modification de la sélection et la gestion des catégories et tags.
  */
 export function useTorrentMetadata() {
+  const { read } = useScopedRequests();
   const byClient = reactive<Record<string, ClientMetadata>>({});
   const of = (clientId: string | number | null | undefined): ClientMetadata => byClient[String(clientId)] || EMPTY;
 
   async function load(clientId: string | number): Promise<ClientMetadata> {
-    const payload = await api<any>(`/api/downloads/clients/${clientId}/metadata`);
+    const payload = await read<any>(`/api/downloads/clients/${clientId}/metadata`);
     byClient[String(clientId)] = {
       categories: (payload.categories || []).map((item: { name: string }) => item.name),
       tags: payload.tags || [],

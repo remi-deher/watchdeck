@@ -123,3 +123,124 @@ async def test_redis_miss_does_not_resurrect_process_local_value(monkeypatch):
 
     monkeypatch.setattr(cache, "_client", redis_client)
     assert await cache.get_json("k") is None
+
+
+@pytest.mark.asyncio
+async def test_cold_requests_share_computation():
+    cache = Cache()
+    started = asyncio.Event()
+    release = asyncio.Event()
+    calls = 0
+
+    async def compute():
+        nonlocal calls
+        calls += 1
+        started.set()
+        await release.wait()
+        return {"n": calls}
+
+    tasks = [asyncio.create_task(cache.get_or_refresh("cold", 60, 600, compute)) for _ in range(20)]
+    await started.wait()
+    release.set()
+    assert await asyncio.gather(*tasks) == [{"n": 1}] * 20
+    assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_failed_cold_compute_releases_lock():
+    cache = Cache()
+
+    async def failure():
+        raise ValueError("upstream")
+
+    with pytest.raises(ValueError):
+        await cache.get_or_refresh("cold", 60, 600, failure)
+
+    async def success():
+        return {"ok": True}
+
+    assert await cache.get_or_refresh("cold", 60, 600, success) == {"ok": True}
+
+
+@pytest.mark.asyncio
+async def test_memory_has_entry_and_byte_budgets():
+    cache = Cache()
+    cache._max_entries = 2
+    cache._max_bytes = 100
+    for i in range(10):
+        await cache.set_json(str(i), {"value": "x" * 20}, 600)
+    assert len(cache._memory) <= 2
+    assert sum(len(raw.encode()) for raw, _ in cache._memory.values()) <= 100
+    await cache.set_json("oversized", {"value": "x" * 200}, 600)
+    assert "oversized" not in cache._memory
+    for i in range(10):
+        await cache.set_json("expired" + str(i), {}, -1)
+    assert not any(k.startswith("expired") for k in cache._memory)
+
+
+@pytest.mark.asyncio
+async def test_two_caches_coordinate_with_shared_redis_lock(monkeypatch):
+    shared = {}
+    mutex = asyncio.Lock()
+
+    class Lease:
+        async def acquire(self):
+            await mutex.acquire()
+            return True
+
+        async def release(self):
+            mutex.release()
+
+    class Redis:
+        def lock(self, *args, **kwargs):
+            return Lease()
+
+        async def get(self, key):
+            return shared.get(key)
+
+        async def set(self, key, value, **kwargs):
+            shared[key] = value
+
+    redis = Redis()
+
+    async def client():
+        return redis
+
+    first, second = Cache(), Cache()
+    monkeypatch.setattr(first, "_client", client)
+    monkeypatch.setattr(second, "_client", client)
+    calls = 0
+
+    async def compute():
+        nonlocal calls
+        calls += 1
+        await asyncio.sleep(0)
+        return {"ok": True}
+
+    assert (
+        await asyncio.gather(*(c.get_or_refresh("shared", 60, 600, compute) for c in (first, second)))
+        == [{"ok": True}] * 2
+    )
+    assert calls == 1
+    assert not mutex.locked()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_cold_request_releases_lock():
+    cache = Cache()
+    started = asyncio.Event()
+
+    async def blocked():
+        started.set()
+        await asyncio.Event().wait()
+
+    task = asyncio.create_task(cache.get_or_refresh("cancel", 60, 600, blocked))
+    await started.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    async def success():
+        return {"ok": True}
+
+    assert await cache.get_or_refresh("cancel", 60, 600, success) == {"ok": True}

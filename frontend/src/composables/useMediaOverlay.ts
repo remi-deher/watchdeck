@@ -164,7 +164,12 @@ export function useMediaOverlay(): MediaOverlayState {
     void route.fullPath;
     if (typeof history === 'undefined') return null;
     const valeur = (history.state as Record<string, unknown> | null)?.[CLE_FOND];
-    return typeof valeur === 'string' && valeur ? valeur : null;
+    if (typeof valeur === 'string' && valeur) return valeur;
+    // Une fiche média ouverte par URL garde son adresse partageable, mais s'affiche
+    // toujours comme une feuille. Explorer est accessible à tous les profils.
+    return /^\/(?:discover\/media|library\/media|media)\/[^/]+\/[^/]+/.test(route.path)
+      ? '/discover'
+      : null;
   });
 
   // Resolue une seule fois par adresse : passer d'une fiche a l'autre depuis la meme
@@ -191,7 +196,8 @@ export function useMediaOverlay(): MediaOverlayState {
     // `back()` plutot qu'un `push` vers la page de fond : l'entree de la fiche est
     // consommee, et l'on retrouve la grille exactement ou on l'avait laissee --
     // position de defilement comprise.
-    if (actif.value) router.back();
+    if (actif.value && (history.state as Record<string, unknown> | null)?.[CLE_FOND]) router.back();
+    else if (actif.value) void router.replace('/discover');
     else router.push('/discover');
   }
 

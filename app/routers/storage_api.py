@@ -1,5 +1,6 @@
 """Admin-only storage planning and durable commands, never filesystem operations."""
 
+import asyncio
 from typing import Literal
 
 import httpx
@@ -8,7 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 
-from ..database import get_db_async
+from ..database import AsyncSessionLocal, get_db_async
 from ..dependencies import require_admin
 from ..models import ArrInstance, StorageLocation, StorageTransfer, StorageTransferItem
 from ..services.work_ref import WorkRecord, transfer_work
@@ -16,6 +17,9 @@ from ..storage import service
 from ..storage.local_mounts import media_path
 from ..storage.planning import absolute_path
 from ..utils import now_utc_naive
+
+_ROOT_TIMEOUT_SECONDS = 15
+_ROOT_BUDGET_SECONDS = 20
 
 router = APIRouter(prefix="/api/storage", tags=["storage"], dependencies=[Depends(require_admin)])
 
@@ -145,23 +149,46 @@ async def inventory_refresh(observation_id: int, db=Depends(get_db_async)):
 
 @router.get("/roots")
 async def roots(db=Depends(get_db_async)):
-    results = []
-    for instance in (
-        await db.execute(select(ArrInstance).where(ArrInstance.enabled, ArrInstance.arr_type.in_(["radarr", "sonarr"])))
-    ).scalars():
-        try:
-            results.append(await service.discover_instance_roots(db, instance))
-        except Exception:
-            results.append(
-                dict(
-                    arr_instance_id=instance.id,
-                    name=instance.name,
-                    arr_roots=[],
-                    plex_roots=[],
-                    error="Connexion Arr ou Plex indisponible : chemins non vérifiés.",
-                )
+    instances = [
+        (i.id, i.name)
+        for i in (
+            await db.execute(
+                select(ArrInstance).where(ArrInstance.enabled, ArrInstance.arr_type.in_(["radarr", "sonarr"]))
             )
-    return results
+        ).scalars()
+    ]
+    await db.rollback()
+    slots = asyncio.Semaphore(3)
+
+    def unavailable(identifier, name):
+        return dict(
+            arr_instance_id=identifier,
+            name=name,
+            arr_roots=[],
+            plex_roots=[],
+            error="Connexion Arr ou Plex indisponible : chemins non vérifiés.",
+        )
+
+    async def discover(identifier, name):
+        try:
+            async with slots, AsyncSessionLocal() as isolated:
+                async with asyncio.timeout(_ROOT_TIMEOUT_SECONDS):
+                    instance = await isolated.get(ArrInstance, identifier)
+                    if instance is not None and instance.enabled:
+                        return await service.discover_instance_roots(isolated, instance)
+        except Exception:
+            pass
+        return unavailable(identifier, name)
+
+    tasks = [asyncio.create_task(discover(identifier, name)) for identifier, name in instances]
+    try:
+        done, pending = await asyncio.wait(tasks, timeout=_ROOT_BUDGET_SECONDS) if tasks else (set(), set())
+        return [task.result() if task in done else unavailable(*instance) for task, instance in zip(tasks, instances)]
+    finally:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def save_location(db, body, location=None):

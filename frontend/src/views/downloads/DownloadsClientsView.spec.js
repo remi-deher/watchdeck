@@ -44,7 +44,7 @@ describe('DownloadsClientsView', () => {
     sessionStorage.clear();
     document.body.innerHTML = '';
     api.mockReset().mockImplementation(async (path) => {
-      if (path === '/api/downloads/clients') return TORRENTS;
+      if ((path === '/api/downloads/clients' || path.startsWith('/api/downloads/clients/page'))) return TORRENTS;
       if (path === '/api/download-clients') return [{ id: 7, name: 'Maison', enabled: true, client_type: 'qbittorrent' }];
       if (path === '/api/arr-instances') return [];
       if (path.startsWith('/api/downloads/global-stats')) return { download_speed: 2048, upload_speed: 0, connected: 1, total: 1 };
@@ -57,7 +57,7 @@ describe('DownloadsClientsView', () => {
       const wrapper = await factory();
       expect(wrapper.findAll('.torrent-title').map((node) => node.text())).toEqual(['Alpha.2024', 'Zulu.S01']);
       await wrapper.findAll('thead .ui-data-table__sort')[0].trigger('click');
-      expect(wrapper.findAll('.torrent-title').map((node) => node.text())).toEqual(['Zulu.S01', 'Alpha.2024']);
+      await vi.waitFor(() => expect(wrapper.findAll('.torrent-title').map((node) => node.text())).toEqual(['Zulu.S01', 'Alpha.2024']));
     });
 
     it('ouvre la fiche du torrent dans la feuille depuis son titre ou sa ligne', async () => {
@@ -111,7 +111,7 @@ describe('DownloadsClientsView', () => {
       wrapper.findComponent({ name: 'PageTemplate' }).vm.$emit('update:query', 'cat:series');
       await nextTick();
       await nextTick();
-      expect(wrapper.findAll('.torrent-title').map((node) => node.text())).toEqual(['Zulu.S01']);
+      await vi.waitFor(() => expect(wrapper.findAll('.torrent-title').map((node) => node.text())).toEqual(['Zulu.S01']));
     });
 
     it('retient l’affichage compact et propose les modes dans la barre du tableau', async () => {
@@ -133,7 +133,7 @@ describe('DownloadsClientsView', () => {
 
     it('signale un client en cache ou injoignable dans un bandeau', async () => {
       api.mockImplementation(async (path) => {
-        if (path === '/api/downloads/clients') return [{ ...TORRENTS[0], is_stale: true, stale_since_seconds: 42 }, { client_id: 8, client_name: 'Seedbox', client_error: 'timeout' }];
+        if ((path === '/api/downloads/clients' || path.startsWith('/api/downloads/clients/page'))) return [{ ...TORRENTS[0], is_stale: true, stale_since_seconds: 42 }, { client_id: 8, client_name: 'Seedbox', client_error: 'timeout' }];
         if (path === '/api/download-clients') return [{ id: 7, name: 'Maison', enabled: true }];
         return {};
       });
@@ -155,7 +155,7 @@ describe('DownloadsClientsView', () => {
 
     it('met un client hors ligne en point d’attention', async () => {
       api.mockImplementation(async (path) => {
-        if (path === '/api/downloads/clients') return [{ client_id: 7, client_name: 'Maison', client_error: 'timeout' }];
+        if ((path === '/api/downloads/clients' || path.startsWith('/api/downloads/clients/page'))) return [{ client_id: 7, client_name: 'Maison', client_error: 'timeout' }];
         if (path === '/api/download-clients') return [{ id: 7, name: 'Maison', enabled: true }];
         return {};
       });

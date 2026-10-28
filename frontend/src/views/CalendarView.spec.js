@@ -141,7 +141,7 @@ describe('CalendarView', () => {
     wrapper.unmount();
   });
 
-  it('met à jour les événements en place lors d’un événement temps réel request.updated', async () => {
+  it('relit la projection de période lors d’un événement temps réel request.updated', async () => {
     localStorage.setItem('calendar.view', 'agenda');
     setViewport(1280);
     apiMock.mockResolvedValue([
@@ -153,16 +153,19 @@ describe('CalendarView', () => {
     expect(wrapper.text()).toContain('Inception');
     expect(wrapper.find('.plex-action-btn').exists()).toBe(false);
 
+    apiMock.mockResolvedValue([
+      { request_id: 42, title: 'Inception', date: '2026-08-15T20:00:00Z', type: 'movie', has_file: true },
+    ]);
     // Événement SSE reçu
     window.dispatchEvent(new CustomEvent('watchdeck:request.updated', {
       detail: {
         payload: { request_id: 42, status: 'available', has_file: true },
       },
     }));
-    await new Promise(r => setTimeout(r, 150));
+    await new Promise(r => setTimeout(r, 250));
     await flushPromises();
 
-    // L'élément a été mis à jour in-place
+    // Les champs affichés viennent de la projection serveur complète.
     expect(wrapper.find('.plex-action-btn').exists()).toBe(true);
     expect(wrapper.find('.calendar-event-card.state-available').exists()).toBe(true);
     wrapper.unmount();
@@ -190,7 +193,7 @@ describe('CalendarView', () => {
         payload: { request_id: 999 },
       },
     }));
-    await new Promise(r => setTimeout(r, 150));
+    await new Promise(r => setTimeout(r, 250));
     await flushPromises();
 
     // Doit avoir rechargé avec les mêmes bornes (le mois navigué)
