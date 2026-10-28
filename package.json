@@ -13,7 +13,7 @@
     "@formkit/auto-animate": "^0.10.0",
     "@internationalized/date": "^3.12.4",
     "@lucide/vue": "^1.59.0",
-    "@tanstack/query-async-storage-persister": "^5.104.0",
+    "@tanstack/query-async-storage-persister": "^5.104.5",
     "@tanstack/query-persist-client-core": "^5.104.2",
     "@tanstack/vue-query": "^5.104.4",
     "@tanstack/vue-table": "^9.2.6",
