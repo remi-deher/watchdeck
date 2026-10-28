@@ -1,11 +1,47 @@
 # Changelog
 
+## 1.92.1 — 2026-10-28
+
+
+### test
+
+- measure direct detail hero within its overlay ([c96f991](https://github.com/remi-deher/watchdeck/commit/c96f99136663139ad230db2c8f6772f0b3173d2b))
+
+### ⚡ Performance
+
+- protect API capacity and establish measured performance baseline ([8e1dac9](https://github.com/remi-deher/watchdeck/commit/8e1dac914eaca5fa300f90753129056fe82444ea))
+- persist analytics and paginate collections (lots 2-4) ([69e2ded](https://github.com/remi-deher/watchdeck/commit/69e2ded999efca2fb7a96fd6a293f64730c3cba4))
+- bound browser requests and cache retention (lot 5) ([8b64b0a](https://github.com/remi-deher/watchdeck/commit/8b64b0af6b0d0a6b1480bb0dc399b973912cf853))
+- lighten initial assets and virtualize large tables (lot 6) ([8882d7b](https://github.com/remi-deher/watchdeck/commit/8882d7bb3809a613aa05036c439b365879e5d501))
+
+### 🎨 Style
+
+- centrer les colonnes d'affiches dans l'espace disponible (#932) ([a9140df](https://github.com/remi-deher/watchdeck/commit/a9140dfe2d422328994d2beaa31720173a1e3367))
+
+### 🐛 Corrections
+
+- keep direct detail links in overlay ([a948968](https://github.com/remi-deher/watchdeck/commit/a9489682a92ca3bb5a1bc79733956c90f82305b9))
+- remove empty detail sheet space ([cb228a9](https://github.com/remi-deher/watchdeck/commit/cb228a91cbe1688dc38229fc9ba33113430847f8))
+- type shared pools and align paginated browser fixtures ([290d223](https://github.com/remi-deher/watchdeck/commit/290d22314f9aa2942906d9f8a30890e14b31b9a3))
+- run Chromium and WebKit suites in parallel ([1ba1637](https://github.com/remi-deher/watchdeck/commit/1ba163782c057bd9fa82eff69024eab5d5cd47dc))
+
+### 🔧 Maintenance
+
+- bump markdown from 3.11 to 3.11.1 (#935) ([e3f434b](https://github.com/remi-deher/watchdeck/commit/e3f434be54318cfc43da248edb4d135fe563526b))
+- bump @tanstack/vue-query from 5.104.1 to 5.104.4 (#936) ([2d864c9](https://github.com/remi-deher/watchdeck/commit/2d864c91ab1ec879032caf529db404f8a0fd1585))
+- bump @lucide/vue from 1.48.0 to 1.59.0 (#937) ([ff6e6ad](https://github.com/remi-deher/watchdeck/commit/ff6e6ad93f96ad55bfe3ef54de1a1d8f1d292b70))
+- bump the github-actions group with 4 updates (#943) ([a76bdfa](https://github.com/remi-deher/watchdeck/commit/a76bdfa7c752d678fd5a578aec60b8ff893aef1c))
+- bump @tanstack/query-async-storage-persister (#942) ([00a1746](https://github.com/remi-deher/watchdeck/commit/00a17466f66562456c8ec6041a43e29a5d29589a))
 ## 1.92.0 — 2026-10-25
 
 
 ### ✨ Nouveautés
 
 - colonnes affiches rail replié et filtres par genre (#927) ([72c4987](https://github.com/remi-deher/watchdeck/commit/72c4987535c59f005faaec5ce461d1a6ade1acea))
+
+### 🔧 Maintenance
+
+- v1.92.0 (#931) ([6fffae8](https://github.com/remi-deher/watchdeck/commit/6fffae88b822bd9a94815058d8bdf0988d44a582))
 ## 1.91.0 — 2026-10-25
 
 
