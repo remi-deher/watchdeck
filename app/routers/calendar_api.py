@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -13,7 +14,7 @@ from app.services.media_ref import media_ref
 from ..cache import cache
 from ..database import AsyncSessionLocal, get_db_async
 from ..dependencies import require_auth
-from ..models import ArrInstance, LibraryItem, MediaRequest, RequestStatus, Settings
+from ..models import ArrInstance, CalendarProjection, LibraryItem, MediaRequest, RequestStatus, Settings
 from ..services import radarr, sonarr
 from ..utils import now_utc, now_utc_naive, wrap_image_proxy
 
@@ -242,15 +243,40 @@ async def unified_calendar(
     """
     key = _calendar_cache_key(start, end)
 
+    from ..job_queue import enqueue_job
+
+    projection = await db.get(CalendarProjection, key)
+    if projection is None or now_utc_naive() - projection.refreshed_at > timedelta(minutes=5):
+        try:
+            import hashlib
+
+            await enqueue_job(
+                "job_calendar",
+                start,
+                end,
+                job_id="calendar:"
+                + hashlib.sha256(key.encode()).hexdigest()[:24]
+                + ":"
+                + str(int(now_utc().timestamp() // 300)),
+            )
+        except Exception as exc:
+            logger.warning("Calendar refresh enqueue failed: %s", exc)
+    if projection is not None:
+        return _filter_calendar_events(projection.events, tracked_only, type, search, user, status, vf, source)
+
     async def _background():
         async with AsyncSessionLocal() as fresh_db:
-            return await _compute_calendar(fresh_db, start, end, False, None, None, None, None, None, None)
+            return await _compute_calendar(
+                fresh_db, start, end, False, None, None, None, None, None, None, synchronize=False
+            )
 
     raw_events = await cache.get_or_refresh(
         key,
         _CALENDAR_SOFT_TTL,
         _CALENDAR_HARD_TTL,
-        compute_sync=lambda: _compute_calendar(db, start, end, False, None, None, None, None, None, None),
+        compute_sync=lambda: _compute_calendar(
+            db, start, end, False, None, None, None, None, None, None, synchronize=False
+        ),
         compute_background=_background,
     )
     return _filter_calendar_events(raw_events, tracked_only, type, search, user, status, vf, source)
@@ -267,6 +293,8 @@ async def _compute_calendar(
     status: Optional[str],
     vf: Optional[str],
     source: Optional[str],
+    *,
+    synchronize: bool = True,
 ) -> list[dict]:
     now = now_utc()
     start_dt = datetime.fromisoformat(start) if start else now - timedelta(days=7)
@@ -416,8 +444,9 @@ async def _compute_calendar(
                             plex_user_id="system",
                             requested_at=added_date,
                         )
-                        db.add(new_req)
-                        await db.flush()
+                        if synchronize and (new_req.tvdb_id or new_req.tmdb_id):
+                            db.add(new_req)
+                            await db.flush()
 
                         entry = {
                             "in_library": False,
@@ -512,8 +541,9 @@ async def _compute_calendar(
                             plex_user_id="system",
                             requested_at=added_date,
                         )
-                        db.add(new_req)
-                        await db.flush()
+                        if synchronize and (new_req.tvdb_id or new_req.tmdb_id):
+                            db.add(new_req)
+                            await db.flush()
 
                         entry = {
                             "in_library": False,
@@ -574,8 +604,26 @@ async def _compute_calendar(
                             }
                         )
         except Exception as e:
+            if synchronize:
+                raise
             logger.warning(f"Calendar fetch failed for '{inst.name}': {e}")
 
-    await db.commit()
     events.sort(key=lambda e: e["date"])
     return events
+
+
+async def refresh_calendar_projection(start=None, end=None):
+    """Worker-owned synchronization and atomic period publication."""
+    key = _calendar_cache_key(start, end)
+    async with AsyncSessionLocal() as db:
+        await db.execute(select(func.pg_advisory_xact_lock(58420155)))
+        events = await _compute_calendar(db, start, end, False, None, None, None, None, None, None)
+        projection = await db.get(CalendarProjection, key)
+        if projection is None:
+            projection = CalendarProjection(key=key, start=start or "", end=end or "", events=events)
+            db.add(projection)
+        projection.events = events
+        projection.refreshed_at = now_utc_naive()
+        await db.commit()
+    await cache.delete(key)
+    return {"status": "complete", "events": len(events)}

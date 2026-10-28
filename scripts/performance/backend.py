@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT))
 URL = "postgresql+asyncpg://watchdeck:watchdeck-test@127.0.0.1:5433/watchdeck_perf_lot0"
 os.environ["DATABASE_URL"] = URL
 os.environ.pop("REDIS_URL", None)
-RESULTS = ROOT / "docs/performance-results/lot0"
+RESULTS = Path(os.environ.get("WATCHDECK_PERF_RESULTS", ROOT / "docs/performance-results/lot0"))
 RESULTS.mkdir(parents=True, exist_ok=True)
 
 

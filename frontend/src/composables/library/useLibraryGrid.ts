@@ -1,6 +1,6 @@
 import { computed, ref, watch, type ComputedRef, type Ref } from 'vue';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/vue-query';
-import type { AvailabilityRecord, AvailabilityPage } from '@/types/generated/mediaAvailability';
+import type { AvailabilityPage } from '@/types/generated/mediaAvailability';
 import { isInPlex } from '@/utils/mediaAvailability';
 import { isPseudoRequester } from '@/utils/userLabels';
 import { proxyUrl } from '@/utils/mediaImage';
@@ -106,9 +106,11 @@ export function useLibraryGrid({ filters, activeHub, hubLoading, refreshActiveHu
 
   const libraryQuery = useInfiniteQuery({
     queryKey: computed(() => ['library', 'items', gridRequest.value?.library]),
-    queryFn: ({ pageParam, signal }) => api<AvailabilityRecord[]>(`/api/library?${gridRequest.value?.library}&offset=${pageParam}`, { signal }),
-    initialPageParam: 0,
-    getNextPageParam: (last: any[], pages: any[][]) => (last.length === PAGE_SIZE ? pages.reduce((sum, page) => sum + page.length, 0) : undefined),
+    queryFn: ({ pageParam, signal }) => api<any>(`/api/library?${gridRequest.value?.library}&paged=true&${typeof pageParam === 'string' ? `cursor=${encodeURIComponent(pageParam)}` : `offset=${pageParam}`}`, { signal }),
+    initialPageParam: 0 as number | string,
+    getNextPageParam: (last: any, pages: any[]) => Array.isArray(last)
+      ? (last.length === PAGE_SIZE ? pages.reduce((sum, page) => sum + page.length, 0) : undefined)
+      : (last.next_cursor || undefined),
     // Aucun media Plex ne peut correspondre aux filtres : on economise l'appel.
     enabled: computed(() => gridActive.value && Boolean(gridRequest.value?.wantsLibrary)),
     staleTime: 30_000,
@@ -148,7 +150,7 @@ export function useLibraryGrid({ filters, activeHub, hubLoading, refreshActiveHu
   watch(libraryQuery.data, (data) => {
     if (!data) return;
     const known = new Set<any>();
-    const rows = data.pages.flat().filter((row: any) => (known.has(row.id) ? false : (known.add(row.id), true)));
+    const rows = data.pages.flatMap((page: any) => Array.isArray(page) ? page : page.items || []).filter((row: any) => (known.has(row.id) ? false : (known.add(row.id), true)));
     applyLibraryPage(rows);
     // `applyLibraryPage` deduit la suite de la taille d'UNE page ; ici `rows` les cumule
     // toutes : c'est la query qui sait s'il en reste.
@@ -169,7 +171,8 @@ export function useLibraryGrid({ filters, activeHub, hubLoading, refreshActiveHu
     () => [libraryQuery.data.value, requestsQuery.data.value, orphansQuery.data.value, metricsQuery.data.value, requestsQuery.isFetching.value] as const,
     ([library, requests, orphanRows, stats, fetching]) => {
       if (!requests || !orphanRows || fetching) return;
-      const firstPage = library?.pages[0];
+      const rawPage = library?.pages[0];
+      const firstPage = Array.isArray(rawPage) ? rawPage : rawPage?.items;
       if (firstPage || !gridRequest.value?.wantsLibrary) {
         writeCache(cacheKey(), { library: firstPage || [], requests, stats: stats || {}, orphans: orphanRows });
       }

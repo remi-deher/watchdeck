@@ -93,3 +93,62 @@ Les mesures HTTP comprennent 20 appels par route, 40 appels mixtes par vagues de
 8 et 4 connexions simultanées avec une route de consultation indépendante.
 Le rapport est généré à partir des résultats et vérifie leurs volumes et leur
 intégrité. Le script `manifest.py` ne lit ni n'exporte de valeur de credential.
+
+## Vérification des lots 2 et 3
+
+`WATCHDECK_PERF_RESULTS` permet aux scripts Python d'écrire dans un autre dossier
+sans écraser la référence du lot 0. Utiliser le même dossier pour le serveur et
+son client de mesure. Sur le profil `history` déjà chargé, arrêter le serveur
+avant les mesures du worker, puis le redémarrer pour mesurer les lectures SQL :
+
+```bash
+export WATCHDECK_PERF_RESULTS="$PWD/docs/performance-results/lot23"
+python scripts/performance/worker.py history
+python scripts/performance/analytics_incremental.py
+python scripts/performance/backend.py server
+# Dans un second terminal avec la même variable :
+python scripts/performance/backend.py http --profile history
+```
+
+`analytics_incremental.py` utilise une empreinte de catalogue stable et mesure
+séparément l'initialisation, une vérification sans changement, une correction
+historique d'une milliseconde et la vérification suivante. Cette correction reste
+uniquement dans la base jetable du laboratoire. Le script vérifie aussi le nombre
+d'acquisitions du catalogue. `worker.py` force au contraire une empreinte
+indisponible : chaque passage reconstruit intégralement la projection.
+
+Après arrêt du serveur, mesurer séparément la file d'images :
+
+```bash
+python scripts/performance/images.py
+```
+
+Cette dernière mesure utilise 60 JPEG synthétiques de 1280 × 1920 pixels, une
+source simulée de 20 ms et de vrais encodages Pillow en WebP de 300 pixels. Elle
+rapporte séparément les attentes de téléchargement et d'encodage, la concurrence
+maximale et les temps des grilles froide et chaude. Elle ne mesure pas un CDN réel.
+
+## Collections et activité — lot 4
+
+Sur le profil `history`, démarrer le serveur avec les résultats dans `lot4`, puis
+exécuter successivement, hors tests et builds :
+
+```bash
+export WATCHDECK_PERF_RESULTS="$PWD/docs/performance-results/lot4"
+python scripts/performance/backend.py server
+# Autre terminal, même variable :
+python scripts/performance/activity_http.py after
+python scripts/performance/collection_pages.py
+```
+
+`activity_http.py` sépare le premier calcul des dix-neuf appels chauds. Pour une
+comparaison, redémarrer chaque version du serveur et vider uniquement
+`playback_daily_aggregates` dans la base jetable avant son démarrage. L'argument
+`before` ou `after` sélectionne le nom du fichier de résultats ; le script vise
+le serveur déjà lancé sur 8765. Les nouveaux index restent identiques pour les
+deux versions applicatives de cette comparaison.
+
+`collection_pages.py` compare OFFSET et curseur au voisinage du 50 000e média,
+vérifie les identifiants retournés et mesure aussi les 501 comptes historiques
+contre une page de 100 comptes. Les plans SQL séparés du rapport documentent
+l'effet de l'index trigramme et le nombre de lignes parcourues par le curseur.

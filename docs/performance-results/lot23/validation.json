@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-28",
+  "baseline_commit": "8e1dac914eaca5fa300f90753129056fe82444ea",
+  "python": "3.12.14",
+  "full_suite": {
+    "passed": 2602,
+    "skipped": 6,
+    "warnings": 24,
+    "seconds": 44.1
+  },
+  "follow_up_checks": {
+    "analytics_tests_passed": 31,
+    "pagination_cases_passed": 4,
+    "pool_tests_passed": 2,
+    "ruff": "passed",
+    "format": "24 files passed",
+    "diff_check": "passed"
+  },
+  "migration": {
+    "empty_upgrade": "passed",
+    "populated_legacy_upgrade": "passed",
+    "downgrade_preserves_legacy": "passed"
+  },
+  "source_sha256": {
+    "alembic/versions/0054_analytics_projection.py": "8a3f9b8d53fdbaf7cb2a7d72132c3f8c510eb7fd0e5d81b3da8db8cdc3a1797a",
+    "app/jobs.py": "2543373650ead340c84d7948cc437ffda56e2f1d2ab140dce56c8528a39bba61",
+    "app/main.py": "5bb4f4db846e2e9e0e7bdf6d9d61abae56eca7fceafed3c9baa21f79f8b9fa1f",
+    "app/models/__init__.py": "76ed476874a000f1fb383628cccd6895a309eb24eee634f0e046a6bc5875e992",
+    "app/models/analytics.py": "120bda5cd9aaf0acc4786ae217726913ae0829e31a91ff30252b66178103eb6b",
+    "app/models/playback.py": "07652ce73d5ecd8789569c23bc394dfec8ff1e11067db18c290e185666846978",
+    "app/realtime.py": "1c5102b4467d402aaab24b4560f30db0b79d2ce0b86adeff540a492a3bfaf6af",
+    "app/routers/image_proxy_api.py": "243e4cdfc9ad0a65c3a77aa2febdcb02b1c3721f81c137f8f4c1860c99921e21",
+    "app/routers/storage_api.py": "f3803cd0dcbd7b98645f84765946b067a2a326c24094cad0b312d993c76223ea",
+    "app/services/analytics_projection.py": "bdcef4b3a84da09fdacc7a2a4e1b168c3ba3ac3d79f4dcbd67d02981e7b30717",
+    "app/services/http_pool.py": "b02f32efaae42bb4274cbfd84764f9bff61334b2e902903d9852b0b8215a196a",
+    "app/services/library_analytics.py": "ace120505058dc3536308d116838a0f8865fac4d3cd9f8d5b4148ba78d896e59",
+    "app/services/plex_api.py": "d17d9f26edef46d775df3797e42b330d3bb369a89038ee2801a266913acde0a6",
+    "app/services/tmdb.py": "e00df738d4e99c7a1d368a56b57ba77bce8e65dd7bc486c8e3da029bd5f504c8",
+    "scripts/performance/analytics_incremental.py": "3f79f645e55b314a2502096e5c5e5bcc6f2d84edbea1d2bd7f89a2281512c486",
+    "scripts/performance/backend.py": "056bf308d93fb64d1ebedbfb9f2e7a81cf3f96f2a49d78789f7946a234bb9b2f",
+    "scripts/performance/images.py": "7aad35c86155bc3984476968306ad1801d9c8b80c3cda461420d42a2aa11b3fe",
+    "tests/test_analytics_collection.py": "ce6cb8c8400126c46935b99e4cd976780d240b103bbc3015fa9a48a000aad8af",
+    "tests/test_analytics_projection.py": "26985df8cf000048314787143a8d52333091a8b0a941af7c66340c37d2cf9168",
+    "tests/test_image_loading_limits.py": "9bc5e6e8d843517a62f95f609f314d2e978da207a1f9c0230c00f40017f27ac0",
+    "tests/test_library_analytics.py": "07fcc1eb967e3468aa13cf5bef523e457ebc0aefd1a78b2257f35b27a5b5b51f",
+    "tests/test_network_pools.py": "9b8f204ba23ad9047092de419c064a214684683d170ac1364a8b19b1d173f037",
+    "tests/test_performance_caches.py": "069883accd5824b738af0dc3365fef7ce1b6d879c68edaf68e0b53caff664ed9",
+    "tests/test_storage_roots_parallel.py": "67f7b35b76bbe9155a2e68ece01d739c8268bd69313afa804a9cde71d31206c0"
+  }
+}

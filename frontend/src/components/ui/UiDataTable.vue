@@ -275,7 +275,7 @@ const table: any = useTable({
   onSortingChange,
   onRowSelectionChange,
   onColumnSizingChange,
-  manualSorting: props.manualSort,
+  manualSorting: computed(() => props.manualSort),
   enableSortingRemoval: false,
   columnResizeMode: 'onChange',
 } as any);

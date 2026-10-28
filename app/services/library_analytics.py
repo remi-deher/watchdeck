@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import json
 import logging
-from collections import Counter, defaultdict
+from collections import Counter
 from datetime import datetime
 from typing import Any
 from urllib.parse import quote
@@ -13,11 +15,14 @@ import httpx
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import defer
 
 from ..database import AsyncSessionLocal
-from ..models import LibraryAnalyticsSnapshot, LibraryItem, PlaybackSession, Settings
+from ..models import AnalyticsItem, LibraryAnalyticsSnapshot, LibraryItem, PlaybackSession, Settings
 from ..pagination import paginated_response
 from ..utils import now_utc_naive, wrap_image_proxy
+from . import analytics_projection as projection
+from .http_pool import shared_http_client
 
 logger = logging.getLogger(__name__)
 
@@ -129,43 +134,76 @@ def parse_plex_item(
 
 async def fetch_plex_catalog(settings: Settings) -> dict[str, Any]:
     if not settings.plex_url or not settings.plex_token:
-        return {"items": [], "generated_at": datetime.utcnow().isoformat(), "libraries": []}
+        return {"items": [], "generated_at": now_utc_naive().isoformat(), "libraries": []}
     headers = {"X-Plex-Token": settings.plex_token, "Accept": "application/json"}
-    async with httpx.AsyncClient(timeout=60, verify=settings.plex_verify_ssl) as client:
-        sections_response = await client.get(f"{settings.plex_url.rstrip('/')}/library/sections", headers=headers)
-        sections_response.raise_for_status()
-        sections = _list(sections_response.json().get("MediaContainer", {}).get("Directory"))
-        rows: list[dict[str, Any]] = []
-        libraries = []
-        for section in sections:
-            section_type = section.get("type")
-            plex_type = {"movie": 1, "show": 4, "artist": 10}.get(section_type)
-            if not plex_type:
-                continue
-            name, key = section.get("title") or "Bibliothèque", section.get("key")
-            libraries.append({"key": str(key), "name": name, "type": section_type})
-            # Le studio d'une serie, releve une fois, sert ensuite a tous ses episodes.
-            studios: dict[str, str] = {}
-            if section_type == "show":
-                shows_response = await client.get(
-                    f"{settings.plex_url.rstrip('/')}/library/sections/{key}/all",
+    base = settings.plex_url.rstrip("/")
+    async with shared_http_client(timeout=60, verify=settings.plex_verify_ssl) as client:
+
+        async def pages(path, params):
+            offset = 0
+            rows = []
+            seen = set()
+            while True:
+                response = await client.get(
+                    base + path,
                     headers=headers,
-                    params={"type": 2},
+                    params={**params, "X-Plex-Container-Start": offset, "X-Plex-Container-Size": 500},
                 )
-                shows_response.raise_for_status()
-                for show in _list(shows_response.json().get("MediaContainer", {}).get("Metadata")):
-                    if show.get("studio"):
-                        studios[str(show.get("ratingKey") or "")] = show["studio"]
-            response = await client.get(
-                f"{settings.plex_url.rstrip('/')}/library/sections/{key}/all",
-                headers=headers,
-                params={"type": plex_type, "includeMeta": 1},
-            )
+                response.raise_for_status()
+                container = response.json().get("MediaContainer", {})
+                batch = _list(container.get("Metadata") or container.get("Video") or container.get("Track"))
+                signature = tuple(str(row.get("ratingKey")) for row in batch)
+                if batch and signature in seen:
+                    raise ValueError("Plex repeated a catalogue page; refusing a partial snapshot")
+                seen.add(signature)
+                rows.extend(batch)
+                offset += len(batch)
+                total = _int(container.get("totalSize"))
+                if not batch and total and offset < total:
+                    raise ValueError("Plex ended a catalogue before totalSize; refusing a partial snapshot")
+                if not batch or (total and offset >= total) or (not total and len(batch) < 500):
+                    return rows
+
+        async with asyncio.timeout(120):
+            response = await client.get(base + "/library/sections", headers=headers)
             response.raise_for_status()
-            container = response.json().get("MediaContainer", {})
-            items = _list(container.get("Metadata") or container.get("Video") or container.get("Track"))
-            rows.extend(parse_plex_item(item, name, section_type, studios) for item in items)
-    return {"items": rows, "generated_at": datetime.utcnow().isoformat(), "libraries": libraries}
+            sections = _list(response.json().get("MediaContainer", {}).get("Directory"))
+            slots = asyncio.Semaphore(3)
+
+            async def section_rows(section):
+                section_type = section.get("type")
+                plex_type = {"movie": 1, "show": 4, "artist": 10}.get(section_type)
+                if not plex_type:
+                    return None
+                async with slots:
+                    name, key = section.get("title") or "Bibliothèque", section.get("key")
+                    path = f"/library/sections/{key}/all"
+                    studios = {}
+                    if section_type == "show":
+                        studios = {
+                            str(show.get("ratingKey") or ""): show["studio"]
+                            for show in await pages(path, {"type": 2})
+                            if show.get("studio")
+                        }
+                    items = await pages(path, {"type": plex_type, "includeMeta": 1})
+                    parsed = await asyncio.to_thread(
+                        lambda: [parse_plex_item(item, name, section_type, studios) for item in items]
+                    )
+                    return {"key": str(key), "name": name, "type": section_type}, parsed
+
+            tasks = [asyncio.create_task(section_rows(section)) for section in sections]
+            try:
+                results = await asyncio.gather(*tasks)
+            finally:
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
+    return {
+        "items": [row for result in results if result for row in result[1]],
+        "generated_at": now_utc_naive().isoformat(),
+        "libraries": [result[0] for result in results if result],
+    }
 
 
 def _distribution(rows: list[dict], key: str, limit=12) -> list[dict]:
@@ -311,14 +349,17 @@ async def _catalog_fingerprint(settings: Settings) -> str | None:
         return None
     headers = {"X-Plex-Token": settings.plex_token, "Accept": "application/json"}
     try:
-        async with httpx.AsyncClient(timeout=15, verify=settings.plex_verify_ssl) as client:
+        async with shared_http_client(timeout=15, verify=settings.plex_verify_ssl) as client:
             response = await client.get(f"{settings.plex_url.rstrip('/')}/library/sections", headers=headers)
             response.raise_for_status()
             sections = _list(response.json().get("MediaContainer", {}).get("Directory"))
     except Exception as exc:
         logger.debug("Analytique : sonde de catalogue indisponible (%s), recalcul complet", exc)
         return None
-    return "|".join(f"{section.get('key')}:{section.get('updatedAt')}" for section in sections)
+    identity = hashlib.sha256(
+        f"{settings.plex_url}|{settings.plex_token}|{settings.plex_verify_ssl}".encode()
+    ).hexdigest()
+    return identity + "|" + "|".join(f"{section.get('key')}:{section.get('updatedAt')}" for section in sections)
 
 
 async def _playback_fingerprint(db: AsyncSession) -> str:
@@ -329,95 +370,90 @@ async def _playback_fingerprint(db: AsyncSession) -> str:
     return f"{row[0]}:{row[1].isoformat() if row[1] else '-'}"
 
 
-async def refresh_library_analytics_snapshot(settings: Settings, db: AsyncSession) -> dict:
-    """Recalcule puis remplace le snapshot; l'ancien reste intact si le calcul échoue.
+async def refresh_library_analytics_snapshot(settings: Settings, db: AsyncSession, *, include_items=True) -> dict:
+    # Serialize publishers across HTTP and worker processes, even without Redis.
+    await db.execute(select(func.pg_advisory_xact_lock(58420154)))
+    snapshot = await db.get(
+        LibraryAnalyticsSnapshot, 1, populate_existing=True, options=[defer(LibraryAnalyticsSnapshot.payload_json)]
+    )
+    current = await projection.header(db)
+    catalog_fp = await _catalog_fingerprint(settings)
+    playback_fp = await _playback_fingerprint(db)
+    fingerprint = f"{catalog_fp}#{playback_fp}#v{PAYLOAD_VERSION}" if catalog_fp is not None else None
+    # Legacy snapshots remain readable until the first successful projection build.
+    if current is None and snapshot is not None and fingerprint and snapshot.source_fingerprint == fingerprint:
+        payload = json.loads(await projection.legacy(db, snapshot))
+        if "items" in payload:
+            await projection.publish(db, snapshot, payload, catalog_fp)
+        snapshot.updated_at = now_utc_naive()
+        await db.commit()
+        return payload if include_items else {k: v for k, v in payload.items() if k != "items"}
 
-    Court-circuit quand RIEN de ce qui alimente la charge utile n'a bouge depuis le
-    dernier instantane : ni le catalogue Plex, ni l'historique de lecture. Le calcul
-    complet retelechargeait l'integralite du catalogue toutes les dix minutes -- 90 fois
-    par jour -- pour aboutir au meme resultat.
-    """
-    snapshot = await db.get(LibraryAnalyticsSnapshot, 1)
-    fingerprint = None
-    if snapshot is not None and snapshot.payload_json:
-        catalog_fp = await _catalog_fingerprint(settings)
-        if catalog_fp is not None:
-            fingerprint = f"{catalog_fp}#{await _playback_fingerprint(db)}#v{PAYLOAD_VERSION}"
-            if fingerprint == snapshot.source_fingerprint:
-                logger.info("Analytique : catalogue et lectures inchanges, instantane conserve")
-                snapshot.updated_at = now_utc_naive()
-                await db.commit()
-                return json.loads(snapshot.payload_json)
-
-    catalog = await fetch_plex_catalog(settings)
-    rows = [dict(item) for item in catalog["items"]]
-    history = (await db.execute(select(PlaybackSession))).scalars().all()
-    by_key: dict[str, list[PlaybackSession]] = defaultdict(list)
-    # Le repli par titre portait sur `grandparent_title` : pour un episode, cela le
-    # rattachait a *toutes* les lectures de la serie. Chaque episode affichait alors
-    # l'audience de la saison entiere. La paire serie + episode designe une seule ligne.
-    by_pair: dict[tuple[str, str], list[PlaybackSession]] = defaultdict(list)
-    by_title: dict[str, list[PlaybackSession]] = defaultdict(list)
-    for session in history:
-        if session.rating_key:
-            by_key[str(session.rating_key)].append(session)
-        if session.title:
-            title = session.title.casefold()
-            if session.grandparent_title:
-                by_pair[(session.grandparent_title.casefold(), title)].append(session)
-            else:
-                by_title[title].append(session)
-    for row in rows:
-        grandparent = str(row.get("grandparent_title") or "").casefold()
-        title = str(row.get("title") or "").casefold()
-        sessions = (
-            by_key.get(row["rating_key"])
-            or (by_pair.get((grandparent, title)) if grandparent else None)
-            or by_title.get(title)
-            or []
-        )
-        row["play_count"] = len(sessions)
-        row["watch_time_ms"] = sum(session.watched_ms or session.progress_ms or 0 for session in sessions)
-        row["viewers"] = sorted({session.user_name for session in sessions if session.user_name})
-        # Les dates de visionnage, les plus recentes d'abord : la fiche disait combien de
-        # fois un media avait ete vu, jamais quand.
-        views = sorted(
+    changed = await projection.synchronize_playback(db)
+    if (
+        current is not None
+        and fingerprint
+        and snapshot.source_fingerprint == fingerprint
+        and not changed
+        and current.format_version == projection.VERSION
+    ):
+        snapshot.updated_at = now_utc_naive()
+        if not include_items:
+            await db.commit()
+            return current.summary
+        rows = (
             (
-                {
-                    # La ligne du journal ouvre la fiche de sa session (Activite).
-                    "session_id": session.id,
-                    "user": session.user_name,
-                    "at": (session.started_at or session.last_seen_at).isoformat()
-                    if (session.started_at or session.last_seen_at)
-                    else None,
-                    "watched_ms": session.watched_ms or session.progress_ms or 0,
-                    # L'appareil (« Salon ») et son systeme (« tvOS ») de la lecture.
-                    "player": session.player_title or session.product,
-                    "platform": session.platform,
-                }
-                for session in sessions
-                if session.started_at or session.last_seen_at
-            ),
-            key=lambda view: view["at"] or "",
-            reverse=True,
+                await db.execute(
+                    select(AnalyticsItem.data)
+                    .where(AnalyticsItem.generation_id == current.id)
+                    .order_by(AnalyticsItem.ordinal)
+                )
+            )
+            .scalars()
+            .all()
         )
-        row["views"] = views[:20]
-        row["last_viewed_at"] = views[0]["at"] if views else None
+        await db.commit()
+        return {**current.summary, "items": rows}
 
-    payload = _build_payload(rows, catalog["generated_at"], {})
-    now = now_utc_naive()
+    reuse_catalog = current is not None and catalog_fp is not None and catalog_fp == current.catalog_fingerprint
+    if current is not None and catalog_fp is not None and catalog_fp == current.catalog_fingerprint:
+        rows = (
+            (
+                await db.execute(
+                    select(AnalyticsItem.data)
+                    .where(AnalyticsItem.generation_id == current.id)
+                    .order_by(AnalyticsItem.ordinal)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        catalog = {"items": rows, "generated_at": current.generated_at}
+    else:
+        catalog = await fetch_plex_catalog(settings)
+        rows = [dict(item) for item in catalog["items"]]
+    affected = [row for row in rows if changed.intersection(projection.catalog_keys(row))] if reuse_catalog else rows
+    aggregates = await projection.playback_aggregates(db, affected)
+
+    def build():
+        projection.enrich(affected, aggregates)
+        return _build_payload(rows, catalog["generated_at"], {})
+
+    payload = await asyncio.to_thread(build)
+    raw_payload = await asyncio.to_thread(json.dumps, payload, ensure_ascii=False, separators=(",", ":"))
     if snapshot is None:
-        snapshot = LibraryAnalyticsSnapshot(id=1, payload_json="{}", generated_at=now, updated_at=now)
+        snapshot = LibraryAnalyticsSnapshot(id=1, payload_json=raw_payload)
         db.add(snapshot)
-    snapshot.payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    # Empreinte enregistree APRES le calcul : si celui-ci echoue, rien n'est ecrit et le
-    # prochain passage recalcule au lieu de croire l'instantane a jour.
+    await projection.publish(db, snapshot, payload, catalog_fp)
+    # Keep a rollback payload for the previous API/worker version. New read paths
+    # defer this field and never deserialize it for a page, summary or detail.
+    snapshot.payload_json = raw_payload
     snapshot.source_fingerprint = fingerprint
     snapshot.item_count = len(rows)
     snapshot.generated_at = datetime.fromisoformat(catalog["generated_at"])
-    snapshot.updated_at = now
+    snapshot.updated_at = now_utc_naive()
     await db.commit()
-    return payload
+    return payload if include_items else {k: v for k, v in payload.items() if k != "items"}
 
 
 async def refresh_library_analytics() -> dict:
@@ -427,17 +463,34 @@ async def refresh_library_analytics() -> dict:
         settings = (await db.execute(select(Settings))).scalars().first()
         if settings is None:
             return {"items": 0, "status": "not_configured"}
-        payload = await refresh_library_analytics_snapshot(settings, db)
+        payload = await refresh_library_analytics_snapshot(settings, db, include_items=False)
         return {"items": payload["summary"]["items"], "generated_at": payload["generated_at"]}
 
 
 async def analytics_payload(settings: Settings, db: AsyncSession, filters: dict[str, Any], refresh=False) -> dict:
+    if refresh:
+        await refresh_library_analytics_snapshot(settings, db, include_items=False)
+    generation = await projection.header(db)
+    if generation is not None:
+        summary = await projection.summary(db, generation, filters)
+        rows = (
+            (
+                await db.execute(
+                    select(AnalyticsItem.data)
+                    .where(*projection.filters_for(generation.id, filters))
+                    .order_by(AnalyticsItem.ordinal)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return {**summary, "items": rows}
     snapshot = None if refresh else await db.get(LibraryAnalyticsSnapshot, 1)
     if snapshot is None:
         payload = await refresh_library_analytics_snapshot(settings, db)
     else:
         try:
-            payload = json.loads(snapshot.payload_json)
+            payload = json.loads(await projection.legacy(db, snapshot))
         except (TypeError, ValueError, json.JSONDecodeError):
             payload = await refresh_library_analytics_snapshot(settings, db)
 
@@ -450,6 +503,11 @@ async def analytics_summary_payload(
     settings: Settings, db: AsyncSession, filters: dict[str, Any], refresh: bool = False
 ) -> dict:
     """Resume complet sans renvoyer les milliers de lignes du catalogue."""
+    if refresh:
+        await refresh_library_analytics_snapshot(settings, db, include_items=False)
+    generation = await projection.header(db)
+    if generation is not None:
+        return await projection.summary(db, generation, filters)
     payload = await analytics_payload(settings, db, filters, refresh)
     return {key: value for key, value in payload.items() if key != "items"}
 
@@ -489,13 +547,27 @@ async def _snapshot_payload(settings: Settings, db: AsyncSession) -> dict:
     if snapshot is None:
         return await refresh_library_analytics_snapshot(settings, db)
     try:
-        return json.loads(snapshot.payload_json)
+        return json.loads(await projection.legacy(db, snapshot))
     except (TypeError, ValueError, json.JSONDecodeError):
         return await refresh_library_analytics_snapshot(settings, db)
 
 
 async def analytics_item(settings: Settings, db: AsyncSession, rating_key: str) -> dict | None:
     """Un media du catalogue analyse, retrouve par sa cle Plex : ce qu'affiche sa fiche."""
+    generation = await projection.header(db)
+    if generation is not None:
+        return (
+            (
+                await db.execute(
+                    select(AnalyticsItem.data)
+                    .where(AnalyticsItem.generation_id == generation.id, AnalyticsItem.rating_key == rating_key)
+                    .order_by(AnalyticsItem.ordinal)
+                    .limit(1)
+                )
+            )
+            .scalars()
+            .first()
+        )
     payload = await _snapshot_payload(settings, db)
     return next((row for row in payload.get("items", []) if str(row.get("rating_key") or "") == rating_key), None)
 
@@ -513,6 +585,20 @@ async def analytics_items_payload(
     sort: str | None = None,
     direction: str = "asc",
 ) -> dict:
+    generation = await projection.header(db)
+    if generation is not None:
+        return await projection.page(
+            db,
+            generation,
+            filters,
+            offset=offset,
+            limit=limit,
+            insight_kind=insight_kind,
+            insight_field=insight_field,
+            insight_value=insight_value,
+            sort=sort,
+            direction=direction,
+        )
     payload = await _snapshot_payload(settings, db)
     rows = apply_filters(payload.get("items", []), filters)
     if insight_kind == "unwatched":
@@ -645,7 +731,7 @@ async def analytics_item_technical(settings: Settings, db: AsyncSession, rating_
     """
     if not settings.plex_url or not settings.plex_token:
         return None
-    async with httpx.AsyncClient(timeout=15, verify=settings.plex_verify_ssl) as client:
+    async with shared_http_client(timeout=15, verify=settings.plex_verify_ssl) as client:
         response = await client.get(
             f"{settings.plex_url.rstrip('/')}/library/metadata/{quote(rating_key, safe='')}",
             headers={"X-Plex-Token": settings.plex_token, "Accept": "application/json"},

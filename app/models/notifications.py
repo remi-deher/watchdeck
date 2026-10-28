@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import ForeignKey, UniqueConstraint
+from sqlalchemy import ForeignKey, Index, UniqueConstraint, column, desc, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..utils import now_utc_naive
@@ -12,6 +12,11 @@ from .base import Base
 
 class NotificationLog(Base):
     __tablename__ = "notification_logs"
+    __table_args__ = (
+        Index(
+            "ix_notification_recipient_sent", func.lower(func.trim(column("recipient"))), desc("sent_at"), desc("id")
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     sent_at: Mapped[datetime] = mapped_column(default=now_utc_naive, index=True)

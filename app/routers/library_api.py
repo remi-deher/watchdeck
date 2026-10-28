@@ -282,7 +282,15 @@ def _split_values(raw: Optional[str]) -> list[str]:
     return [value.strip() for value in (raw or "").split(",") if value.strip()]
 
 
-@router.get("/library", response_model=list[AvailabilityRecord], response_model_exclude_unset=True)
+class LibrarySeekPage(BaseModel):
+    items: list[AvailabilityRecord]
+    total: int
+    limit: int
+    has_more: bool
+    next_cursor: Optional[str]
+
+
+@router.get("/library", response_model=list[AvailabilityRecord] | LibrarySeekPage, response_model_exclude_unset=True)
 async def list_library(
     query: Optional[str] = None,
     media_type: Optional[str] = None,
@@ -299,6 +307,8 @@ async def list_library(
     server_id: Optional[int] = None,
     limit: int = 200,
     offset: int = 0,
+    paged: bool = False,
+    cursor: Optional[str] = None,
     db: AsyncSession = Depends(get_db_async),
 ):
     """Return Plex library items for the SPA library browser (paginee via limit/offset)."""
@@ -407,9 +417,53 @@ async def list_library(
     elif sort == "added_desc":
         order_clause = [LibraryItem.added_at.desc().nulls_last(), LibraryItem.title, LibraryItem.id]
 
-    items = (
-        (await db.execute(stmt.order_by(*order_clause).offset(max(offset, 0)).limit(min(limit, 500)))).scalars().all()
+    from ..cursors import encode_cursor, scope_for, seek
+
+    scope = scope_for(
+        {
+            "query": query,
+            "media_type": media_type,
+            "media_types": media_types,
+            "vf": vf,
+            "subtitle": subtitle,
+            "requesters": requesters,
+            "decade": decade,
+            "sort": sort,
+            "genre": genre,
+            "audio_format": audio_format,
+            "release_type": release_type,
+            "hi_res": hi_res,
+            "server_id": server_id,
+        }
     )
+    columns = [
+        (LibraryItem.added_at, True, sort != "added_desc"),
+        (LibraryItem.title, False, False),
+        (LibraryItem.id, False, False),
+    ]
+    if sort in ("title_asc", "title_desc"):
+        columns = [(LibraryItem.title, sort == "title_desc", False), (LibraryItem.id, False, False)]
+    elif sort == "year_desc":
+        columns = [(LibraryItem.year, True, False), (LibraryItem.title, False, False), (LibraryItem.id, False, False)]
+    total = None
+    if paged or cursor:
+        total = (await db.execute(select(sqlalchemy.func.count()).select_from(stmt.subquery()))).scalar_one()
+    if cursor:
+        if offset:
+            raise HTTPException(422, "Un curseur ne se combine pas avec offset.")
+        stmt = stmt.where(seek(cursor, scope, columns))
+    limit = min(max(limit, 1), 500)
+    items = (
+        (
+            await db.execute(
+                stmt.order_by(*order_clause).offset(max(offset, 0)).limit(limit + int(paged or bool(cursor)))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    has_more = len(items) > limit
+    items = items[:limit]
     requester_by_library: dict[int, tuple[Optional[str], Optional[str], Optional[str]]] = {}
     item_ids = [item.id for item in items]
     if item_ids:
@@ -432,7 +486,7 @@ async def list_library(
         ).all()
         requester_by_library = {row[0]: (row[1], row[2], row[3]) for row in requester_rows}
     servers_by_library = await _servers_by_library(db, item_ids)
-    return [
+    payload = [
         {
             "id": item.id,
             "title": item.title,
@@ -460,6 +514,13 @@ async def list_library(
         }
         for item in items
     ]
+
+    if paged or cursor:
+        next_cursor = (
+            encode_cursor(scope, [getattr(items[-1], col.key) for col, _, _ in columns]) if has_more and items else None
+        )
+        return {"items": payload, "total": total, "limit": limit, "has_more": has_more, "next_cursor": next_cursor}
+    return payload
 
 
 async def _servers_by_library(db: AsyncSession, item_ids: list[int]) -> dict[int, list[int]]:

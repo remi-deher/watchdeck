@@ -1,0 +1,9 @@
+{
+  "scope": "real PostgreSQL, 50000 media/200000 plays; stable fixture catalogue; historical correction without last_seen_at change",
+  "initial_stable_catalogue_ms": 9079.444,
+  "unchanged_ms": 158.293,
+  "historical_correction_ms": 6461.091,
+  "unchanged_after_ms": 160.669,
+  "catalogue_calls": 1,
+  "rss_peak_kib": 867056
+}

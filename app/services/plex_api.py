@@ -18,6 +18,7 @@ import httpx
 
 from ..cache import cache
 from ..utils import safe_error_message
+from .http_pool import shared_http_client
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +100,7 @@ async def get_server_users(plex_token: str) -> tuple[list[dict], list[str]]:
     )
     users: list[dict] = []
     warnings: list[str] = []
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with shared_http_client(timeout=15) as client:
         for relationship, path in endpoints:
             try:
                 response = await client.get(f"{PLEX_TV_BASE}{path}", headers=headers)
@@ -164,7 +165,7 @@ async def _legacy_get_friends_watchlist(plex_url: str, plex_token: str) -> list[
     items = []
 
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with shared_http_client(timeout=30) as client:
             resp = await client.get(f"{PLEX_TV_BASE}/api/v2/friends", headers=headers)
             resp.raise_for_status()
             friends = resp.json()
@@ -196,7 +197,7 @@ async def get_admin_watchlist(plex_url: str, plex_token: str) -> list[dict]:
         "Accept": "application/json",
         "X-Plex-Client-Identifier": client_identifier(),
     }
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with shared_http_client(timeout=30) as client:
         username = await _get_account_username(client, headers)
         return await _get_user_watchlist(client, plex_token, username, username)
 
@@ -259,7 +260,7 @@ async def get_plex_account(token: str) -> Optional[dict]:
         "X-Plex-Client-Identifier": client_identifier(),
     }
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with shared_http_client(timeout=10) as client:
             resp = await client.get(f"{PLEX_TV_BASE}/api/v2/user", headers=headers)
             logger.info("SSO: Plex user API status: %s", resp.status_code)
             resp.raise_for_status()
@@ -291,7 +292,7 @@ async def check_auth_pin(pin_id: int, code: str | None = None) -> Optional[str]:
     """
     logger.info("SSO: checking PIN status for pin_id: %s", pin_id)
     headers = {"Accept": "application/json", "X-Plex-Client-Identifier": client_identifier()}
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with shared_http_client(timeout=10) as client:
         # Utilisation de l'API v2 officielle de Plex pour vérifier les PINs
         params = {"code": code} if code else None
         resp = await client.get(f"{PLEX_TV_BASE}/api/v2/pins/{pin_id}", headers=headers, params=params)
@@ -398,7 +399,7 @@ async def check_connection(plex_url: str, plex_token: str, verify_ssl: bool = Tr
     if not plex_url:
         return False, "URL Plex non configurée"
     try:
-        async with httpx.AsyncClient(timeout=10, verify=verify_ssl) as client:
+        async with shared_http_client(timeout=10, verify=verify_ssl) as client:
             resp = await client.get(
                 f"{plex_url.rstrip('/')}/identity",
                 headers={"X-Plex-Token": plex_token, "Accept": "application/json"},
@@ -417,7 +418,7 @@ async def fetch_identity(plex_url: str, plex_token: str, verify_ssl: bool = True
     if not plex_url:
         return None
     try:
-        async with httpx.AsyncClient(timeout=10, verify=verify_ssl) as client:
+        async with shared_http_client(timeout=10, verify=verify_ssl) as client:
             resp = await client.get(
                 f"{plex_url.rstrip('/')}/identity",
                 headers={"X-Plex-Token": plex_token, "Accept": "application/json"},
@@ -440,7 +441,7 @@ async def get_auth_pin(forward_url: str = "") -> dict:
         "X-Plex-Product": "Watchdeck",
         "X-Plex-Client-Identifier": client_identifier(),
     }
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with shared_http_client(timeout=10) as client:
         resp = await client.post(f"{PLEX_TV_BASE}/api/v2/pins?strong=true", headers=headers)
         resp.raise_for_status()
         data = resp.json()
@@ -484,7 +485,7 @@ async def get_plex_owner_uuid(admin_token: str) -> str | None:
         "X-Plex-Client-Identifier": client_identifier(),
     }
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with shared_http_client(timeout=10) as client:
             resp = await client.get(f"{PLEX_TV_BASE}/api/v2/user", headers=headers)
         if resp.status_code == 200:
             owner = resp.json()
@@ -503,7 +504,7 @@ async def has_server_access(
         "Accept": "application/json",
         "X-Plex-Client-Identifier": client_identifier(),
     }
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with shared_http_client(timeout=10) as client:
         for path, label in (
             ("/api/v2/user", "owner account"),
             ("/api/v2/friends", "friends"),

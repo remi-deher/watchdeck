@@ -76,6 +76,39 @@ async def download_client_queue(db: AsyncSession = Depends(get_db_async)):
     return [{**row, "work": download_work(row)} if row.get("hash") else row for row in rows]
 
 
+@router.get("/downloads/clients/page")
+async def download_client_page(
+    limit: int = 100,
+    offset: int = 0,
+    query: str = "",
+    client_id: Optional[int] = None,
+    category: Optional[list[str]] = Query(None),
+    state: Optional[list[str]] = Query(None),
+    tracker: Optional[list[str]] = Query(None),
+    ownership: Optional[str] = None,
+    sort: str = "title",
+    direction: str = "asc",
+    db: AsyncSession = Depends(get_db_async),
+):
+    from ..services.torrent_projection import project
+
+    rows = await download_client_queue(db)
+    return await asyncio.to_thread(
+        project,
+        rows,
+        limit=limit,
+        offset=offset,
+        query=query,
+        client_id=client_id,
+        category=category,
+        state=state,
+        tracker=tracker,
+        ownership=ownership,
+        sort=sort,
+        direction=direction,
+    )
+
+
 async def _compute_download_client_queue(db: AsyncSession) -> list[dict]:
     """Interroge réellement tous les clients et projette leurs torrents."""
     import time

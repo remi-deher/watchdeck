@@ -7,8 +7,8 @@
     title="Utilisateurs"
     v-model:query="query"
     :search="{ placeholder: 'Filtrer par nom, identifiant ou email', scope: 'Utilisateurs', kind: 'filter' }"
-    :match-count="filtered.length"
-    :total-count="users.length"
+    :match-count="matchingTotal"
+    :total-count="total"
     :filter-count="filterCount"
     :state="error ? 'error' : pending ? 'loading' : 'ready'" skeleton="table"
     :error="error"
@@ -45,7 +45,13 @@
       v-model:situation="attention"
       label="Tableau des utilisateurs"
       :rows="filtered"
-      :total="users.length"
+      :initial-sort="tableSort"
+      :manual-sort="serverSort"
+      @update:sort="tableSort = $event"
+      :total="total"
+      :has-more="hasMore"
+      :loading-more="loadingMore"
+      @load-more="loadMore"
       :columns="USER_COLUMNS"
       :row-key="(user: AppUser) => user.id"
       :row-label="accountName"
@@ -115,7 +121,7 @@ import { userSituations } from '@/components/users/userSituations';
 const route = useRoute();
 const router = useRouter();
 const {
-  users, filtered, pending, loading, error, reload,
+  filtered, total, matchingTotal, hasMore, loadingMore, loadMore, tableSort, serverSort, pending, loading, error, reload,
   query, status, role, attention, source, sourceOptions, situations, filterCount, reset,
   busy, run, seerEnabled, seerLabel, seerHint,
 } = useUserAccounts();

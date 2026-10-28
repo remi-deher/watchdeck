@@ -51,6 +51,14 @@ describe('UiDataTable', () => {
     expect(w.emitted('update:sort').at(-1)[0].key).toBe('title');
   });
 
+  it('passe du tri local au tri serveur après chargement', async () => {
+    const w = monter({ sort: { key: 'size', direction: 'asc' } });
+    expect(titres(w)).toEqual(['Alien', 'Brazil', 'Dune']);
+    await w.setProps({ manualSort: true });
+    await nextTick();
+    expect(titres(w)).toEqual(['Dune', 'Alien', 'Brazil']);
+  });
+
   it('selectionne une ligne, puis une plage au Maj-clic', async () => {
     const w = monter({ selectable: true, selection: [] });
     const cases = () => w.findAll('tbody [role="checkbox"]');

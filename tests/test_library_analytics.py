@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.models import LibraryAnalyticsSnapshot
+from app.models import LibraryAnalyticsSnapshot, PlaybackSession, Settings
 from app.services.library_analytics import (
     _build_payload,
     analytics_item,
@@ -105,26 +105,18 @@ def test_filters_combine_media_technical_storage_and_audience_fields():
 
 
 @pytest.mark.asyncio
-async def test_refresh_persists_a_complete_precomputed_snapshot(monkeypatch):
+async def test_refresh_persists_a_complete_precomputed_snapshot(monkeypatch, async_database):
     row = parse_plex_item(sample_item(), "Séries", "show")
     monkeypatch.setattr(
         "app.services.library_analytics.fetch_plex_catalog",
         AsyncMock(return_value={"items": [row], "generated_at": "2026-07-26T10:00:00", "libraries": []}),
     )
-    result = SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: []))
-    db = SimpleNamespace(
-        execute=AsyncMock(return_value=result),
-        get=AsyncMock(return_value=None),
-        add=lambda value: setattr(db, "added", value),
-        commit=AsyncMock(),
-    )
-
-    payload = await refresh_library_analytics_snapshot(SimpleNamespace(), db)
-
-    assert payload["summary"]["items"] == 1
-    assert isinstance(db.added, LibraryAnalyticsSnapshot)
-    assert json.loads(db.added.payload_json)["insights"] == payload["insights"]
-    db.commit.assert_awaited_once()
+    async with async_database.session_factory() as db:
+        payload = await refresh_library_analytics_snapshot(Settings(), db)
+        snapshot = await db.get(LibraryAnalyticsSnapshot, 1)
+        assert payload["summary"]["items"] == 1
+        assert snapshot.generation_id
+        assert json.loads(snapshot.payload_json)["insights"] == payload["insights"]
 
 
 @pytest.mark.asyncio
@@ -373,23 +365,22 @@ def _session(**overrides):
     return SimpleNamespace(**base)
 
 
-async def _rows_with_history(monkeypatch, rows, sessions):
+async def _rows_with_history(monkeypatch, rows, sessions, async_database):
     monkeypatch.setattr(
         "app.services.library_analytics.fetch_plex_catalog",
         AsyncMock(return_value={"items": rows, "generated_at": "2026-07-26T10:00:00", "libraries": []}),
     )
-    result = SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: sessions))
-    db = SimpleNamespace(
-        execute=AsyncMock(return_value=result),
-        get=AsyncMock(return_value=None),
-        add=lambda value: None,
-        commit=AsyncMock(),
-    )
-    return await refresh_library_analytics_snapshot(SimpleNamespace(), db)
+    async with async_database.session_factory() as db:
+        for index, session in enumerate(sessions):
+            values = vars(session).copy()
+            values.update(id=7 + index, source_session_id=f"fixture-{index}")
+            db.add(PlaybackSession(**values))
+        await db.commit()
+        return await refresh_library_analytics_snapshot(Settings(), db)
 
 
 @pytest.mark.asyncio
-async def test_an_episode_only_counts_its_own_plays(monkeypatch):
+async def test_an_episode_only_counts_its_own_plays(monkeypatch, async_database):
     """Le repli par titre passait par `grandparent_title`.
 
     Un épisode héritait donc de *toutes* les lectures de sa série : chaque épisode
@@ -403,7 +394,7 @@ async def test_an_episode_only_counts_its_own_plays(monkeypatch):
         _session(title="Le pilote", grandparent_title="Une série", user_name="Rémi"),
     ]
 
-    payload = await _rows_with_history(monkeypatch, [pilote, final], sessions)
+    payload = await _rows_with_history(monkeypatch, [pilote, final], sessions, async_database)
     rows = {row["title"]: row for row in payload["items"]}
 
     assert rows["Le pilote"]["play_count"] == 2
@@ -412,7 +403,7 @@ async def test_an_episode_only_counts_its_own_plays(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_each_item_carries_its_viewing_dates(monkeypatch):
+async def test_each_item_carries_its_viewing_dates(monkeypatch, async_database):
     """La fiche disait combien de fois un média avait été vu, jamais quand."""
     film = parse_plex_item({**sample_item(), "type": "movie", "title": "Chihiro"}, "Films", "movie")
     sessions = [
@@ -420,13 +411,13 @@ async def test_each_item_carries_its_viewing_dates(monkeypatch):
         _session(title="Chihiro", user_name="Rémi", started_at=datetime(2026, 6, 2, 21, 0)),
     ]
 
-    payload = await _rows_with_history(monkeypatch, [film], sessions)
+    payload = await _rows_with_history(monkeypatch, [film], sessions, async_database)
     row = payload["items"][0]
 
     # Les plus récentes d'abord : c'est ce que la fiche montre en premier.
     assert [view["user"] for view in row["views"]] == ["Rémi", "Lisa"]
     # Chaque visionnage mene a la fiche de sa session.
-    assert all(view["session_id"] == 7 for view in row["views"])
+    assert {view["session_id"] for view in row["views"]} == {7, 8}
     assert row["views"][0]["player"] == "Salon" and row["views"][0]["platform"] == "tvOS"
     assert row["last_viewed_at"] == "2026-06-02T21:00:00"
 

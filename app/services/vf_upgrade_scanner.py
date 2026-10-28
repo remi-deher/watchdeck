@@ -179,12 +179,18 @@ def _current_release_titles_from(files: list[dict]) -> list[str]:
     return list(dict.fromkeys(title for item in files if (title := _file_release_title(item))))
 
 
-async def _resolve_instance_for(db: AsyncSession, obj, arr_type: str) -> Optional[ArrInstance]:
+async def _resolve_instance_for(db: AsyncSession, obj, arr_type: str, instances=None) -> Optional[ArrInstance]:
     """Instance *arr pour `obj` (MediaRequest ou LibraryItem) -- requête DB seule, aucun
     appel réseau (même séparation que `vff_scanner._resolve_sonarr_instance_for`, pour
     pouvoir résoudre toutes les instances séquentiellement puis paralléliser les
     recherches elles-mêmes sans partager l'AsyncSession entre coroutines)."""
     arr_instance_id = getattr(obj, "arr_instance_id", None)
+    if instances is not None:
+        candidates = [i for i in instances if i.arr_type == arr_type and i.enabled]
+        return next((i for i in candidates if i.id == arr_instance_id), None) or next(
+            (i for i in candidates if i.is_default), None
+        )
+
     inst = None
     if arr_instance_id:
         inst = (
@@ -300,6 +306,7 @@ async def _build_movie_tasks(
     only: set[tuple[str, int]] | None = None,
     ignored: set[tuple[str, int]] | None = None,
 ) -> list[_SearchTask]:
+    instances = (await db.execute(select(ArrInstance).where(ArrInstance.enabled))).scalars().all()
     tasks: list[_SearchTask] = []
     for model in (MediaRequest, LibraryItem):
         rows = (
@@ -334,7 +341,7 @@ async def _build_movie_tasks(
             key = (source_type, row.id, "movie", None, None)
             if not force and (key in skip or key in recent):
                 continue
-            inst = await _resolve_instance_for(db, row, "radarr")
+            inst = await _resolve_instance_for(db, row, "radarr", instances)
             if not inst:
                 continue
             tasks.append(
@@ -610,6 +617,7 @@ async def _build_show_tasks(
     only: set[tuple[str, int]] | None = None,
     ignored: set[tuple[str, int]] | None = None,
 ) -> list[_SearchTask]:
+    instances = (await db.execute(select(ArrInstance).where(ArrInstance.enabled))).scalars().all()
     tasks: list[_SearchTask] = []
     series_cache = series_cache if series_cache is not None else {}
     for model in (MediaRequest, LibraryItem):
@@ -623,6 +631,26 @@ async def _build_show_tasks(
             rows = [r for r in rows if (source_type, r.id) in only]
         if ignored:
             rows = [r for r in rows if (source_type, r.id) not in ignored]
+        seasons_by_id = {}
+        identifiers = [row.id for row in rows]
+        for offset in range(0, len(identifiers), 1000):
+            statuses = (
+                (
+                    await db.execute(
+                        select(VfEpisodeStatus).where(
+                            VfEpisodeStatus.source_type == source_type,
+                            VfEpisodeStatus.source_id.in_(identifiers[offset : offset + 1000]),
+                            VfEpisodeStatus.is_known_episode.is_(True),
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            for status in statuses:
+                seasons_by_id.setdefault(status.source_id, {}).setdefault(status.season_number, {})[
+                    status.episode_number
+                ] = bool(status.has_vf)
         for row in rows:
             # Voir le meme garde-fou dans _build_movie_tasks : une demande deja liee a un
             # LibraryItem fait doublon avec lui.
@@ -631,10 +659,10 @@ async def _build_show_tasks(
             if getattr(row, "source", None) == "seer":
                 continue
             # Instance resolue en premier : necessaire aussi pour le fallback Sonarr (#Fix1).
-            inst = await _resolve_instance_for(db, row, "sonarr")
+            inst = await _resolve_instance_for(db, row, "sonarr", instances)
             if not inst:
                 continue
-            seasons = await _season_vf_status(db, source_type, row.id)
+            seasons = seasons_by_id.get(row.id, {})
             if not seasons:
                 # Fix #1 : aucun statut Plex (serie jamais scannee ou fichiers recemment
                 # importes). On interroge directement Sonarr pour decouvrir les saisons

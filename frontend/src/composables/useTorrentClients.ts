@@ -1,6 +1,6 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useQuery } from '@tanstack/vue-query';
+import { useInfiniteQuery } from '@tanstack/vue-query';
 import { api } from '@/api';
 import { useRealtime } from '@/events';
 import { filterClients, torrentFacets } from '@/downloads/clientFilters';
@@ -10,7 +10,6 @@ import { useDownloadSources } from './useDownloadSources';
 import { useTorrentActions } from './useTorrentActions';
 import { useToast } from './useToast';
 
-const asList = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
 const asArray = (value: string | string[]): string[] => (Array.isArray(value) ? value : value ? [value] : []);
 const isSet = (value: unknown): boolean => (Array.isArray(value) ? value.length > 0 : Boolean(value));
 
@@ -29,18 +28,6 @@ export function useTorrentClients() {
   const { downloadClients: configured, loading: configurationLoading, load: loadSources } = useDownloadSources();
   onMounted(() => { void loadSources(); });
   const enabledClients = computed(() => configured.value.filter((client: any) => client.enabled));
-
-  const clientsQuery = useQuery({
-    queryKey: ['downloads', 'clients'] as const,
-    queryFn: ({ signal }) => api('/api/downloads/clients', { signal }),
-    select: (rows) => asList<any>(rows),
-    staleTime: 5_000,
-  });
-  const torrents = computed<any[]>(() => clientsQuery.data.value || []);
-  // Une surveillance *arr n'apporte rien aux clients torrent : on ne relit que pour le reste.
-  useRealtime(['download.updated'], (_type, detail: any) => {
-    if (!['sonarr-queue-monitor', 'radarr-queue-monitor'].includes(detail?.job || '')) void clientsQuery.refetch({ cancelRefetch: true });
-  }, { debounceMs: 350 });
 
   /* ---- Filtres, retenus par client ---- */
   const query = ref('');
@@ -71,9 +58,38 @@ export function useTorrentClients() {
   /* Les filtres du panneau comptent sur le bouton ; la recherche est visible à côté. */
   const filterCount = computed(() => [status.value, category.value, tracker.value, ownership.value].filter(isSet).length);
 
+  const paged = computed(() => route.query.sub === 'instances');
+  const tableSort = ref<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  const params = computed(() => {
+    const values = new URLSearchParams({ query: query.value, ownership: ownership.value, sort: tableSort.value?.key || 'title', direction: tableSort.value?.direction || 'asc' });
+    if (clientId.value) values.set('client_id', clientId.value);
+    for (const [key, selected] of [['state', status.value], ['category', category.value], ['tracker', tracker.value]] as const) {
+      for (const value of asArray(selected)) values.append(key, value);
+    }
+    return values;
+  });
+  const clientsQuery = useInfiniteQuery({
+    queryKey: computed(() => ['downloads', 'clients', paged.value ? params.value.toString() : 'overview']),
+    queryFn: ({ pageParam, signal }) => api<any>(paged.value ? `/api/downloads/clients/page?${params.value}&limit=100&offset=${pageParam}` : '/api/downloads/clients', { signal }),
+    initialPageParam: 0,
+    getNextPageParam: (last: any) => !Array.isArray(last) && last.has_more ? last.offset + last.items.length : undefined,
+    staleTime: 5_000,
+  });
+  const metadata = computed(() => { const page = clientsQuery.data.value?.pages[0]; return Array.isArray(page) ? null : page; });
+  const torrents = computed<any[]>(() => clientsQuery.data.value?.pages.flatMap((page: any) => Array.isArray(page) ? page : page.items || []) || []);
+  const serverSort = computed(() => Boolean(metadata.value));
+  const total = computed(() => metadata.value?.collection_total ?? scoped.value.length);
+  const matchingTotal = computed(() => metadata.value?.total ?? rows.value.length);
+  const hasMore = computed(() => Boolean(clientsQuery.hasNextPage.value));
+  const loadingMore = computed(() => clientsQuery.isFetchingNextPage.value);
+  const loadMore = () => clientsQuery.fetchNextPage();
+  useRealtime(['download.updated'], (_type, detail: any) => {
+    if (!['sonarr-queue-monitor', 'radarr-queue-monitor'].includes(detail?.job || '')) void clientsQuery.refetch({ cancelRefetch: true });
+  }, { debounceMs: 350 });
+
   // Les compteurs portent sur tous les torrents, avant filtrage.
-  const facets = computed(() => torrentFacets(torrents.value));
-  const rows = computed(() => filterClients(torrents.value, {
+  const facets = computed(() => metadata.value?.facets || torrentFacets(torrents.value));
+  const rows = computed(() => metadata.value ? torrents.value : filterClients(torrents.value, {
     query: query.value, clientId: clientId.value, category: category.value, status: status.value, tracker: tracker.value, ownership: ownership.value,
   }));
   const scoped = computed(() => torrents.value.filter((row: any) => !row.client_error && (!clientId.value || String(row.client_id) === clientId.value)));
@@ -90,7 +106,7 @@ export function useTorrentClients() {
 
   /* ---- Bandeaux : données en cache, client injoignable ---- */
   const stale = computed(() => torrents.value.find((row: any) => row.is_stale) || null);
-  const clientErrors = computed(() => torrents.value.filter((row: any) => row.client_error && (!clientId.value || String(row.client_id) === clientId.value)));
+  const clientErrors = computed(() => metadata.value?.client_errors || torrents.value.filter((row: any) => row.client_error && (!clientId.value || String(row.client_id) === clientId.value)));
 
   /* ---- Affichage retenu ---- */
   const compact = usePreference('torrent-table-compact', false, { legacyKeys: ['watchdeck:torrent-table-compact'] });
@@ -124,7 +140,7 @@ export function useTorrentClients() {
 
   return {
     clientId, clientName, selectClient, configured, enabledClients, configurationLoading,
-    torrents, rows, scoped, pending: computed(() => clientsQuery.isPending.value),
+    torrents, rows, scoped, total, matchingTotal, hasMore, loadingMore, loadMore, tableSort, serverSort, pending: computed(() => clientsQuery.isPending.value),
     error: computed(() => (clientsQuery.error.value ? `Clients torrent : ${(clientsQuery.error.value as Error).message}` : '')),
     reload: () => clientsQuery.refetch({ cancelRefetch: true }),
     query, status, category, tracker, ownership, reset, filterCount, facets, asArray,

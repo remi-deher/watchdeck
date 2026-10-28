@@ -1,6 +1,8 @@
 # Audit de performance et plan de correction — Watchdeck
 
-Date : 28 octobre 2026. Statut : lot 1 implémenté et validé localement ; lot 0 terminé comme référence de laboratoire.
+Date : 28 octobre 2026. Statut : lots 0 à 4 terminés et vérifiés en laboratoire ; lots 5, 6 et 7 restants.
+
+Point d’avancement : [rapport du lot 4 et lots restants](performance-results/LOT4_MEASUREMENTS.md).
 
 Résultats et limites : [campagne mesurée du lot 0](performance-results/LOT0_MEASUREMENTS.md) et [mesures initiales des lots 0 et 1](performance-results/README.md).
 
@@ -166,17 +168,17 @@ mesuré ; après mise en cache du shell, elle fonctionne. Ce constat est à repr
 
 ### Lot 1 — Protéger la capacité de l'API
 
-- [ ] Déporter bcrypt dans des threads sans modifier son facteur de coût, ses
+- [x] Déporter bcrypt dans des threads sans modifier son facteur de coût, ses
   règles de vérification ni les protections contre les tentatives répétées.
-- [ ] Mutualiser le premier calcul de cache par clé. Gérer exception, annulation et
+- [x] Mutualiser le premier calcul de cache par clé. Gérer exception, annulation et
   expiration du verrou. Pour Redis, utiliser un propriétaire unique et une libération
   conditionnelle ; définir explicitement le comportement en cas de panne Redis.
-- [ ] Sortir les attentes réseau des transactions de collecte torrent. Passer des
+- [x] Sortir les attentes réseau des transactions de collecte torrent. Passer des
   valeurs détachées aux appels externes et ouvrir une nouvelle transaction si une
   écriture est nécessaire après leur retour.
-- [ ] Borner le cache mémoire et purger les entrées expirées ; vérifier les usages
+- [x] Borner le cache mémoire et purger les entrées expirées ; vérifier les usages
   lorsque Redis est disponible et lorsqu'il ne l'est pas.
-- [ ] Ajouter délais Redis et reprise temporisée. Ajouter une temporisation après
+- [x] Ajouter délais Redis et reprise temporisée. Ajouter une temporisation après
   échec du catalogue Arr en conservant la dernière donnée exploitable.
 
 Acceptation : une connexion lente ne bloque pas une route indépendante ; une rafale
@@ -186,15 +188,17 @@ collecte torrent n'est conservée pendant une attente externe.
 
 ### Lot 2 — Maîtriser les appels externes et les images
 
-- [ ] Réutiliser les clients HTTP TMDB, Plex et images en respectant origine,
+Implémenté et vérifié : [rapport des lots 2 et 3](performance-results/LOT23_MEASUREMENTS.md).
+
+- [x] Réutiliser les clients HTTP TMDB, Plex et images en respectant origine,
   configuration TLS et authentification ; fermer les pools à l'arrêt.
-- [ ] Réutiliser le pool Redis de publication. Garder les connexions de lecture
+- [x] Réutiliser le pool Redis de publication. Garder les connexions de lecture
   bloquante SSE compatibles avec leur durée de vie et leur annulation.
-- [ ] Paralléliser la découverte des racines avec une limite et un budget global.
+- [x] Paralléliser la découverte des racines avec une limite et un budget global.
   Ne pas partager un `AsyncSession` entre coroutines concurrentes.
-- [ ] Limiter séparément téléchargements et encodages d'images à froid. Mesurer
+- [x] Limiter séparément téléchargements et encodages d'images à froid. Mesurer
   l'attente induite pour choisir la limite ; préserver les réponses périmées rapides.
-- [ ] Mettre en cache la résolution Plex et l'invalider à la modification des
+- [x] Mettre en cache la résolution Plex et l'invalider à la modification des
   réglages ou des serveurs. Préserver les contrôles d'hôte et de destination.
 
 Acceptation : les connexions sont réutilisées ; la concurrence reste bornée lors
@@ -204,18 +208,18 @@ résultats des autres instances.
 
 ### Lot 3 — Séparer catalogue, lectures et consultation analytique
 
-- [ ] Introduire une projection persistée des médias analytiques, indexée selon les
+- [x] Introduire une projection persistée des médias analytiques, indexée selon les
   filtres et tris réellement utilisés. Versionner la projection et sa fraîcheur.
-- [ ] Paginer la collecte Plex et borner la concurrence entre bibliothèques.
-- [ ] Séparer l'empreinte du catalogue de celle des lectures. Une nouvelle lecture
+- [x] Paginer la collecte Plex et borner la concurrence entre bibliothèques.
+- [x] Séparer l'empreinte du catalogue de celle des lectures. Une nouvelle lecture
   ne doit pas imposer de retélécharger le catalogue inchangé.
-- [ ] Préparer les agrégats de lecture en SQL ou dans le worker, avec un mécanisme
+- [x] Préparer les agrégats de lecture en SQL ou dans le worker, avec un mécanisme
   incrémental et une reconstruction complète pour les corrections d'historique.
-- [ ] Faire lire aux routes résumé, liste et détail les données qui leur sont
+- [x] Faire lire aux routes résumé, liste et détail les données qui leur sont
   nécessaires, sans désérialiser tout le catalogue pour une page ou une fiche.
-- [ ] Publier atomiquement une nouvelle version cohérente. Servir la dernière
+- [x] Publier atomiquement une nouvelle version cohérente. Servir la dernière
   version réussie pendant une reconstruction ; exposer sa fraîcheur.
-- [ ] Comparer les résultats de l'ancienne et de la nouvelle projection avant de
+- [x] Comparer les résultats de l'ancienne et de la nouvelle projection avant de
   basculer les lectures, y compris les filtres, distributions, totaux et exports.
 
 Acceptation : une page paginée ne charge plus le JSON global ; les résultats restent
@@ -248,10 +252,10 @@ contrats API uniques pour tous les domaines.
    limiter le chargement de sessions dans `activity_snapshot` et mesurer séparément
    premier calcul et lectures chaudes pour ne pas masquer le coût par le cache.
 
-- [ ] Pour chaque API modifiée, inventorier ses consommateurs frontend et ses tests.
-- [ ] Faire évoluer serveur et client dans le même lot ou prévoir une compatibilité
+- [x] Pour chaque API modifiée, inventorier ses consommateurs frontend et ses tests.
+- [x] Faire évoluer serveur et client dans le même lot ou prévoir une compatibilité
   temporaire explicite avec les bundles déjà ouverts.
-- [ ] Écrire des migrations compatibles avec le mode transactionnel d'Alembic ;
+- [x] Écrire des migrations compatibles avec le mode transactionnel d'Alembic ;
   prévoir les précautions nécessaires pour les gros index.
 
 Acceptation : pas de doublon ni de manque à la pagination sur une collection stable ;

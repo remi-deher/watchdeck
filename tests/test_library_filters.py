@@ -334,3 +334,20 @@ def test_requests_list_music_media_type_returns_no_requests(async_db):
         assert response.json()["items"] == []
     finally:
         _cleanup()
+
+
+def test_library_cursor_page_is_validated_over_http(async_db):
+    async_db.add_all([LibraryItem(title=f"Film {i}", media_type="movie") for i in range(3)])
+    async_db.commit()
+    client = _client(async_db)
+    try:
+        first = client.get("/api/library?paged=true&sort=title_asc&limit=2")
+        assert first.status_code == 200
+        assert len(first.json()["items"]) == 2
+        cursor = first.json()["next_cursor"]
+        second = client.get("/api/library", params=dict(paged=True, sort="title_asc", limit=2, cursor=cursor))
+        assert second.status_code == 200 and len(second.json()["items"]) == 1
+        assert not second.json()["has_more"]
+        assert client.get("/api/library").status_code == 200
+    finally:
+        _cleanup()
