@@ -700,13 +700,9 @@ test("les commandes d'une page ne recouvrent jamais la recherche", async ({ page
 });
 
 test("le hero d'un lien direct conserve le rendu de la fiche en feuille", async ({ page }) => {
-  /* Le hero debordait sur les goutieres par marges negatives : une ouverture pleine
-     largeur, mais un objet different de tout le reste de l'application. Il reprend le
-     cadre de la banniere d'Explorer -- carte bordee dans la colonne -- et son image
-     reste fixe : sur une page de consultation, une animation au survol distrait de la
-     lecture. Pas de trait autour de l'image : le voile en dessine le bord, egal sur les
-     quatre cotes. La comparaison ligne a ligne avec la banniere est verifiee
-     separement, sur les sources (MediaDetailHero.spec). */
+  /* Un lien direct ouvre la meme feuille que la navigation interne. Sa banniere
+     epouse le panneau, sans bord ni arrondi propre, et reste fixe au survol.
+     Elle se mesure par rapport a la feuille, pas a la page derriere le rail. */
   await page.route("**/api/media/detail**", (route) =>
     route.fulfill({
       json: {
@@ -744,8 +740,8 @@ test("le hero d'un lien direct conserve le rendu de la fiche en feuille", async 
   await page.waitForTimeout(400);
   expect(await hero.evaluate((node) => getComputedStyle(node).transform)).toBe("none");
 
-  // Dans la colonne, plus en travers : c'est ce que les marges negatives cassaient.
-  const [heroBox, mainBox] = await Promise.all([hero.boundingBox(), page.locator("#main-content").boundingBox()]);
+  // La banniere doit rester dans le panneau, y compris quand il recouvre le rail.
+  const [heroBox, mainBox] = await Promise.all([hero.boundingBox(), page.locator(".media-overlay__panel").boundingBox()]);
   expect(heroBox.x, "le hero deborde a gauche").toBeGreaterThanOrEqual(mainBox.x - 1);
   expect(heroBox.x + heroBox.width, "le hero deborde a droite").toBeLessThanOrEqual(mainBox.x + mainBox.width + 1);
 });
