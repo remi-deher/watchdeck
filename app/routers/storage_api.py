@@ -73,11 +73,50 @@ class PreviewBody(BaseModel):
 
 
 @router.get("/locations")
-async def locations(db=Depends(get_db_async)):
-    return [
-        service.location_json(s)
-        for s in (await db.execute(select(StorageLocation).order_by(StorageLocation.id))).scalars()
-    ]
+async def locations(refresh: bool = False, db=Depends(get_db_async)):
+    locs = (await db.execute(select(StorageLocation).order_by(StorageLocation.id))).scalars().all()
+    now = now_utc_naive()
+    stale = refresh or any(
+        s.virtual_key is None and (s.checked_at is None or (now - s.checked_at).total_seconds() > 300) for s in locs
+    )
+    if stale and locs:
+        try:
+            async with asyncio.timeout(10):
+                await service.refresh_all_locations(db)
+                locs = (await db.execute(select(StorageLocation).order_by(StorageLocation.id))).scalars().all()
+        except Exception:
+            pass
+    return [service.location_json(s) for s in locs]
+
+
+@router.post("/locations/refresh")
+async def refresh_locations(db=Depends(get_db_async)):
+    try:
+        async with asyncio.timeout(30):
+            locs = await service.refresh_all_locations(db)
+    except Exception as exc:
+        raise HTTPException(504, f"Le contrôle des stockages a expiré : {exc}") from exc
+    return [service.location_json(s) for s in locs]
+
+
+@router.post("/locations/{location_id}/refresh")
+async def refresh_one_location(location_id: int, db=Depends(get_db_async)):
+    location = await db.get(StorageLocation, location_id)
+    if not location:
+        raise HTTPException(404, "Stockage inconnu.")
+    try:
+        async with asyncio.timeout(15):
+            await service.refresh_location_capacity(db, location)
+            await db.commit()
+            try:
+                from ..realtime import publish
+
+                await publish("storage.updated", admin_only=True)
+            except Exception:
+                pass
+    except Exception as exc:
+        raise HTTPException(504, f"Le contrôle du stockage a expiré : {exc}") from exc
+    return service.location_json(location)
 
 
 @router.get("/instances")
