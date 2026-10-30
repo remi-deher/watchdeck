@@ -77,8 +77,7 @@ async def locations(refresh: bool = False, db=Depends(get_db_async)):
     locs = (await db.execute(select(StorageLocation).order_by(StorageLocation.id))).scalars().all()
     now = now_utc_naive()
     stale = refresh or any(
-        s.virtual_key is None and (s.checked_at is None or (now - s.checked_at).total_seconds() > 300)
-        for s in locs
+        s.virtual_key is None and (s.checked_at is None or (now - s.checked_at).total_seconds() > 300) for s in locs
     )
     if stale and locs:
         try:

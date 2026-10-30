@@ -136,12 +136,16 @@ async def refresh_location_capacity(db, location, arr_cache=None) -> bool:
 
             if inst_id not in arr_cache:
                 instance = await db.get(ArrInstance, inst_id)
-                if not instance or not getattr(instance, "enabled", True) or getattr(instance, "arr_type", "") not in ("radarr", "sonarr"):
+                if (
+                    not instance
+                    or not getattr(instance, "enabled", True)
+                    or getattr(instance, "arr_type", "") not in ("radarr", "sonarr")
+                ):
                     arr_cache[inst_id] = None
                 else:
                     try:
                         roots = await arr_request(instance, "GET", "rootfolder") or []
-                        disk_spaces = []
+                        disk_spaces: list[dict] = []
                         try:
                             disk_spaces = await arr_request(instance, "GET", "diskspace") or []
                         except Exception:
@@ -231,12 +235,14 @@ async def refresh_location_capacity(db, location, arr_cache=None) -> bool:
 async def refresh_all_locations(db) -> list[StorageLocation]:
     """Refreshes capacities of all configured storage locations."""
     locations = (
-        await db.execute(
-            select(StorageLocation)
-            .where(StorageLocation.virtual_key.is_(None))
-            .order_by(StorageLocation.id)
+        (
+            await db.execute(
+                select(StorageLocation).where(StorageLocation.virtual_key.is_(None)).order_by(StorageLocation.id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     arr_cache: dict = {}
     for location in locations:
         await refresh_location_capacity(db, location, arr_cache=arr_cache)
