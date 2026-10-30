@@ -62,6 +62,7 @@
         :loading="loading && !locations.length"
         :labels="{ singular: 'stockage sélectionné', plural: 'stockages sélectionnés', empty: 'Aucun stockage', global: 'Actions sur les stockages' }"
         :row-actions="LOCATION_ROW_ACTIONS"
+        :bulk-actions="LOCATION_BULK_ACTIONS"
         :global-actions="LOCATION_GLOBAL_ACTIONS"
         openable
         @open="openLocation"
@@ -208,7 +209,7 @@ import type { CreateDefinition, CreateResult, CreateValues } from '@/components/
 import type { TrackItem } from '@/components/templates/track/types';
 import StorageDirectoryBrowser from '@/components/storage/StorageDirectoryBrowser.vue';
 import StorageTaskSheet from '@/components/storage/StorageTaskSheet.vue';
-import { CONNECTION_COLUMNS, CONNECTION_GLOBAL_ACTIONS, CONNECTION_ROW_ACTIONS, LOCATION_COLUMNS, LOCATION_GLOBAL_ACTIONS, LOCATION_ROW_ACTIONS, bytesLabel, connectionNames } from '@/components/storage/storageDefinitions';
+import { CONNECTION_COLUMNS, CONNECTION_GLOBAL_ACTIONS, CONNECTION_ROW_ACTIONS, LOCATION_BULK_ACTIONS, LOCATION_COLUMNS, LOCATION_GLOBAL_ACTIONS, LOCATION_ROW_ACTIONS, bytesLabel, connectionNames } from '@/components/storage/storageDefinitions';
 import { calculatePreview } from '@/components/storage/previewJob';
 import { selectedRootAccess } from '@/components/storage/transferAccess';
 import { useStorageLiveTelemetry } from '@/components/storage/useStorageLiveTelemetry';
@@ -359,9 +360,9 @@ const transferRoots = computed(() => {
   }
   for (const instance of instances.value) if (instance.enabled !== false) ensure(instance.id);
   for (const location of locations.value) {
-    const mapping = location.mappings?.[0];
-    if (!mapping) continue;
-    if (location.free_bytes != null) ensure(mapping.arr_instance_id).capacities[mapping.arr_root] = { free_bytes: location.free_bytes };
+    for (const mapping of location.mappings || []) {
+      if (location.free_bytes != null) ensure(mapping.arr_instance_id).capacities[mapping.arr_root] = { free_bytes: location.free_bytes };
+    }
   }
   return [...byInstance.values()].filter((item: any) => instances.value.find((entry: any) => entry.id === item.arr_instance_id)?.enabled !== false);
 });
@@ -442,6 +443,18 @@ function openRootAccess(row: MappingRow): void {
 
 function onLocationAction(key: string, rows: any[]): void {
   if (key === 'configure' && rows[0]) openLocation(rows[0]);
+  else if (key === 'refresh') {
+    void guarded(async () => {
+      if (rows.length === 1 && rows[0]?.id) {
+        await api(`/api/storage/locations/${rows[0].id}/refresh`, { method: 'POST' });
+        toast.success(`Capacité de « ${rows[0].name} » actualisée.`);
+      } else {
+        await api('/api/storage/locations/refresh', { method: 'POST' });
+        toast.success('Capacités des stockages actualisées.');
+      }
+      await load();
+    });
+  }
   else if (key === 'mappings') { settingsTab.value = 'mappings'; void mappings.refresh().catch((cause: any) => toast.error('Stockage', cause.message)); }
   else if (key === 'connections') settingsTab.value = 'connections';
   else if (key === 'inventory') { settingsTab.value = 'inventory'; void inventory.load(); }
