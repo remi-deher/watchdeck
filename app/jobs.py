@@ -820,6 +820,18 @@ async def cron_storage_inventory(ctx: dict):
         logger.warning("Storage inventory refresh interrupted", exc_info=True)
 
 
+async def cron_storage_capacity(ctx: dict):
+    from .database import AsyncSessionLocal
+    from .storage.service import refresh_all_locations
+
+    try:
+        async with asyncio.timeout(60):
+            async with AsyncSessionLocal() as db:
+                await refresh_all_locations(db)
+    except Exception:
+        logger.warning("Storage capacity refresh interrupted", exc_info=True)
+
+
 async def cron_prepare_dashboard(ctx: dict):
     from .routers.dashboard_api import prepare_dashboard
 
@@ -950,6 +962,7 @@ class WorkerSettings:
         cron(cron_prepare_dashboard, second={2, 32}, unique=True, run_at_startup=True),
         cron(cron_prepare_dashboard_counts, minute=set(range(0, 60, 2)), second=12, unique=True, run_at_startup=True),
         cron(cron_storage_inventory, minute={3, 18, 33, 48}, unique=True),
+        cron(cron_storage_capacity, minute=set(range(0, 60, 5)), second=45, unique=True, run_at_startup=True),
         cron(cron_watchlist, second={0, 30}, unique=True, run_at_startup=True),
         cron(cron_arr_statuses, minute={0, 15, 30, 45}, unique=True),
         cron(cron_torrent_statuses, minute=set(range(0, 60, 2)), unique=True),

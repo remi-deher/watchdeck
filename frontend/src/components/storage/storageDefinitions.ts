@@ -1,6 +1,6 @@
 /* Ce que la vue « Stockages » confie au gabarit « Gérer » : ses colonnes et ses actions,
  * décrites en données. Les clés d'action sont décodées par la page. */
-import { Cable, Database, GitCompareArrows, PlugZap, Plus, Settings } from '@lucide/vue';
+import { Cable, Database, GitCompareArrows, PlugZap, Plus, RefreshCw, Settings } from '@lucide/vue';
 import type { ControlAction } from '@/components/ui/ControlTable.vue';
 import type { UiColumn } from '@/components/ui/UiDataTable.vue';
 
@@ -10,12 +10,20 @@ export const LOCATION_COLUMNS: UiColumn[] = [
   { key: 'access', label: 'Connexion / accès' },
 ];
 
-export const LOCATION_ROW_ACTIONS = (): ControlAction[] => [{ key: 'configure', label: 'Configurer', icon: Settings }];
+export const LOCATION_ROW_ACTIONS = (): ControlAction[] => [
+  { key: 'configure', label: 'Configurer', icon: Settings },
+  { key: 'refresh', label: 'Contrôler la capacité', icon: RefreshCw },
+];
 
 export const LOCATION_GLOBAL_ACTIONS: ControlAction[] = [
+  { key: 'refresh', label: 'Actualiser les capacités', icon: RefreshCw },
   { key: 'mappings', label: 'Correspondances Arr ↔ Plex', icon: GitCompareArrows },
   { key: 'connections', label: 'Gérer les connexions', icon: Cable },
   { key: 'inventory', label: 'Consulter l’inventaire', icon: Database },
+];
+
+export const LOCATION_BULK_ACTIONS: ControlAction[] = [
+  { key: 'refresh', label: 'Actualiser la capacité', icon: RefreshCw },
 ];
 
 export const CONNECTION_COLUMNS: UiColumn[] = [

@@ -36,6 +36,8 @@ const handler = async (path, opts) => {
   if (path === '/api/storage/roots') return roots;
   if (path === '/api/storage/instances') return instances;
   if (path === '/api/storage/locations' && !opts) return data.locations;
+  if (path === '/api/storage/locations/refresh') return data.locations;
+  if (path.startsWith('/api/storage/locations/') && path.endsWith('/refresh')) return data.locations[0] || {};
   if (path === '/api/storage/transfers' && !opts) return data.transfers;
   if (path === '/api/storage/accesses') return data.accesses;
   if (path === '/api/storage/connections') return data.connections;
@@ -80,6 +82,13 @@ describe('Stockage et transferts', () => {
     await factory('settings');
     expect(body().textContent).toContain('5 Go libres');
     expect(body().textContent).toContain('1 dossier(s) associé(s)');
+  });
+
+  it('actualise la capacité des stockages à la demande', async () => {
+    data.locations = [locationRow];
+    await factory('settings');
+    await press('Actualiser les capacités');
+    expect(request.mock.calls.some(([path]) => path === '/api/storage/locations/refresh')).toBe(true);
   });
 
   it('propose les pages liées aux stockages sans les poser dans un tableau', async () => {

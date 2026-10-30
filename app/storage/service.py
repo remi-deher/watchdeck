@@ -1,12 +1,14 @@
 """Administrative inventory and previews; the API never mounts media folders."""
 
+import logging
+import shutil
 from datetime import timedelta
 
 import httpx
 from sqlalchemy import delete, func, select
 
 from ..crypto import fingerprint_secret
-from ..models import ArrInstance, StorageLocation, StorageTransfer, StorageTransferItem
+from ..models import ArrInstance, StorageAccess, StorageLocation, StorageTransfer, StorageTransferItem
 from ..services.plex_servers import connection_for
 from ..utils import now_utc_naive
 from .planning import absolute_path, choose_candidates, relative_path
@@ -90,6 +92,162 @@ def reserve_bytes(location, total_bytes=None):
     if total is None:
         raise ValueError("Capacité totale inconnue : impossible de calculer la réserve en pourcentage.")
     return int(total * percent / 100)
+
+
+logger = logging.getLogger(__name__)
+
+
+async def refresh_location_capacity(db, location, arr_cache=None) -> bool:
+    """Calculates and updates free_bytes, total_bytes, health, and checked_at for a StorageLocation."""
+    mount_path = getattr(location, "mount_path", None)
+    mappings = getattr(location, "mappings", None) or []
+
+    # 1. Local mount
+    if mount_path:
+        try:
+            from .worker import mounted_root
+
+            root = mounted_root(mount_path)
+            usage = shutil.disk_usage(root)
+            location.free_bytes = usage.free
+            location.total_bytes = usage.total
+            location.health = "ok"
+            location.checked_at = now_utc_naive()
+            return True
+        except (OSError, ValueError):
+            if not mappings:
+                location.free_bytes = None
+                location.total_bytes = None
+                location.health = "unavailable"
+                location.checked_at = now_utc_naive()
+                return False
+
+    # 2. Mappings via Arr instances
+    if mappings:
+        if arr_cache is None:
+            arr_cache = {}
+        frees: list[int] = []
+        totals: list[int] = []
+        for mapping in mappings:
+            inst_id = mapping.get("arr_instance_id")
+            arr_root = (mapping.get("arr_root") or "").rstrip("/")
+            if not inst_id or not arr_root:
+                continue
+
+            if inst_id not in arr_cache:
+                instance = await db.get(ArrInstance, inst_id)
+                if not instance or not getattr(instance, "enabled", True) or getattr(instance, "arr_type", "") not in ("radarr", "sonarr"):
+                    arr_cache[inst_id] = None
+                else:
+                    try:
+                        roots = await arr_request(instance, "GET", "rootfolder") or []
+                        disk_spaces = []
+                        try:
+                            disk_spaces = await arr_request(instance, "GET", "diskspace") or []
+                        except Exception:
+                            pass
+                        arr_cache[inst_id] = (roots, disk_spaces)
+                    except Exception as exc:
+                        logger.warning("Could not fetch root folders from Arr instance %s: %s", inst_id, exc)
+                        arr_cache[inst_id] = None
+
+            cached = arr_cache.get(inst_id)
+            if cached:
+                roots, disk_spaces = cached
+                matched = next((r for r in roots if (r.get("path") or "").rstrip("/") == arr_root), None)
+                if not matched:
+                    matched = next(
+                        (
+                            r
+                            for r in roots
+                            if arr_root.startswith((r.get("path") or "").rstrip("/"))
+                            or (r.get("path") or "").rstrip("/").startswith(arr_root)
+                        ),
+                        None,
+                    )
+                if matched and isinstance(matched.get("freeSpace"), int):
+                    frees.append(matched["freeSpace"])
+                    total_space = matched.get("totalSpace")
+                    if not isinstance(total_space, int) and disk_spaces:
+                        vol = next(
+                            (
+                                d
+                                for d in disk_spaces
+                                if arr_root.startswith((d.get("path") or "").rstrip("/"))
+                                or (d.get("path") or "").rstrip("/").startswith(arr_root)
+                            ),
+                            None,
+                        )
+                        if vol and isinstance(vol.get("totalSpace"), int):
+                            total_space = vol["totalSpace"]
+                    if isinstance(total_space, int):
+                        totals.append(total_space)
+
+        if frees:
+            location.free_bytes = min(frees)
+            location.total_bytes = min(totals) if totals else None
+            location.health = "ok"
+            location.checked_at = now_utc_naive()
+            return True
+
+    # 3. StorageAccess validation proofs fallback
+    if mappings:
+        try:
+            accesses = (await db.execute(select(StorageAccess))).scalars().all()
+            access_frees: list[int] = []
+            access_totals: list[int] = []
+            for mapping in mappings:
+                inst_id = mapping.get("arr_instance_id")
+                arr_root = (mapping.get("arr_root") or "").rstrip("/")
+                for access in accesses:
+                    roots_validation = (access.validation or {}).get("roots", [])
+                    for r in roots_validation:
+                        if r.get("arr_instance_id") == inst_id and (r.get("arr_root") or "").rstrip("/") == arr_root:
+                            if isinstance(r.get("free_bytes"), int):
+                                access_frees.append(r["free_bytes"])
+                            if isinstance(r.get("total_bytes"), int):
+                                access_totals.append(r["total_bytes"])
+
+            if access_frees:
+                location.free_bytes = min(access_frees)
+                location.total_bytes = min(access_totals) if access_totals else None
+                location.health = "ok"
+                location.checked_at = now_utc_naive()
+                return True
+        except Exception:
+            pass
+
+    # 4. Fallback if configured but inaccessible
+    if mount_path or mappings:
+        location.free_bytes = None
+        location.total_bytes = None
+        location.health = "unavailable"
+        location.checked_at = now_utc_naive()
+        return False
+
+    return False
+
+
+async def refresh_all_locations(db) -> list[StorageLocation]:
+    """Refreshes capacities of all configured storage locations."""
+    locations = (
+        await db.execute(
+            select(StorageLocation)
+            .where(StorageLocation.virtual_key.is_(None))
+            .order_by(StorageLocation.id)
+        )
+    ).scalars().all()
+    arr_cache: dict = {}
+    for location in locations:
+        await refresh_location_capacity(db, location, arr_cache=arr_cache)
+    await db.commit()
+    try:
+        from ..realtime import publish
+
+        await publish("storage.updated", admin_only=True)
+    except Exception:
+        pass
+    return locations
 
 
 async def preview(db, body):

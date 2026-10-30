@@ -746,21 +746,12 @@ async def rescan_arr(instance, item, resource, snap, stop):
 
 
 async def refresh_storage():
+    from .service import refresh_location_capacity
+
     async with AsyncSessionLocal() as db:
+        arr_cache: dict = {}
         for location in (await db.execute(select(StorageLocation))).scalars():
-            if not location.mount_path:
-                continue
-            try:
-                root = mounted_root(location.mount_path)
-                usage = shutil.disk_usage(root)
-                location.free_bytes = usage.free
-                location.total_bytes = usage.total
-                location.health = "ok"
-            except (OSError, ValueError):
-                location.free_bytes = None
-                location.total_bytes = None
-                location.health = "unavailable"
-            location.checked_at = now_utc_naive()
+            await refresh_location_capacity(db, location, arr_cache=arr_cache)
         await db.commit()
 
 
