@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.92.2 — 2026-10-30
+
+
+### test
+
+- couvrir l'actualisation des capacités ([1bd2800](https://github.com/remi-deher/watchdeck/commit/1bd2800c9057781f5195a25c4e3dc16d6239f7ce))
+
+### 🐛 Corrections
+
+- actualiser les données des disques et la place disponible ([ffc37e4](https://github.com/remi-deher/watchdeck/commit/ffc37e4dc263215c7cc205b0d20a247791470bcd))
+- ruff formatting and type annotations ([62554c3](https://github.com/remi-deher/watchdeck/commit/62554c3842f67c3f4d4eb604948152ab6e4ffb4f))
 ## 1.92.1 — 2026-10-28
 
 
@@ -32,6 +43,7 @@
 - bump @lucide/vue from 1.48.0 to 1.59.0 (#937) ([ff6e6ad](https://github.com/remi-deher/watchdeck/commit/ff6e6ad93f96ad55bfe3ef54de1a1d8f1d292b70))
 - bump the github-actions group with 4 updates (#943) ([a76bdfa](https://github.com/remi-deher/watchdeck/commit/a76bdfa7c752d678fd5a578aec60b8ff893aef1c))
 - bump @tanstack/query-async-storage-persister (#942) ([00a1746](https://github.com/remi-deher/watchdeck/commit/00a17466f66562456c8ec6041a43e29a5d29589a))
+- v1.92.1 (#947) ([43e7c18](https://github.com/remi-deher/watchdeck/commit/43e7c184fc10938f59771d960a35f48d2d136039))
 ## 1.92.0 — 2026-10-25
 
 
