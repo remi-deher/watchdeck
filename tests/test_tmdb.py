@@ -402,9 +402,15 @@ async def test_discovery_sources_keeps_curated_providers_available_in_region(db)
             {"provider_id": 337, "provider_name": "Disney Plus", "logo_path": "/disney.jpg"},
         ]
     }
-    with patch("app.services.tmdb._get", new=AsyncMock(side_effect=[provider_payload, {"results": []}])):
+    detail = AsyncMock(return_value={})
+    with (
+        patch("app.services.tmdb._get", new=AsyncMock(side_effect=[provider_payload, {"results": []}])),
+        patch("app.services.tmdb._source_detail", new=detail),
+    ):
         result = await tmdb.discovery_sources(db, "FR")
 
+    logos = sum(1 for source in tmdb.CURATED_DISCOVERY_SOURCES if source["kind"] in {"network", "company"})
+    assert detail.await_count == logos
     netflix = next(source for source in result if source["id"] == 8)
     assert netflix["kind"] == "provider"
     assert netflix["logo_url"] == "https://image.tmdb.org/t/p/w154/netflix.jpg"

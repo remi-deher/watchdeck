@@ -321,6 +321,11 @@ def test_sources_return_configured_region_and_curated_items(client, db):
     assert response.json() == {"region": "BE", "items": sources}
     discover_sources.assert_awaited_once_with(ANY, "BE")
 
+    again = client.get("/api/discover/sources")
+    assert again.status_code == 200
+    assert again.json() == {"region": "BE", "items": sources}
+    discover_sources.assert_awaited_once_with(ANY, "BE")
+
 
 def test_source_media_is_annotated_and_paginated(client):
     payload = {
