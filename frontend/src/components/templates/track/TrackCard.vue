@@ -45,8 +45,8 @@
           <AlertTriangle aria-hidden="true" />
           <span>{{ item.cause.headline }}</span>
         </p>
-        <ul v-if="item.cause.reasons?.length" class="track-card__reasons">
-          <li v-for="reason in item.cause.reasons" :key="reason">{{ reason }}</li>
+        <ul v-if="reasons.length" class="track-card__reasons">
+          <li v-for="reason in reasons" :key="reason">{{ reason }}</li>
         </ul>
         <p v-if="item.cause.hint" class="track-card__hint">{{ item.cause.hint }}</p>
       </div>
@@ -94,6 +94,13 @@ import type { TrackAction, TrackItem, TrackState } from './types';
 
 const props = defineProps<{ item: TrackItem }>();
 const item = computed(() => resolveTrackItem(props.item));
+/* Le message brut de Sonarr sert souvent de titre : on ne le répète pas en puce. */
+const reasons = computed(() => {
+  const cause = item.value.cause;
+  if (!cause?.reasons?.length) return [];
+  const headline = (cause.headline || '').trim().toLowerCase();
+  return cause.reasons.filter((reason) => reason.trim().toLowerCase() !== headline);
+});
 /* L'affiche vient du media quand il y en a un (MediaRef). */
 const poster = computed(() => props.item.poster || props.item.media?.poster_url || null);
 const emit = defineEmits<{ action: [item: TrackItem, key: string] }>();

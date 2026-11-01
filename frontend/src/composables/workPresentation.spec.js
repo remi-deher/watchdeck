@@ -11,6 +11,32 @@ describe('Travail entier', () => {
     expect(item.step).toBe('Finalisation Plex');
     expect(item.eta).toBe('Copie uniquement');
   });
+  it('un import déjà téléchargé garde le diagnostic et perd la barre à 100 %', () => {
+    const blocked = {
+      ...work,
+      source: 'download',
+      state: 'blocked',
+      label: 'À traiter',
+      stage: 'Téléchargement',
+      progress: { percent: 100, scope: 'download', label: 'Téléchargement' },
+      reason: 'Episode has a TBA title and recently aired',
+    };
+    const item = resolveTrackItem({
+      key: 'old',
+      title: 'Overgeared',
+      state: 'running',
+      step: 'Import bloqué',
+      progress: null,
+      cause: { headline: 'Téléchargé — en attente d’import', reasons: [blocked.reason], hint: 'Sonarr réessaiera seul.' },
+      work: blocked,
+    });
+    expect(item.state).toBe('blocked');
+    expect(item.step).toBe('Import bloqué');
+    expect(item.progress).toBeNull();
+    expect(item.eta).toBeUndefined();
+    expect(item.cause.headline).toBe('Téléchargé — en attente d’import');
+    expect(item.cause.reasons).toEqual([blocked.reason]);
+  });
   it('préserve zéro et masque une mesure inconnue', () => {
     expect(resolveLiveItem({title: 'Dune', work: {...work, progress: {...work.progress, percent: 0}}}).progress).toBe(0);
     expect(resolveLiveItem({title: 'Dune', progress: 80, work: {...work, state: 'unknown', label: 'État inconnu', progress: {...work.progress, percent: null}}})).toMatchObject({progress: null, status: 'État inconnu'});

@@ -79,12 +79,13 @@ describe('DownloadQueuePanel', () => {
   });
 
   it('annonce l’erreur en priorité quand l’élément est aussi non rattaché', () => {
-    // Sinon le badge (« Non rattaché ») contredit la barre de progression, rouge.
+    // Le fichier est déjà là : pas de barre rouge à 100 %, qui contredisait le badge.
     const wrapper = render([
       queueItem({ request_id: null, library_id: null, error: 'Archive illisible' }),
     ]);
     expect(wrapper.get('.badge').text()).toBe('Erreur');
-    expect(wrapper.get('.queue-progress i').classes()).toContain('is-error');
+    expect(wrapper.find('.queue-progress').exists()).toBe(false);
+    expect(wrapper.get('.queue-row').classes()).toContain('is-alert');
   });
 
   it('affiche client, reste à télécharger et temps restant', () => {

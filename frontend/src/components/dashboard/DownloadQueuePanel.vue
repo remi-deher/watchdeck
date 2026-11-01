@@ -16,36 +16,38 @@
       :key="rowKey(item)"
       :to="queueDetailPath(item)"
       class="queue-row"
+      :class="{ 'is-alert': needsAttention(item) }"
       @click="ouvrirFicheAuClic($event, queueDetailPath(item))"
     >
       <img
-        v-if="item.poster_url"
-        :src="item.poster_url"
-        class="mini-poster"
+        v-if="posterOf(item)"
+        :src="posterOf(item)"
+        class="queue-poster"
         :alt="`Affiche de ${item.title}`"
         loading="lazy"
         decoding="async"
       >
-      <div v-else class="mini-poster mini-poster-fallback"><Film /></div>
+      <div v-else class="queue-poster queue-poster-fallback" aria-hidden="true"><Film /></div>
 
-      <div class="queue-main">
+      <div class="queue-body">
         <div class="queue-heading">
           <strong>{{ item.title }}</strong>
           <span class="badge" :class="badgeClass(item)">{{ shortStatus(item) }}</span>
         </div>
-
-        <div
-          class="queue-progress"
-          role="progressbar"
-          :aria-valuenow="percent(item)"
-          aria-valuemin="0"
-          aria-valuemax="100"
-          :aria-label="`Progression de ${item.title}`"
-        >
-          <i :class="progressClass(item)" :style="{ width: `${percent(item)}%` }" />
+        <p class="queue-meta">{{ metaLine(item) }}</p>
+        <div v-if="showsProgress(item)" class="queue-track">
+          <div
+            class="queue-progress"
+            role="progressbar"
+            :aria-valuenow="percent(item)"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            :aria-label="`Progression de ${item.title}`"
+          >
+            <i :class="progressClass(item)" :style="{ width: `${percent(item)}%` }" />
+          </div>
+          <span class="queue-percent">{{ percent(item) }} %</span>
         </div>
-
-        <span class="queue-meta">{{ metaLine(item) }}</span>
       </div>
     </component>
 
@@ -110,6 +112,22 @@ const summary = computed(() => {
   if (remaining > 0) parts.push(`${formatFileSize(remaining)} restants`);
   return parts.join(' · ');
 });
+
+function posterOf(item: QueueRow): string {
+  return item.media?.poster_url || item.poster_url || '';
+}
+
+/** La barre suit le transfert (en cours, en pause, terminé). Un blocage
+    (import impossible, erreur) n'a pas de progression à montrer. */
+function showsProgress(item: QueueRow): boolean {
+  if (needsAttention(item)) return false;
+  const key = statusKey(item);
+  return key === 'downloading' || key === 'paused' || key === 'completed';
+}
+
+function needsAttention(item: QueueRow): boolean {
+  return requiresIntervention(item) || statusKey(item) === 'error';
+}
 
 function percent(item: any): number {
   if (item.progress != null) return Math.min(100, Math.max(0, Math.round(item.progress)));
@@ -186,39 +204,73 @@ function metaLine(item: any): string {
 
 .queue-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: 44px minmax(0, 1fr);
   gap: var(--space-3);
   align-items: center;
-  padding: 9px 0;
+  padding: 10px 0 10px var(--space-3);
   border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
   color: inherit;
   text-decoration: none;
 }
 .queue-row:last-of-type { border-bottom: 0; }
+.queue-row.is-alert { border-left-color: var(--red); }
+a.queue-row:hover strong { color: var(--accent); }
+a.queue-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
 
-.mini-poster-fallback {
+.queue-poster {
+  width: 44px;
+  height: 66px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-sm);
+}
+.queue-poster-fallback {
   display: grid;
   place-items: center;
-  background: var(--surface-2);
   color: var(--muted);
 }
-.mini-poster-fallback svg { width: 40%; }
+.queue-poster-fallback svg { width: 18px; height: 18px; }
 
-.queue-main { display: grid; gap: var(--space-1); min-width: 0; }
+.queue-body { display: grid; gap: 3px; min-width: 0; }
 
 .queue-heading {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--space-2);
+  display: flex;
   align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
 }
 .queue-heading strong {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   font-size: var(--fs-sm);
+  line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.queue-meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.queue-row.is-alert .queue-meta { color: var(--text); }
+
+.queue-track {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 2px;
+}
 .queue-progress {
   height: 5px;
   overflow: hidden;
@@ -235,13 +287,10 @@ function metaLine(item: any): string {
 .queue-progress i.is-done { background: var(--green); }
 .queue-progress i.is-error { background: var(--red); }
 .queue-progress i.is-idle { background: var(--muted); }
-
-.queue-meta {
-  overflow: hidden;
+.queue-percent {
   color: var(--muted);
   font-size: var(--fs-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .queue-more {
