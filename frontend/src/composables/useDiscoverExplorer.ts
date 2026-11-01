@@ -57,7 +57,7 @@ const isProviderMode = computed(() => !fixedMediaType.value && isSourceMode.valu
 const {
   home, personalized, homeLoaded, hideAvailable, hideWatched,
   sources, sourcesLoading, sourcesError, activeSourceName,
-  loadHome, loadHomeSection, loadSources, loadPersonalized, reloadPersonalized,
+  loadHome, loadHomeSection, loadSources, ensureSources, loadPersonalized, reloadPersonalized,
   loadProviderHome, forgetProviderHome,
   browse, retryRow, openRow, requestableRow, patchMedia: patchHome,
 } = useDiscoverHome({ currentSourceKey, sourceKey, isProviderMode });
@@ -141,7 +141,7 @@ async function showExplorer() {
   mode.value = 'explore';
   syncExplorerUrl();
   if (!genres.value.length) loadGenres();
-  if (!sources.value.length) loadSources();
+  ensureSources();
   if (isProviderMode.value) {
     const [, id] = (sourceKey.value || '').split(':');
     if (id) loadProviderHome(Number(id));
@@ -209,7 +209,7 @@ function applyExplorerUrl() {
     genre.value = String(route.query.genre || '');
     sortBy.value = SORT_VALUES.includes(String(route.query.sort)) ? String(route.query.sort) : 'popularity.desc';
     availability.value = AVAILABILITY_VALUES.includes(String(route.query.availability)) ? String(route.query.availability) : '';
-    if (!sources.value.length) loadSources();
+    ensureSources();
     if (kind === 'provider' && !route.query.type && !route.query.q && !route.query.genre && !route.query.section) {
       loadProviderHome(Number(id));
     } else {
@@ -232,7 +232,7 @@ function applyExplorerUrl() {
   sourceKey.value = params.get('source') || '';
   sortBy.value = SORT_VALUES.includes(params.get('sort') || '') ? (params.get('sort') as string) : 'popularity.desc';
   loadGenres();
-  if (!sources.value.length) loadSources();
+  ensureSources();
   load();
 }
 

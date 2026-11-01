@@ -15,7 +15,7 @@
         :src="logoUrl"
         :alt="source.name"
         :class="{ 'is-dark-logo': isDarkLogo, 'is-full-bleed': isProvider }"
-        loading="lazy"
+        loading="eager"
         decoding="async"
         @error="imgError = true"
       >

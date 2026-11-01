@@ -104,28 +104,30 @@
           />
         </template>
       </template>
-      <template v-if="detail" #after>
+      <!-- Casting, recommandations et similaires accompagnent le résumé seulement.
+           La saga reste sous les onglets : elle n'est pas une partie du résumé. -->
+      <template v-if="detail && !isMusic && (tab === 'summary' || detail.saga?.items?.length)" #after>
         <div class="media-detail-body">
-    <MediaCast v-if="detail.cast?.length && !isMusic" :items="detail.cast" />
+          <MediaCast v-if="tab === 'summary' && detail.cast?.length" :items="detail.cast" />
 
-    <MediaSaga v-if="detail.saga && !isMusic" :saga="detail.saga" />
+          <MediaSaga v-if="detail.saga" :saga="detail.saga" />
 
-    <MediaRecommendations
-      v-if="!isMusic"
-      title="Recommandés pour vous"
-      :items="detail.recommendations || []"
-      :requesting="recRequesting"
-      @open="openDetail"
-      @request="requestRecMedia"
-    />
-    <MediaRecommendations
-      v-if="!isMusic"
-      title="Titres similaires"
-      :items="detail.similar || []"
-      :requesting="recRequesting"
-      @open="openDetail"
-      @request="requestRecMedia"
-    />
+          <MediaRecommendations
+            v-if="tab === 'summary'"
+            title="Recommandés pour vous"
+            :items="detail.recommendations || []"
+            :requesting="recRequesting"
+            @open="openDetail"
+            @request="requestRecMedia"
+          />
+          <MediaRecommendations
+            v-if="tab === 'summary'"
+            title="Titres similaires"
+            :items="detail.similar || []"
+            :requesting="recRequesting"
+            @open="openDetail"
+            @request="requestRecMedia"
+          />
         </div>
       </template>
     </MediaDetailHero>

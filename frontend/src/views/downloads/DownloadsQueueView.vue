@@ -34,7 +34,7 @@ import { useDownloadHistory } from '@/composables/useDownloadHistory';
 import { useDownloadQueue } from '@/composables/useDownloadQueue';
 import { onMounted } from 'vue';
 import { queueRowToTrack } from '@/downloads/queueTrack';
-import { queueDetailPath, rowKey } from '@/downloads/queueRules';
+import { findQueueRow, queueDetailPath, rowKey } from '@/downloads/queueRules';
 import { formatDateShort, formatRelativeDate } from '@/utils/format';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import PageTemplate from '@/components/templates/PageTemplate.vue';
@@ -56,7 +56,6 @@ const items = computed<TrackItem[]>(() => {
     .filter(({ item }) => !needle || `${item.title} ${item.subtitle || ''}`.toLocaleLowerCase('fr').includes(needle))
     .map(({ item }) => item);
 });
-const byKey = computed(() => new Map(rows.value.map((row) => [rowKey(row), row])));
 
 /* Les cinq derniers terminés : l'historique complet a sa propre page. */
 const { history, load: loadHistory } = useDownloadHistory(() => ({ source: '', instanceId: '' }), () => {});
@@ -74,7 +73,7 @@ const manualDefinition = computed(() => (manualRow.value ? manualImportCreation(
 const { addToast } = useToast();
 useErrorToast(() => (rows.value.length ? error.value : ''), { title: 'Chargement partiel', type: 'warning', retry: () => reload() });
 function onAction(item: TrackItem, key: string): void {
-  const row = byKey.value.get(item.key);
+  const row = findQueueRow(rows.value, item.key);
   if (!row) return;
   if (key === 'manual') manualRow.value = row;
   else void run(key, row);

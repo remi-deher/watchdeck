@@ -8,6 +8,7 @@ les tmdb_id avec LibraryItem et MediaRequest.
 import asyncio
 import json
 import logging
+from functools import partial
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -17,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from ..cache import cache
-from ..database import get_db_async
+from ..database import AsyncSessionLocal, get_db_async
 from ..dependencies import _is_moderator, current_user, require_auth
 from ..models import (
     LibraryItem,
@@ -56,6 +57,10 @@ HOME_SECTIONS = (
 )
 HOME_DEFAULT_SECTIONS = ",".join(HOME_SECTIONS)
 HOME_CACHE_TTL_SECONDS = 30 * 60
+# La sélection bouge peu. On la ressert tout de suite pendant une journée, et on
+# la recalcule en arrière-plan passé une demi-heure.
+SOURCES_SOFT_TTL_SECONDS = 30 * 60
+SOURCES_HARD_TTL_SECONDS = 24 * 60 * 60
 PERSONALIZATION_SEED_LIMIT = 3
 
 
@@ -469,19 +474,33 @@ async def get_home(
     return {"sections": result}
 
 
+async def _refresh_sources(region: str) -> list[dict]:
+    """Recalcule la sélection sur une session à part : celle de la requête est déjà rendue."""
+    async with AsyncSessionLocal() as fresh:
+        return await tmdb.discovery_sources(fresh, region)
+
+
 @router.get("/sources")
 async def get_sources(db: AsyncSession = Depends(get_db_async)):
+    """Liste des plateformes, réseaux et studios.
+
+    Stale-while-revalidate : la dernière liste connue part tout de suite, le
+    recalcul TMDB se fait derrière. Seule la toute première construction attend.
+    """
     region = await _discovery_region(db)
-    cache_key = f"watchdeck:discover:sources:v1:{region}"
-    cached = await cache.get_json(cache_key)
-    if cached and isinstance(cached.get("items"), list):
-        return {"region": region, "items": cached["items"]}
+    cache_key = f"watchdeck:discover:sources:v2:{region}"
+    items: list[dict] = []
     try:
-        items = await tmdb.discovery_sources(db, region)
-        await cache.set_json(cache_key, {"items": items}, ttl_seconds=HOME_CACHE_TTL_SECONDS)
-        return {"region": region, "items": items}
+        items = await cache.get_or_refresh(
+            cache_key,
+            SOURCES_SOFT_TTL_SECONDS,
+            SOURCES_HARD_TTL_SECONDS,
+            compute_sync=lambda: tmdb.discovery_sources(db, region),
+            compute_background=partial(_refresh_sources, region),
+        )
     except Exception as exc:
         _guard(exc)
+    return {"region": region, "items": items}
 
 
 # Sections disponibles pour la page d'accueil d'un provider SVOD

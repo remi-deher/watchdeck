@@ -26,6 +26,7 @@ from app.routers.discover_api import (
     _personalization_seeds,
     _personalized_sections,
     _recent_plex_section,
+    _refresh_sources,
 )
 from app.routers.requests_api import join_request
 from app.utils import now_utc_naive
@@ -320,6 +321,39 @@ def test_sources_return_configured_region_and_curated_items(client, db):
     assert response.status_code == 200
     assert response.json() == {"region": "BE", "items": sources}
     discover_sources.assert_awaited_once_with(ANY, "BE")
+
+    again = client.get("/api/discover/sources")
+    assert again.status_code == 200
+    assert again.json() == {"region": "BE", "items": sources}
+    discover_sources.assert_awaited_once_with(ANY, "BE")
+
+
+@pytest.mark.asyncio
+async def test_refresh_sources_opens_its_own_session(db):
+    sources = [{"id": 8, "kind": "provider", "name": "Netflix", "logo_url": None}]
+    discover = AsyncMock(return_value=sources)
+    with (
+        patch("app.routers.discover_api.AsyncSessionLocal", return_value=db),
+        patch("app.routers.discover_api.tmdb.discovery_sources", new=discover),
+    ):
+        result = await _refresh_sources("BE")
+
+    assert result == sources
+    discover.assert_awaited_once_with(db, "BE")
+
+
+def test_sources_outage_returns_bad_gateway(client, db):
+    from app.models import Settings
+
+    db.add(Settings(tmdb_api_key="key", tmdb_region="DE"))
+    db.commit()
+    with patch(
+        "app.routers.discover_api.tmdb.discovery_sources",
+        new=AsyncMock(side_effect=RuntimeError("TMDB down")),
+    ):
+        response = client.get("/api/discover/sources")
+
+    assert response.status_code == 502
 
 
 def test_source_media_is_annotated_and_paginated(client):

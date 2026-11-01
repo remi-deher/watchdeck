@@ -37,6 +37,7 @@ describe('DiscoverSourceCard', () => {
     const wrapper = mountCard();
     expect(wrapper.find('img').exists()).toBe(true);
     expect(wrapper.find('img').attributes('alt')).toBe('Netflix');
+    expect(wrapper.find('img').attributes('loading')).toBe('eager');
     expect(wrapper.find('.source-fallback-badge').exists()).toBe(false);
   });
 

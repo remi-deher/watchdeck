@@ -11,6 +11,7 @@ Un cache léger (table SearchCache) évite de refaire les mêmes appels : TTL co
 sur les listes/détails, suffisant pour rester bien sous les limites de TMDB.
 """
 
+import asyncio
 import json
 import logging
 from datetime import timedelta
@@ -20,6 +21,7 @@ import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+from ..database import AsyncSessionLocal
 from ..models import SearchCache, Settings
 from ..utils import now_utc_naive
 from .http_pool import shared_http_client
@@ -375,6 +377,19 @@ async def discover_genre_rail(
     return _merge_pages(movie_res, tv_res, page)
 
 
+# Les logos de réseaux et de studios partent ensemble. Chacun ouvre sa session :
+# AsyncSession n'accepte pas deux requêtes à la fois, et celle de la page reste
+# libre pour répondre.
+_SOURCE_DETAIL_SLOTS = asyncio.Semaphore(6)
+
+
+async def _source_detail(path: str) -> dict:
+    """Détail TMDB d'un réseau ou d'un studio (chemin du logo)."""
+    async with _SOURCE_DETAIL_SLOTS:
+        async with AsyncSessionLocal() as session:
+            return await _get(session, path)
+
+
 async def discovery_sources(db: AsyncSession, region: str = REGION) -> list[dict]:
     """Retourne une courte sélection éditoriale de plateformes, réseaux et studios."""
     movie_providers = await _get(db, "/watch/providers/movie", {"watch_region": region})
@@ -385,40 +400,39 @@ async def discovery_sources(db: AsyncSession, region: str = REGION) -> list[dict
         if provider.get("provider_id") is not None
     }
 
-    result = []
-    for source in CURATED_DISCOVERY_SOURCES:
+    async def resolve(source: dict) -> Optional[dict]:
         item = dict(source)
         if item["kind"] == "provider":
             source_id = cast(int, item["id"])
             aliases = PROVIDER_ALIASES.get(source_id, [source_id])
             provider = next((providers.get(aid) for aid in aliases if providers.get(aid)), None)
             if not provider:
-                continue
+                return None
             item["id"] = int(provider.get("provider_id") or source_id)
             item["name"] = provider.get("provider_name") or item["name"]
             item["logo_url"] = _logo(provider.get("logo_path"))
-        elif item["kind"] == "network":
-            try:
-                net = await _get(db, f"/network/{item['id']}")
-                if net and net.get("logo_path"):
-                    item["logo_url"] = _logo(net.get("logo_path"))
-                    item["name"] = net.get("name") or item["name"]
-                else:
-                    item["logo_url"] = None
-            except Exception:
-                item["logo_url"] = None
+            return item
+        if item["kind"] == "network":
+            path = f"/network/{item['id']}"
         elif item["kind"] == "company":
-            try:
-                comp = await _get(db, f"/company/{item['id']}")
-                if comp and comp.get("logo_path"):
-                    item["logo_url"] = _logo(comp.get("logo_path"))
-                    item["name"] = comp.get("name") or item["name"]
-                else:
-                    item["logo_url"] = None
-            except Exception:
-                item["logo_url"] = None
-        result.append(item)
-    return result
+            path = f"/company/{item['id']}"
+        else:
+            return item
+        try:
+            payload = await _source_detail(path)
+        except Exception:
+            logger.debug("Logo indisponible pour %s %s", item["kind"], item["id"], exc_info=True)
+            item["logo_url"] = None
+            return item
+        if payload and payload.get("logo_path"):
+            item["logo_url"] = _logo(payload.get("logo_path"))
+            item["name"] = payload.get("name") or item["name"]
+        else:
+            item["logo_url"] = None
+        return item
+
+    resolved = await asyncio.gather(*(resolve(source) for source in CURATED_DISCOVERY_SOURCES))
+    return [item for item in resolved if item]
 
 
 async def _company_movies(db: AsyncSession, company_id: int, page: int = 1) -> dict:

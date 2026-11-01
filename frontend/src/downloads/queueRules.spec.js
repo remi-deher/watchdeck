@@ -4,6 +4,7 @@ import {
   canAct,
   interventionInfo,
   isImportPending,
+  findQueueRow,
   isUnmatched,
   needsEpisodeImport,
   queueCounts,
@@ -114,6 +115,13 @@ describe('rowKey et queueDetailPath', () => {
   it('reste stable pour un téléchargement direct sans queue_id', () => {
     expect(rowKey({ title: 'Dune' })).toBe('direct:Dune');
     expect(rowKey({ instance_id: 2, queue_id: 9 })).toBe('2:9');
+  });
+
+  it('retrouve la ligne par sa clé d’origine ou par celle du travail affiché', () => {
+    const item = row({ work: { key: 'download:arr:1:10', state: 'running' } });
+    expect(findQueueRow([item], '1:10')).toBe(item);
+    expect(findQueueRow([item], 'download:arr:1:10')).toBe(item);
+    expect(findQueueRow([item], 'autre')).toBeUndefined();
   });
 
   it('pointe vers la bibliothèque si possible, sinon la demande, sinon nulle part', () => {

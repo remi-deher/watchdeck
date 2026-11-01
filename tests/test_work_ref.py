@@ -45,6 +45,38 @@ def test_failed_and_stale_downloads():
     assert download_work({**row, "status": "failed", "error": "Disque plein"})["state"] == "blocked"
 
 
+def test_stalled_download_is_not_an_import_error():
+    """Sonarr rend stalledDL en warning + message alors que le torrent transfère encore."""
+    work = download_work(
+        {
+            "arr_type": "sonarr",
+            "instance_id": 1,
+            "queue_id": 2,
+            "status": "warning",
+            "tracked_state": "downloading",
+            "tracked_status": "ok",
+            "progress": 37,
+            "error": "qBittorrent est bloqué sans connexion",
+        }
+    )
+    assert work["state"] == "running"
+    assert work["stage"] == "Téléchargement"
+    finished = download_work(
+        {
+            "arr_type": "sonarr",
+            "instance_id": 1,
+            "queue_id": 2,
+            "status": "warning",
+            "tracked_state": "importPending",
+            "progress": 100,
+            "error": "Import impossible",
+        }
+    )
+    assert finished["state"] == "blocked"
+    paused = download_work({"arr_type": "sonarr", "instance_id": 1, "queue_id": 3, "status": "paused", "progress": 10})
+    assert paused["state"] == "paused"
+
+
 def test_unknown_arr_measurement_is_not_zero_or_complete():
     assert queue_progress({"size": 100}) == (100, None, None)
     assert classify_queue_record({"size": 100, "status": "downloading"}).state == "downloading"
