@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.92.3 — 2026-11-01
+
+
+### test
+
+- couvrir le recalcul des plateformes et une pause ([6c81cb5](https://github.com/remi-deher/watchdeck/commit/6c81cb52dfe949c8f663cd24aaa34bbfc6b886d9))
+
+### ⚡ Performance
+
+- afficher tout de suite les plateformes connues ([26a83da](https://github.com/remi-deher/watchdeck/commit/26a83dab329a3df635c55b6d802edf0d11c13903))
+
+### 🐛 Corrections
+
+- ne plus traiter un transfert en cours comme une erreur ([5dac4a7](https://github.com/remi-deher/watchdeck/commit/5dac4a71685c94f490014d048a1768976a4c8ed9))
+- réserver casting et suggestions à l'onglet Résumé ([53716d6](https://github.com/remi-deher/watchdeck/commit/53716d60a37072da5ec671fd2dba81d5eb4ca617))
 ## 1.92.2 — 2026-10-30
 
 
@@ -11,6 +26,10 @@
 
 - actualiser les données des disques et la place disponible ([ffc37e4](https://github.com/remi-deher/watchdeck/commit/ffc37e4dc263215c7cc205b0d20a247791470bcd))
 - ruff formatting and type annotations ([62554c3](https://github.com/remi-deher/watchdeck/commit/62554c3842f67c3f4d4eb604948152ab6e4ffb4f))
+
+### 🔧 Maintenance
+
+- v1.92.2 (#951) ([b2ddd30](https://github.com/remi-deher/watchdeck/commit/b2ddd3044bff0e35ad0df6fe66cbb209595860fc))
 ## 1.92.1 — 2026-10-28
 
 
