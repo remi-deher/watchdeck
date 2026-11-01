@@ -28,6 +28,11 @@ export function rowKey(row: QueueRow = {}): string {
   return `${row.instance_id || row.instance || 'direct'}:${row.queue_id || row.download_id || row.request_id || row.title || ''}`;
 }
 
+/** Le gabarit Suivre remplace la clé affichée par `work.key`. Les deux retrouvent la ligne. */
+export function findQueueRow<T extends QueueRow>(rows: T[], key: string): T | undefined {
+  return rows.find((row) => rowKey(row) === key || row.work?.key === key);
+}
+
 /** Une action (relance, retrait) n'est possible que sur un élément suivi par une instance *arr. */
 export function canAct(row: QueueRow = {}): boolean {
   return row.instance_id != null && row.queue_id != null;

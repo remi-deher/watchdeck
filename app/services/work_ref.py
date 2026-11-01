@@ -140,6 +140,25 @@ def encoding_work(row, *, instance_id, runner=False, paused=False):
     )
 
 
+# Sonarr traduit stalledDL (torrent encore en transfert, sans pair) en statut « warning »
+# accompagné d'un message. Ce n'est pas un échec : l'échec d'import n'arrive qu'une fois
+# le fichier reçu.
+_ACTIVE_DOWNLOAD_STATUSES = {"downloading", "downloadingdl", "forceddl", "allocating", "moving"}
+_TRANSFER_FINISHED = {"importpending", "importing", "imported", "completed", "failed", "ignored"}
+
+
+def _transfer_in_progress(status: str, tracked: str, value: float | None) -> bool:
+    if tracked in _TRANSFER_FINISHED or status in {"error", "failed", "missingfiles", "completed"}:
+        return False
+    if "pause" in status or status.startswith("stopped"):
+        return False
+    if tracked == "downloading":
+        return True
+    if value is not None and value >= 99.9:
+        return False
+    return status in _ACTIVE_DOWNLOAD_STATUSES or status == "warning"
+
+
 def download_work(row):
     status = str(row.get("status") or "").lower()
     tracked = str(row.get("tracked_state") or "").lower()
@@ -162,6 +181,8 @@ def download_work(row):
         stage = "Dernière observation · connexion perdue"
     if stale:
         state = "unknown"
+    elif _transfer_in_progress(status, tracked, value):
+        state = "running"
     elif diagnostic or status in {"error", "failed", "warning", "missingfiles"}:
         state = "blocked"
     elif "pause" in status or status.startswith("stopped"):
