@@ -9,6 +9,10 @@ describe('queueTrack', () => {
     expect(trackState(arr({ status: 'paused' }))).toBe('paused');
     expect(trackState(arr({ status: 'queued' }))).toBe('waiting');
     expect(trackState(arr({ status: 'warning', error: 'Import impossible' }))).toBe('blocked');
+    // Le serveur dit que le transfert continue (warning Sonarr sur un stalledDL) : ce n'est pas une erreur.
+    const running = arr({ status: 'warning', progress: 37, error: 'qBittorrent est bloqué sans connexion', work: { key: 'download:arr:1:7', state: 'running', label: 'En cours', stage: 'Téléchargement' } });
+    expect(trackState(running)).toBe('running');
+    expect(queueRowToTrack(running).state).toBe('running');
     // Aucune demande ni bibliothèque ne la réclame : à associer, donc à traiter.
     expect(trackState(arr({ request_id: null, library_id: null }))).toBe('blocked');
   });

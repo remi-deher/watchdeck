@@ -1,7 +1,7 @@
 import { computed, reactive, ref, type ComputedRef, type Ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { api } from '@/api';
-import { readCache, writeCache } from '@/cache';
+import { readCache, writeCache, SWR_LIMITS } from '@/cache';
 import { mediaRequestKey } from '@/composables/useDirectMediaRequest';
 import { usePreference } from '@/composables/usePreference';
 import { GENRE_RAILS, PROVIDER_GENRE_RAILS, REQUESTABLE_ROWS, posterRow } from './discoverRules';
@@ -10,6 +10,7 @@ const PERSONALIZED_RAILS = ['recommended', 'preferred_genres', 'unwatched_popula
 const PROVIDER_SECTIONS = ['hero', 'movies', 'shows', 'genre_action', 'genre_scifi', 'genre_animation', 'genre_comedy', 'genre_thriller', 'genre_horror'];
 const DISCOVER_HOME_CACHE_KEY = 'discover:home:sections:v1';
 const DISCOVER_PERSO_CACHE_KEY = 'discover:home:perso:v1';
+const DISCOVER_SOURCES_CACHE_KEY = 'discover:home:sources:v1';
 const DISCOVER_CACHE_MAX_AGE_MS = 30 * 60_000;
 
 function emptyPersonalizedRail() {
@@ -38,6 +39,15 @@ const route = useRoute();
 const sources = ref<any[]>([]);
 const sourcesLoading = ref(true);
 const sourcesError = ref('');
+/* Dernière liste déjà vue : les logos s'affichent avant la réponse, qui la remplace. */
+const cachedSources = readCache<any[]>(DISCOVER_SOURCES_CACHE_KEY, { maxAgeMs: SWR_LIMITS.age });
+if (cachedSources?.length) {
+  sources.value = cachedSources;
+  sourcesLoading.value = false;
+}
+/* Une revalidation par visite. `loadSources` (accueil, réessayer) en lance toujours une. */
+let sourcesRevalidated = false;
+let sourcesRequest: Promise<void> | null = null;
 const homeLoaded = ref(false);
 const hideAvailable = usePreference('discover.hideAvailable', false);
 const hideWatched = usePreference('discover.hideWatched', false);
@@ -199,17 +209,33 @@ async function loadHomeSection(name: string): Promise<void> {
   await loadHomeBatch([name]);
 }
 
-async function loadSources() {
-  sourcesLoading.value = true;
+async function loadSources(): Promise<void> {
+  if (sourcesRequest) return sourcesRequest;
+  const known = sources.value.length > 0;
+  if (!known) sourcesLoading.value = true;
   sourcesError.value = '';
-  try {
-    const payload = await api('/api/discover/sources');
-    sources.value = payload.items || [];
-  } catch (loadError: any) {
-    sourcesError.value = loadError.message;
-  } finally {
-    sourcesLoading.value = false;
-  }
+  sourcesRequest = (async () => {
+    try {
+      const payload = await api<{ items?: any[] }>('/api/discover/sources');
+      const items = payload.items || [];
+      sources.value = items;
+      sourcesRevalidated = true;
+      if (items.length) writeCache(DISCOVER_SOURCES_CACHE_KEY, items);
+    } catch (loadError: any) {
+      // Une liste déjà affichée reste en place : l'échec ne l'efface pas.
+      if (sources.value.length) sourcesRevalidated = true;
+      else sourcesError.value = loadError.message;
+    } finally {
+      sourcesLoading.value = false;
+      sourcesRequest = null;
+    }
+  })();
+  return sourcesRequest;
+}
+
+function ensureSources(): void {
+  if (sourcesRevalidated) return;
+  void loadSources();
 }
 
 function loadHome() {
@@ -342,7 +368,7 @@ function openRow(key: string): void {
 return {
   home, personalized, homeLoaded, hideAvailable, hideWatched,
   sources, sourcesLoading, sourcesError, activeSourceName,
-  loadHome, loadHomeSection, loadSources, loadPersonalized, reloadPersonalized,
+  loadHome, loadHomeSection, loadSources, ensureSources, loadPersonalized, reloadPersonalized,
   loadProviderHome, forgetProviderHome,
   browse, retryRow, openRow, requestableRow, patchMedia,
 };
