@@ -8,6 +8,7 @@ les tmdb_id avec LibraryItem et MediaRequest.
 import asyncio
 import json
 import logging
+from functools import partial
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -473,6 +474,12 @@ async def get_home(
     return {"sections": result}
 
 
+async def _refresh_sources(region: str) -> list[dict]:
+    """Recalcule la sélection sur une session à part : celle de la requête est déjà rendue."""
+    async with AsyncSessionLocal() as fresh:
+        return await tmdb.discovery_sources(fresh, region)
+
+
 @router.get("/sources")
 async def get_sources(db: AsyncSession = Depends(get_db_async)):
     """Liste des plateformes, réseaux et studios.
@@ -482,25 +489,17 @@ async def get_sources(db: AsyncSession = Depends(get_db_async)):
     """
     region = await _discovery_region(db)
     cache_key = f"watchdeck:discover:sources:v2:{region}"
-
-    async def compute(session: AsyncSession) -> list[dict]:
-        return await tmdb.discovery_sources(session, region)
-
-    async def refresh() -> list:
-        async with AsyncSessionLocal() as fresh:
-            return await compute(fresh)
-
+    items: list[dict] = []
     try:
         items = await cache.get_or_refresh(
             cache_key,
             SOURCES_SOFT_TTL_SECONDS,
             SOURCES_HARD_TTL_SECONDS,
-            compute_sync=lambda: compute(db),
-            compute_background=refresh,
+            compute_sync=lambda: tmdb.discovery_sources(db, region),
+            compute_background=partial(_refresh_sources, region),
         )
     except Exception as exc:
         _guard(exc)
-        raise
     return {"region": region, "items": items}
 
 

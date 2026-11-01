@@ -73,6 +73,8 @@ def test_stalled_download_is_not_an_import_error():
         }
     )
     assert finished["state"] == "blocked"
+    paused = download_work({"arr_type": "sonarr", "instance_id": 1, "queue_id": 3, "status": "paused", "progress": 10})
+    assert paused["state"] == "paused"
 
 
 def test_unknown_arr_measurement_is_not_zero_or_complete():

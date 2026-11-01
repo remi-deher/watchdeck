@@ -402,20 +402,59 @@ async def test_discovery_sources_keeps_curated_providers_available_in_region(db)
             {"provider_id": 337, "provider_name": "Disney Plus", "logo_path": "/disney.jpg"},
         ]
     }
-    detail = AsyncMock(return_value={})
+    logos = sum(1 for source in tmdb.CURATED_DISCOVERY_SOURCES if source["kind"] in {"network", "company"})
+    # Premier logo trouvé, deuxième appel en échec, le reste sans image.
+    detail = AsyncMock(side_effect=[{"logo_path": "/logo.png"}, RuntimeError("logo down"), *([{}] * (logos - 2))])
     with (
         patch("app.services.tmdb._get", new=AsyncMock(side_effect=[provider_payload, {"results": []}])),
         patch("app.services.tmdb._source_detail", new=detail),
     ):
         result = await tmdb.discovery_sources(db, "FR")
 
-    logos = sum(1 for source in tmdb.CURATED_DISCOVERY_SOURCES if source["kind"] in {"network", "company"})
     assert detail.await_count == logos
     netflix = next(source for source in result if source["id"] == 8)
     assert netflix["kind"] == "provider"
     assert netflix["logo_url"] == "https://image.tmdb.org/t/p/w154/netflix.jpg"
+    hbo = next(source for source in result if source["kind"] == "network" and source["id"] == 49)
+    assert hbo["logo_url"] == "https://image.tmdb.org/t/p/w154/logo.png"
+    assert hbo["name"] == "HBO"
+    amc = next(source for source in result if source["kind"] == "network" and source["id"] == 174)
+    assert amc["logo_url"] is None
+    assert amc["name"] == "AMC"
     assert any(source["name"] == "A24" and source["kind"] == "company" for source in result)
     assert not any(source["name"] == "Prime Video" for source in result)
+
+
+@pytest.mark.asyncio
+async def test_source_detail_uses_its_own_session(db):
+    payload = {"name": "A24", "logo_path": "/logo.png"}
+    get = AsyncMock(return_value=payload)
+    with (
+        patch("app.services.tmdb.AsyncSessionLocal", return_value=db),
+        patch("app.services.tmdb._get", new=get),
+    ):
+        result = await tmdb._source_detail("/company/41077")
+
+    assert result == payload
+    get.assert_awaited_once_with(db, "/company/41077")
+
+
+@pytest.mark.asyncio
+async def test_discovery_sources_leaves_unknown_kind_unchanged(db, monkeypatch):
+    monkeypatch.setattr(
+        tmdb,
+        "CURATED_DISCOVERY_SOURCES",
+        ({"id": 1, "name": "Festival", "kind": "festival"},),
+    )
+    detail = AsyncMock(return_value={"logo_path": "/logo.png"})
+    with (
+        patch("app.services.tmdb._get", new=AsyncMock(side_effect=[{"results": []}, {"results": []}])),
+        patch("app.services.tmdb._source_detail", new=detail),
+    ):
+        result = await tmdb.discovery_sources(db, "FR")
+
+    assert result == [{"id": 1, "name": "Festival", "kind": "festival"}]
+    detail.assert_not_awaited()
 
 
 @pytest.mark.asyncio
