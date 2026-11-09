@@ -20,7 +20,7 @@
     "@tanstack/vue-virtual": "^3.13.48",
     "@vitejs/plugin-vue": "^6.0.10",
     "@vueuse/core": "^15.0.0",
-    "chart.js": "^4.5.1",
+    "chart.js": "^4.6.1",
     "date-fns": "^4.4.0",
     "idb-keyval": "^6.3.0",
     "pinia": "^4.1.0",
