@@ -93,7 +93,7 @@ describe('ConfirmModal', () => {
     const wrapper = mount(Harness, { attachTo: document.body, ...reel });
     await nextTick();
     const dialog = document.querySelector('[role="alertdialog"]');
-    expect(dialog.querySelector('.confirm-modal__message').textContent).toBe('Définitif.');
+    expect(dialog.querySelector('.panel-head p').textContent).toBe('Définitif.');
     const buttons = [...dialog.querySelectorAll('.actions button')];
     expect(buttons.map((button) => button.textContent.trim())).toEqual(['Annuler', 'Supprimer']);
     buttons[1].click();

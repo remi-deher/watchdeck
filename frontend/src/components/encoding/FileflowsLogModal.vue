@@ -10,6 +10,7 @@
       </div>
       <pre ref="pre" class="log-text">{{ shown }}</pre>
     </template>
+    <template #actions><UiButton variant="primary" @click="emit('close')">Fermer</UiButton></template>
   </ModalShell>
 </template>
 
