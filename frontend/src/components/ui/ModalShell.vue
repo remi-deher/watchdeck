@@ -11,7 +11,7 @@
         class="modal-panel"
         :class="[`modal-size-${size}`, panelClass]"
         :aria-label="ariaLabel || undefined"
-        v-bind="subtitle ? {} : { 'aria-describedby': undefined }"
+        v-bind="{ ...(subtitle ? {} : { 'aria-describedby': undefined }), ...(alert ? { role: 'alertdialog' } : {}) }"
         @open-auto-focus="onOpenAutoFocus"
         @close-auto-focus="onCloseAutoFocus"
         @escape-key-down="retenirSiOccupe"
@@ -26,7 +26,7 @@
             </DialogTitle>
             <DialogDescription v-if="subtitle">{{ subtitle }}</DialogDescription>
           </div>
-          <UiButton variant="ghost" icon-only title="Fermer" aria-label="Fermer" :disabled="busy" @click="requestClose"><X /></UiButton>
+          <UiButton v-if="!alert" variant="ghost" icon-only title="Fermer" aria-label="Fermer" :disabled="busy" @click="requestClose"><X /></UiButton>
         </div>
         <UiFeedback v-if="error" type="error" :message="error" />
         <slot />
@@ -50,8 +50,10 @@ import UiFeedback from './UiFeedback.vue';
  * (liste et detail), `xl` 1100 px (journal, apercu). Sur telephone, toujours la feuille pleine largeur. */
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
 
-const props = withDefaults(defineProps<{ open?: boolean; size?: ModalSize; title: string; subtitle?: string; ariaLabel?: string; panelClass?: string; error?: string; busy?: boolean; initialFocus?: string; modal?: boolean }>(),
-  { open: true, size: 'md', subtitle: '', ariaLabel: '', panelClass: '', error: '', busy: false, initialFocus: '', modal: true });
+const props = withDefaults(defineProps<{ open?: boolean; size?: ModalSize; title: string; subtitle?: string; ariaLabel?: string; panelClass?: string; error?: string; busy?: boolean; initialFocus?: string; modal?: boolean; alert?: boolean }>(),
+  { open: true, size: 'md', subtitle: '', ariaLabel: '', panelClass: '', error: '', busy: false, initialFocus: '', modal: true, alert: false });
+/** `alert` : le role « Confirmer » -- role alertdialog, pas de bouton X, aucune fermeture au clic a cote ;
+ * Echap et le geste valent « Annuler ». */
 const emit = defineEmits<{ (e: 'close'): void }>();
 const shellMode = useShellMode();
 const panelRef = ref<unknown>(null);
@@ -71,7 +73,8 @@ function onOpenChange(open: boolean): void { if (!open) requestClose(); }
 const DECLENCHEURS = '.ui-search-field, .app-topbar__filter-only';
 function retenirSiOccupe(event: Event): void {
   const cible = ((event as CustomEvent).detail?.originalEvent?.target ?? event.target) as Element | null;
-  if (props.busy || (!props.modal && cible?.closest?.(DECLENCHEURS))) event.preventDefault();
+  // Une question qui exige une reponse (`alert`) ne se ferme jamais au clic a cote.
+  if (props.busy || (props.alert && event.type !== 'keydown') || (!props.modal && cible?.closest?.(DECLENCHEURS))) event.preventDefault();
 }
 
 function onOpenAutoFocus(event: Event): void {
