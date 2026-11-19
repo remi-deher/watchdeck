@@ -156,6 +156,7 @@ const initialForm = (): Record<string, any> => ({
   newsletter_hour: 18,
   newsletter_discord: false,
   indexer_alerts_enabled: true,
+  indexer_alerts_muted: [],
   login_attempt_retention_days: 90,
   audit_log_retention_days: null,
   plex_sync_interval_hours: 24,

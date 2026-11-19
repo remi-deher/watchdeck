@@ -1,3 +1,4 @@
+import json
 import hmac
 import logging
 import secrets
@@ -231,6 +232,7 @@ class SettingsUpdate(BaseModel):
     newsletter_hour: Optional[int] = Field(default=None, ge=0, le=23)
     newsletter_discord: Optional[bool] = None
     indexer_alerts_enabled: Optional[bool] = None
+    indexer_alerts_muted: Optional[list[str]] = None
     default_locale: Optional[str] = None
 
 
@@ -359,6 +361,10 @@ def get_settings(s: Settings = Depends(get_settings_or_404)):
     """Retourne la configuration complète. Les secrets/tokens sont masqués."""
     d = {c.name: getattr(s, c.name) for c in s.__table__.columns}
     d.pop("auth_password_hash", None)
+    try:
+        d["indexer_alerts_muted"] = json.loads(d.get("indexer_alerts_muted") or "[]")
+    except ValueError:
+        d["indexer_alerts_muted"] = []
     for field in _MASKED_SECRET_FIELDS:
         if d.get(field):
             d[field] = "••••••••"
@@ -432,6 +438,8 @@ async def update_settings(
             val = None
         if key == "seer_mode" and val not in ("observer", "actor"):
             continue
+        if key == "indexer_alerts_muted":
+            val = json.dumps(sorted({str(name) for name in val}))
         setattr(s, key, val)
     # seer_send_requests est un champ dérivé (= Seer activé ET mode acteur), maintenu
     # pour les consommateurs existants. Il est recalculé dès qu'un réglage Seer bouge,
