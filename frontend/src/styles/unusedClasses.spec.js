@@ -24,6 +24,7 @@ const sources = files
 /** Classes dont le nom est assemble a l'execution ou fourni par une bibliotheque. */
 const DYNAMIQUES = [
   /^modal-size-/, // ModalShell : `modal-size-${size}`
+  /^drawer-backdrop--/, // ModalShell : `drawer-backdrop--${panelClass}`
   /^save-bar-/, // <Transition name="save-bar">
   /^modal-fade-/, // <Transition name="modal-fade">
 ];

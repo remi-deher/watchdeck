@@ -1,19 +1,23 @@
 import type { TrackItem, TrackState } from '@/components/templates/track/types';
 import type { LiveItem } from '@/components/ui/liveStrip';
 
-/** Adaptation de présentation ; l'état métier est déjà calculé par le serveur. */
+/** Adaptation de présentation ; l'état métier est déjà calculé par le serveur.
+    Un blocage dont le transfert est fini (100 %) n'a pas de barre : le diagnostic
+    de la page (badge, phrase, piste) reste celui qu'on lit. */
 export function resolveTrackItem(item: TrackItem): TrackItem {
   const work = item.work;
   if (!work) return item;
   const state: TrackState = work.state;
+  const transferDone = state === 'blocked' && (work.progress.percent ?? 0) >= 100;
   return {
     ...item, key: work.key, state,
-    progress: work.progress.percent,
-    step: work.stage || work.label,
-    eta: work.progress.percent === null ? undefined : work.progress.label,
-    note: work.state === 'blocked' ? item.note : work.reason || item.note,
-    cause: work.state === 'blocked'
-      ? { ...item.cause, headline: work.reason || item.cause?.headline || work.label } : undefined,
+    progress: transferDone ? null : work.progress.percent,
+    step: state === 'blocked' && item.step ? item.step : (work.stage || work.label),
+    eta: work.progress.percent === null || transferDone ? undefined : work.progress.label,
+    note: state === 'blocked' ? item.note : work.reason || item.note,
+    cause: state === 'blocked'
+      ? { headline: item.cause?.headline || work.reason || work.label, reasons: item.cause?.reasons, hint: item.cause?.hint }
+      : undefined,
   };
 }
 

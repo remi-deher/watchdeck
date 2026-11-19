@@ -31,7 +31,7 @@
 
   <CreateTemplate :open="Boolean(metaTargets)" :definition="metaDefinition" mode="edit" :values="metaValues" @close="metaTargets = null" />
 
-  <ModalShell :open="removalOpen" title="Supprimer ce torrent" subtitle="Choisis si les données téléchargées doivent être conservées." @close="removalOpen = false">
+  <ModalShell :open="removalOpen" title="Supprimer ce torrent" subtitle="Choisis si les données téléchargées doivent être conservées." size="sm" :busy="busy" @close="removalOpen = false">
     <p><strong>{{ torrent?.title }}</strong></p>
     <p class="removal-warning">La suppression des fichiers est définitive et peut retirer des médias encore utilisés ailleurs.</p>
     <template #actions>
