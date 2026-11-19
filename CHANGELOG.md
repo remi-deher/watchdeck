@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.92.4 — 2026-11-19
+
+
+### 🐛 Corrections
+
+- lire le blocage d'import sans barre à 100 % ([c5d29b6](https://github.com/remi-deher/watchdeck/commit/c5d29b66dc916b7f9dcbd9970818e360c704e47c))
+- modales cohérentes, ConfirmModal sur ModalShell ([77cd3b2](https://github.com/remi-deher/watchdeck/commit/77cd3b22a9fa48512987bc1fe308cbb41cc5a90e))
+- modales cohérentes, ConfirmModal sur ModalShell (#985) ([8b7d2d5](https://github.com/remi-deher/watchdeck/commit/8b7d2d5dfee3a4ebca1d2dff221833c57d037b88))
+
+### 🔧 Maintenance
+
+- bump pinia from 4.0.3 to 4.1.0 (#958) ([04e5fac](https://github.com/remi-deher/watchdeck/commit/04e5fac4a860232487a43eae9a260b093f861671))
+- bump @tanstack/vue-table from 9.2.6 to 9.3.1 (#959) ([253e622](https://github.com/remi-deher/watchdeck/commit/253e62272357c48e34369a5101eaa9e9bce348d6))
+- bump vue from 3.5.43 to 3.5.44 (#962) ([cdf157c](https://github.com/remi-deher/watchdeck/commit/cdf157c412f6d81efe45e2e07917598f3996c3eb))
+- bump knip from 6.41.0 to 6.43.0 (#965) ([a060640](https://github.com/remi-deher/watchdeck/commit/a06064036e5c5c0b892fe6b4cbb0efafa166fc0b))
+- bump @types/node from 26.6.3 to 26.6.5 (#966) ([1f6a598](https://github.com/remi-deher/watchdeck/commit/1f6a598661e01912553c2cb16660c1798f711780))
+- bump @lucide/vue from 1.59.0 to 1.61.0 (#968) ([020b0d8](https://github.com/remi-deher/watchdeck/commit/020b0d8e5beba06266e45230771c7bc0fb3c4911))
+- bump @tanstack/vue-virtual from 3.13.39 to 3.13.48 (#960) ([727908a](https://github.com/remi-deher/watchdeck/commit/727908af5e3dbd4048e101bbfa96bf52e99c83f2))
+- bump @tanstack/vue-query from 5.104.4 to 5.105.1 (#970) ([cfebde5](https://github.com/remi-deher/watchdeck/commit/cfebde5172871f42e9fc5c070f34a644f98ebb61))
+- bump chart.js from 4.5.1 to 4.6.1 (#972) ([08d04a0](https://github.com/remi-deher/watchdeck/commit/08d04a06a8a87eec6e9a69ad7b1fe49bf7315cbb))
+- bump @tanstack/query-async-storage-persister (#974) ([bc8a815](https://github.com/remi-deher/watchdeck/commit/bc8a815b6ea01b2b76d37a310078ba5299014730))
+- bump vite from 8.3.4 to 8.3.5 (#977) ([b052c5c](https://github.com/remi-deher/watchdeck/commit/b052c5c07ad5d0f021ad8e4eddc79933e12fe884))
+- bump sass from 1.105.1 to 1.108.1 (#978) ([9b9ab2b](https://github.com/remi-deher/watchdeck/commit/9b9ab2bf29d61db088858b8be3d2d20bba21e0c8))
+- bump @tanstack/vue-virtual from 3.13.48 to 3.13.52 (#980) ([4675fb5](https://github.com/remi-deher/watchdeck/commit/4675fb5e6cdacd45ec6cd7a36056bf20556af9ed))
+- bump @formkit/auto-animate from 0.10.0 to 0.10.2 (#981) ([90024aa](https://github.com/remi-deher/watchdeck/commit/90024aa21ddb2d9c62cef722ea7662b924528139))
+- bump @tanstack/query-async-storage-persister (#982) ([1035eaf](https://github.com/remi-deher/watchdeck/commit/1035eaf36041a823b9a2db01ff95ecd7f67fbf33))
+- bump @vue/test-utils from 2.5.0 to 2.5.1 (#979) ([2b980b7](https://github.com/remi-deher/watchdeck/commit/2b980b73f67b4386d7f9e97179186be26627f66c))
+- bump knip from 6.43.0 to 6.44.2 (#984) ([df013c5](https://github.com/remi-deher/watchdeck/commit/df013c54fc202bc75715c7ab6538c5c82745fa2f))
+- bump jsdom from 30.1.2 to 30.1.3 (#973) ([3d906ad](https://github.com/remi-deher/watchdeck/commit/3d906ad2b20536699835405b37bafa4767e69c0f))
 ## 1.92.3 — 2026-11-01
 
 
@@ -15,6 +44,10 @@
 
 - ne plus traiter un transfert en cours comme une erreur ([5dac4a7](https://github.com/remi-deher/watchdeck/commit/5dac4a71685c94f490014d048a1768976a4c8ed9))
 - réserver casting et suggestions à l'onglet Résumé ([53716d6](https://github.com/remi-deher/watchdeck/commit/53716d60a37072da5ec671fd2dba81d5eb4ca617))
+
+### 🔧 Maintenance
+
+- v1.92.3 (#955) ([f29e49c](https://github.com/remi-deher/watchdeck/commit/f29e49c18746621c8a34e2e0add5e04664bb3454))
 ## 1.92.2 — 2026-10-30
 
 
