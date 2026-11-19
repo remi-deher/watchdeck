@@ -165,3 +165,9 @@ def test_indexer_health_route():
         for dep in (require_auth, require_admin, get_db_async):
             app.dependency_overrides.pop(dep, None)
         db.close()
+
+
+def test_muted_indexers_tolerates_missing_or_broken_value():
+    assert indexer_health.muted_indexers(Settings(indexer_alerts_muted=None)) == set()
+    assert indexer_health.muted_indexers(Settings(indexer_alerts_muted="pas du json")) == set()
+    assert indexer_health.muted_indexers(Settings(indexer_alerts_muted='["YGG"]')) == {"YGG"}
