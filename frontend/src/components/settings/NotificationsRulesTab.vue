@@ -39,6 +39,11 @@
       <ConfigureField label="Alerte de panne d'indexeur" help="Prévient l'email administrateur, et Discord s'il est actif, quand un indexeur Prowlarr tombe en panne ou fonctionne de nouveau.">
         <ToggleSwitch v-model="form.indexer_alerts_enabled" title="Alerte de panne d'indexeur" />
       </ConfigureField>
+      <ConfigureField v-if="form.indexer_alerts_enabled && indexerNames.length" label="Indexeurs surveillés" help="Décochez un indexeur pour ne plus recevoir d'alerte à son sujet. Les autres restent surveillés.">
+        <div class="indexer-list">
+          <UiCheckboxField v-for="name in indexerNames" :key="name" :label="name" :model-value="!isMuted(name)" @update:model-value="setWatched(name, $event)" />
+        </div>
+      </ConfigureField>
       <ConfigureField label="Email lors d'une amélioration VO vers VF" help="Notifie séparément quand un média déjà disponible en VO reçoit sa VF, en plus de la notification de disponibilité initiale.">
         <ToggleSwitch v-model="form.email_on_vf_available" title="Email lors d'une amélioration VO vers VF" />
       </ConfigureField>
@@ -91,9 +96,10 @@
 <script setup lang="ts">
 import UiSelect from '@/components/ui/UiSelect.vue';
 import UiCheckbox from '@/components/ui/UiCheckbox.vue';
+import UiCheckboxField from '@/components/ui/UiCheckboxField.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import { Bell, CalendarClock, Eye, Globe2, Grid3x3, Mail, MailCheck, Megaphone, MessageSquare, Newspaper, Send, Sparkles } from '@lucide/vue';
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { api } from '@/api';
 import UiButton from '@/components/ui/UiButton.vue';
 import { form, success, fail } from '@/settingsForm';
@@ -123,6 +129,23 @@ async function sendTest(): Promise<void> {
     const result = await api<any>('/api/newsletter/test', { method: 'POST', body: '{}' });
     success(`Lettre de test envoyée à ${result.recipient} (${result.items} ajout(s)).`);
   } catch (e) { fail(e); } finally { sendingTest.value = false; }
+}
+
+/* Indexeurs Prowlarr : la liste sert a choisir ceux qu'on ne veut plus voir dans les alertes. Les
+   noms deja exclus restent affiches meme si Prowlarr ne les renvoie plus, pour pouvoir les remettre. */
+const prowlarrIndexers = ref<string[]>([]);
+onMounted(async () => {
+  try {
+    const rows = await api<{ name: string }[]>('/api/prowlarr/indexers');
+    prowlarrIndexers.value = rows.map((row) => row.name).filter(Boolean);
+  } catch { /* Prowlarr absent ou injoignable : pas de liste, l'interrupteur global reste */ }
+});
+const mutedNames = computed<string[]>(() => (Array.isArray(form.indexer_alerts_muted) ? form.indexer_alerts_muted : []));
+const indexerNames = computed(() => [...new Set([...prowlarrIndexers.value, ...mutedNames.value])].sort((a, b) => a.localeCompare(b)));
+const isMuted = (name: string) => mutedNames.value.includes(name);
+function setWatched(name: string, watched: boolean): void {
+  const rest = mutedNames.value.filter((item) => item !== name);
+  form.indexer_alerts_muted = watched ? rest : [...rest, name];
 }
 
 const allChannels = [
@@ -168,6 +191,7 @@ const summary = computed(() => {
 .notify-summary p { margin: 0 0 var(--space-1); font-size: var(--fs-sm); line-height: 1.55; }
 .newsletter-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .newsletter-when { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.indexer-list { display: grid; gap: var(--space-2); }
 .matrix-wrap { overflow-x: auto; }
 .notify-matrix { width: 100%; border-collapse: collapse; }
 .notify-matrix th, .notify-matrix td { padding: var(--space-2); border-top: 1px solid var(--border); text-align: center; vertical-align: middle; }

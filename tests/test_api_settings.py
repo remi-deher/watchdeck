@@ -130,6 +130,23 @@ def test_update_settings_updates_field(async_db):
         _cleanup()
 
 
+def test_indexer_alerts_muted_round_trip(async_db):
+    """La liste des indexeurs exclus s'enregistre en JSON et ressort en liste."""
+    settings = _default_settings()
+    async_db.add(settings)
+    async_db.commit()
+    client = _client_with_db(async_db)
+    try:
+        resp = client.put("/api/settings", json={"indexer_alerts_muted": ["YGG", "Lent", "YGG"]})
+        assert resp.status_code == 200
+        assert settings.indexer_alerts_muted == '["Lent", "YGG"]'
+        assert client.get("/api/settings").json()["indexer_alerts_muted"] == ["Lent", "YGG"]
+        settings.indexer_alerts_muted = "pas du json"
+        assert client.get("/api/settings").json()["indexer_alerts_muted"] == []
+    finally:
+        _cleanup()
+
+
 def test_update_settings_accepts_two_letter_tmdb_region(async_db):
     settings = _default_settings()
     async_db.add(settings)

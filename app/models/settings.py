@@ -250,6 +250,8 @@ class Settings(Base):
     # Alerte (email admin, Discord) quand un indexeur Prowlarr tombe ou revient
     # (voir services/indexer_health.py).
     indexer_alerts_enabled: Mapped[bool] = mapped_column(default=True, server_default="true")
+    # Noms d'indexeurs exclus de l'alerte (liste JSON). NULL ou vide = tous surveilles.
+    indexer_alerts_muted: Mapped[Optional[str]] = mapped_column(Text, default=None)
 
     # Alternance de la file FileFlows par bibliotheque (= disque) : avec plusieurs runners,
     # chacun travaille sur un disque different (voir services/fileflows_queue.py). Liste

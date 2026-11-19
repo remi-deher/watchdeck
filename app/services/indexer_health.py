@@ -7,6 +7,7 @@ cache) et previent l'administrateur par email, et sur Discord si ce canal est ac
 seulement lors d'un changement : un indexeur qui reste en panne n'alerte qu'une fois.
 """
 
+import json
 import logging
 from typing import Any
 
@@ -69,6 +70,14 @@ async def _notify(settings: Settings, subject: str, text: str) -> int:
     return sent
 
 
+def muted_indexers(settings: Any) -> set[str]:
+    """Indexeurs que l'utilisateur ne veut pas voir dans les alertes."""
+    try:
+        return {str(name) for name in json.loads(getattr(settings, "indexer_alerts_muted", None) or "[]")}
+    except (ValueError, TypeError):
+        return set()
+
+
 async def check_indexers() -> dict[str, Any]:
     async with AsyncSessionLocal() as db:
         settings = (await db.execute(select(Settings))).scalars().first()
@@ -80,13 +89,18 @@ async def check_indexers() -> dict[str, Any]:
     if settings is None or not settings.indexer_alerts_enabled or not instances:
         return {"status": "disabled"}
 
+    muted = muted_indexers(settings)
     summary: dict[str, Any] = {"instances": 0, "down": [], "recovered": [], "alerts": 0}
     for instance in instances:
         health = await prowlarr.get_indexer_health(instance.url, instance.api_key, days=1)
         if not health.get("connected"):
             continue  # Prowlarr injoignable : signale par la sante des services, pas ici
         summary["instances"] += 1
-        failing = {row["name"]: row for row in health["indexers"] if row["state"] == "failing" and row["name"]}
+        failing = {
+            row["name"]: row
+            for row in health["indexers"]
+            if row["state"] == "failing" and row["name"] and row["name"] not in muted
+        }
         key = STATE_KEY.format(instance_id=instance.id)
         stored = await cache.get_json(key)
         previous = set((stored or {}).get("failing", []))

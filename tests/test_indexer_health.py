@@ -131,6 +131,13 @@ async def test_check_indexers_alerts_only_on_change():
             with patch.object(prowlarr, "get_indexer_health", new=AsyncMock(return_value={"connected": False})):
                 assert (await indexer_health.check_indexers())["instances"] == 0
 
+            settings.indexer_alerts_muted = '["Lent"]'
+            with patch.object(prowlarr, "get_indexer_health", new=AsyncMock(return_value=health())):
+                await indexer_health.check_indexers()
+            with patch.object(prowlarr, "get_indexer_health", new=AsyncMock(return_value=health("Lent"))):
+                muted = await indexer_health.check_indexers()
+            assert muted["down"] == [] and muted["alerts"] == 0  # indexeur exclu : pas d'alerte
+
             settings.indexer_alerts_enabled = False
             assert (await indexer_health.check_indexers()) == {"status": "disabled"}
     finally:
@@ -158,3 +165,9 @@ def test_indexer_health_route():
         for dep in (require_auth, require_admin, get_db_async):
             app.dependency_overrides.pop(dep, None)
         db.close()
+
+
+def test_muted_indexers_tolerates_missing_or_broken_value():
+    assert indexer_health.muted_indexers(Settings(indexer_alerts_muted=None)) == set()
+    assert indexer_health.muted_indexers(Settings(indexer_alerts_muted="pas du json")) == set()
+    assert indexer_health.muted_indexers(Settings(indexer_alerts_muted='["YGG"]')) == {"YGG"}
