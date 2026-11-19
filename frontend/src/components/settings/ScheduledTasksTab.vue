@@ -53,7 +53,7 @@
     </template>
   </ConfigureTemplate>
 
-  <ModalShell :open="Boolean(openHistory)" :title="`Historique : ${historyTask?.label || ''}`" @close="openHistory = null">
+  <ModalShell :open="Boolean(openHistory)" :title="`Historique : ${historyTask?.label || ''}`" size="lg" @close="openHistory = null">
     <p v-if="historyLoading" class="notice">Chargement…</p>
     <ul v-else-if="history.length" class="scheduled-task-history">
       <li v-for="row in history" :key="row.id" :class="row.status">
@@ -64,6 +64,7 @@
       </li>
     </ul>
     <p v-else class="empty">Aucun historique.</p>
+    <template #actions><UiButton variant="primary" @click="openHistory = null">Fermer</UiButton></template>
   </ModalShell>
 </template>
 <script setup lang="ts">

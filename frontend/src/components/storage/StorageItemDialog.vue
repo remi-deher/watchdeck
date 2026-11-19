@@ -9,7 +9,7 @@
       <dt>Destination</dt><dd><code>{{ item.snapshot?.destination_arr }}</code></dd>
       <dt v-if="item.progress?.file">Fichier actuel</dt><dd v-if="item.progress?.file"><code>{{ item.progress.file }}</code></dd>
     </dl>
-    <template #actions><UiButton @click="$emit('close')">Fermer</UiButton></template>
+    <template #actions><UiButton variant="primary" @click="$emit('close')">Fermer</UiButton></template>
   </ModalShell>
 </template>
 <script setup lang="ts">

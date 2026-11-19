@@ -161,11 +161,6 @@ const {
 <style scoped lang="scss">
 .dashboard-home { gap: var(--space-5); }
 .dashboard-downloads { width: 100%; }
-@container page (min-width: 958px) {
-  .dashboard-downloads :deep(.queue-main) { grid-template-columns: minmax(180px, 1fr) minmax(160px, 1fr); align-items: center; gap: var(--space-2) var(--space-5); }
-  .dashboard-downloads :deep(.queue-heading) { grid-row: span 2; }
-  .dashboard-downloads :deep(.queue-meta) { white-space: normal; }
-}
 .dashboard-home :deep(.pipeline-wrapper) { margin-bottom: 0; }
 
 /* Les panneaux de sante s'empilent a cote des points d'attention. */
